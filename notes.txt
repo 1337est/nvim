@@ -1,0 +1,22 @@
+Things to add:
+debugger, better autoformatting, comments, descriptions for all keymaps
+
+1. Add print statements at the top and bottom of every file
+
+2. Add comments explaining plugins
+
+3. Create a list of keymaps so whichkey can display them properly.
+    a. t for toggle
+    c. k for keep
+    d. f for file
+    e. s for search
+    f. m for move
+    g. h for git hunk
+    h. y for yank
+    i. p for paste
+    j. d for delete
+    k. g for go-to(leader) or git(CTRL)
+    l. n for file hopping, netrw (tree) and harpoon
+If you type :h rtp, you get a the areas runtimepath for neovim. I've used the "$XDG_CONFIG_HOME/nvim" and "$XDG_CONFIG_HOME/nvim/after" paths specified there to help with structuring my neovim configuration. 
+If you type :h init.lua, you are brought to the Initialization Startup section. "At startup, Nvim checks environment variables and files and sets values accordingly, proceeding as follows:" In 7th place is init.lua and specifies that the user config is loaded at the ~/.config/nvim/init.lua file.
+If you type :h load-plugins, you are brought to the Initialization Startup section again but at step 10! Here it states that it loads the plugin script. "The result is that all directories in 'runtimepath' will be searched for the "plugin" sub-directory and all files ending in ".vim" or ".lua" will be sourced (in alphabetical order per directory), also in subdirectories. First "*.vim" are sourced, then "*.lua" files. However, directories in 'runtimepath' ending in "after" are skipped here and only loaded after packages. Packages are loaded. These are plugins, as above, but found in the "start" directory of each entry in 'packpath'.  Every plugin directory found is added in 'runtimepath' and then the plugins are sourced. The plugins scripts are loaded, as above, but now only the directories ending in "after" are used.  Note that 'runtimepath' will have changed if packages have been found, but that should not add a directory ending in "after"."
