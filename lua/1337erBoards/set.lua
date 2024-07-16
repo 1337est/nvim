@@ -5,7 +5,7 @@ vim.g.loaded_netrwPlugin = 1
 vim.opt.guicursor = ""
 
 vim.opt.number = true -- Make line numbers default
-vim.opt.relativenumber = false -- Shows line # away from current line #
+vim.opt.relativenumber = true -- Shows line # away from current line #
 vim.opt.wrap = false -- Don't wrap text
 
 vim.opt.breakindent = true -- Makes text-wrap visually indented for continuity
@@ -52,7 +52,7 @@ vim.opt.inccommand = "split"
 
 vim.opt.cursorline = true -- Show which line your cursor is on
 
-vim.opt.colorcolumn = "80" -- Line at the 120th column
+vim.opt.colorcolumn = "80" -- Line at the 80th column
 
 vim.opt.mouse = "a" -- Enables mouse mode
 
