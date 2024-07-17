@@ -18,3 +18,6 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 		vim.highlight.on_yank()
 	end,
 })
+
+-- Getting rid of auto-inserted comments
+vim.cmd([[autocmd BufEnter * set formatoptions-=cro ]])

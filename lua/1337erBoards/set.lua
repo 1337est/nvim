@@ -62,5 +62,3 @@ vim.opt.showmode = false -- Don't show mode, since it's already in status line
 --  Remove this option if you want your OS clipboard to remain independent.
 --  See `:help 'clipboard'`
 vim.opt.clipboard = "unnamedplus"
-
-vim.opt.formatoptions:remove({ "c", "r", "o" })
