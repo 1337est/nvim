@@ -54,7 +54,7 @@ vim.opt.cursorline = true -- Show which line your cursor is on
 
 vim.opt.colorcolumn = "80" -- Line at the 80th column
 
-vim.opt.mouse = "a" -- Enables mouse mode
+vim.opt.mouse = "" -- Enables mouse mode
 
 vim.opt.showmode = false -- Don't show mode, since it's already in status line
 
