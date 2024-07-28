@@ -5,8 +5,6 @@ vim.api.nvim_command([[ highlight MatchParen guibg=#0030F0 ]])
 vim.cmd([[autocmd BufEnter *.md,*.txt set wrap]])
 -- Enable spell checking for Markdown and Text files
 vim.cmd([[autocmd BufEnter *.md,*.txt set spell]])
--- Enable visual column soft-wrap
-vim.cmd([[autocmd BufEnter *.md,*.txt set columns=100]])
 
 -- Highlight when yanking (copying) text
 --  Try it with `yap` in normal mode
