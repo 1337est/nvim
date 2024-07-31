@@ -3,3 +3,13 @@ const
 rvalue
 lvalues
 rvalues
+struct
+nullptr
+constexpr
+Unscoped
+unscoped
+typedefs
+typedef
+enum
+namespacing
+structs

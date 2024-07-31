@@ -700,7 +700,18 @@ require("lazy").setup({
 			"nvim-tree/nvim-web-devicons",
 		},
 		config = function()
-			require("nvim-tree").setup({})
+			require("nvim-tree").setup({
+				sort = { sorter = "case_sensitive" },
+				view = {
+					side = "right",
+					width = 40,
+				},
+				renderer = { group_empty = true },
+				filters = { dotfiles = true },
+				actions = {
+					open_file = { resize_window = false },
+				},
+			})
 		end,
 	},
 
@@ -737,5 +748,26 @@ require("lazy").setup({
 		config = function()
 			require("colorizer").setup()
 		end,
+	},
+
+	-- A git integrater for neovim
+	{
+		"kdheepak/lazygit.nvim",
+		cmd = {
+			"LazyGit",
+			"LazyGitConfig",
+			"LazyGitCurrentFile",
+			"LazyGitFilter",
+			"LazyGitFilterCurrentFile",
+		},
+		-- optional for floating window border decoration
+		dependencies = {
+			"nvim-lua/plenary.nvim",
+		},
+		-- setting the keybinding for LazyGit with 'keys' is recommended in
+		-- order to load the plugin when the command is run for the first time
+		keys = {
+			{ "<leader>lg", "<cmd>LazyGit<cr>", desc = "LazyGit" },
+		},
 	},
 }, {})
