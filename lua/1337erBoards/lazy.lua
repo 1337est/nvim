@@ -703,14 +703,13 @@ require("lazy").setup({
 			require("nvim-tree").setup({
 				sort = { sorter = "case_sensitive" },
 				view = {
-					side = "right",
-					width = 40,
+					side = "left",
+					number = true,
+					relativenumber = true,
+					width = 45,
 				},
 				renderer = { group_empty = true },
 				filters = { dotfiles = true },
-				actions = {
-					open_file = { resize_window = false },
-				},
 			})
 		end,
 	},
