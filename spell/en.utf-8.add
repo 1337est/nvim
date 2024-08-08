@@ -13,3 +13,11 @@ typedef
 enum
 namespacing
 structs
+memberwise
+mandatorily
+consteval
+bitset
+bool
+bitsets
+un
+enums
