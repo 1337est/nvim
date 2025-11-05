@@ -45,7 +45,6 @@ General overview of what neovim does: (fill in doc, spell, undo, or any other di
 │
 ├─ doc/*.txt                         # personal documentation (:help helptags)
 ├─ spell/en.utf-8.{add,add.spl}      # personal spelling files (:help spell)
-├─ undo/                             # personal undo history (:help undodir) state_home
 ├─ autoload/<a>/<b>.vim              # function calls via a#b#funcinb() (:help autoload)
 ├─ compiler/{name}.{vim,lua}         # (:help compiler) TODO: make all this syntax
 ├─ keymap/                           # literal keyboard mappings (:help mbyte-keymap)
@@ -56,89 +55,64 @@ General overview of what neovim does: (fill in doc, spell, undo, or any other di
 ├─ lsp/<config>.lua                  # yeh boi (:help lsp)
 ├─ parser/{lang}.*                   # treesitter library search path (:help treesitter-parsers)
 ├─ menu.vim                          # glorious/disgusting mouse menus (:help menus)
-├─ tutor/                            # Sanctimonious tutor creation (:help Tutor)
-├─ ???/                              # TODO: Am I missing anything here? (:help usr)
+└─ tutor/                            # Sanctimonious tutor creation (:help Tutor)
+
+~/.local/state/nvim/
+│
+├─ viewdir/*
+└─ undodir/*
 ```
 
-Work on removing everything in pack (I don't want a package manager, I should make all of the things myself, how hard could it be?) Practice structure to have, what am I missing?
-
-What I'm aiming to do writing everything myself:
+Potential skeleton structure
 
 ```
-0.0 ~/.config/nvim/                 # (%LOCALAPPDATA%\nvim on Windows)
+~/.config/nvim/ # (%LOCALAPPDATA%\nvim on Windows)
 │
-├─ 1.* lua/                         # init.lua modules you `require(...)` (:help lua-module-load)
-│   ├─ home/{set,keys,cmd,...}.lua  # home default setup, easy to comment in/out in init.lua
-│   └─ work/{set,keys,cmd,...}.lua  # work default setup, easy to comment in/out in init.lua
+├─ init.lua
 │
-│ TODO: Turn these into my own minimal plugins
-├─ 1.* lua/                         # only when you `require(...)` default setup
-│   ├─ set/                         # sets
-│   ├─ keys/                        # keymaps
-│   ├─ cmd/                         # autocmds & augroups
-│   ├─ autopairs/                   # autopairs (I can get minimal with this for sure)
-│   ├─ barbar/                      # tabs and buffer/file views (maybe separate tabs and buffers, but maybe also put them together?)
-│   ├─ terminal/                    # terminal stuff in neovim?
-│   ├─ blink/                       # completions (maybe can be paired with autopairs, do I need a lot of this?)
-│   ├─ colorizer/                   # viewing colors in neovim (another parser? how would this work?)
-│   ├─ dashboard/                   # startup screen for nvim (when no file is loaded, keyboard shortcuts or do I need this at all?)
-│   ├─ gitsigns/                    # git buffer integration (git integration in general)
-│   ├─ indent-blankline/            # visualizing indentations/scope (probably can be easily done through text alone)
-│   ├─ lualine/                     # status line (try looking at other peoples for inspiration, also just basic text, no icons)
-│   ├─ markdown-preview/            # markdown previews (javascript? barf...)
-│   ├─ nvim-dap/ nvim-dap-ui/       # debugger integration? (Maybe try rad debugger)
-│   ├─ nvim-tree/                   # file explorer (netrw? or something else...? terminal maybe?)
-│   ├─ telescope/ telescope-ui-select/ telescope.keys.lua telescope-fzf-native/        # fuzzy finder over lists (rg and fd? could be minimal)
-│   ├─ todo-comments/               # visualizing todo comments (parser of text for certain syntax in a comment)
-│   ├─ tokyonight/                  # colorscheme creation time! (I really like onedark, maybe use as inspiration)
-│   ├─ treesitter/                  # syntax highlighting (builtin neovim woohoo)
-│   ├─ undotree/                    # undo history visualizer (do I need this? Can I make something minimal? probably)
-│   ├─ which-key/                   # keymaps memory (do I need this either? Can I make something minimal? basically this is a cheat sheet right? parse neovim for writing to a text file maybe and check for discrepencies when they occur at a syntactical level? Is that possible?)
-│   ├─ nvim-web-devicons/           # Provides nerd fonts for Neovim plugins (is this needed? What if I install a nerd font using pacman or something, can't I just use the ones I have then without this plugin?)
-│   ├─ friendly-snippets/           # snippets collection for different programming languages (probably will need to make my own snippets. That way they can be useful to me?)
-│   ├─ fidget/                      # notification ui and progress messages (includes lsp integration, but maybe this could be an overlay status thingy in general that interfaces with nvim completely?)
-│   ├─ nvim-nio/                    # asynchronous IO (wtf is this?)
-│   ├─ plenary/                     # a bunch of lua functions (might need to look at these in depth to determine what these were, and if I can see myself using any of them too)
-│   ├─ lspconfig/ lsp.servers.lua mason/ mason-lspconfig/ lsp.cmd.lua mason-nvim-dap/ lsp.keys.lua   # collection of lsp server configurations for the nvim lsp client (I could also just configure it myself for the ones I actually use. I should make a list of ones I actually use)
-│   └─ mini/                        # mini.ai (only one I use. It allows inside and around vim functionality for acting on text. This could be pretty easy to do as well and also very scriptable)
+├─ lua/
+│   ├─ 1337est/*.lua
+│   └─ work/*.lua
 │
-│ TODO: Whatever auto loaded plugins I want go here (work/home)
-├─ 2.0 plugin/                      # auto sourced at startup after 1.*
-│   └─ 2.1*  *.lua                  # .lua files
+├─ plugin/*.lua
 │
-├─ 3.0 after/                       # 3.0 sourced AFTER all 1.*-2.*, your nvim overrides
-│   ├─ 3.1 plugin/                  # plugin overrides
-│   │   └─ 3.2*  *.lua              # .lua files
-│   │
-│   ├─ 5.* ftplugin/*.vim           # per filetype buffer/file load overrides
-│   ├─ 5.* indent/<ft>.lua          # per filetype buffer/file load overrides
-│   ├─ 5.* syntax/<ft>.vim          # per filetype buffer/file load overrides
-│   ├─ 5.* queries/<ft>/*.scm       # per filetype buffer/file load overrides
-│   └─ 5.* colors/*.lua             # per filetype buffer/file load overrides
+├─ after/
+│   ├─ plugin/*.lua
+│   ├─ ftplugin/*.vim
+│   ├─ indent/<ft>.lua
+│   ├─ syntax/<ft>.vim
+│   ├─ queries/<ft>/*.scm
+│   └─ colors/*.lua
 │
-├─ 4.0 ftdetect/*.vim               # filetype detection on buffer/file load (:help ftdetect)
-├─ 4.* ftplugin/<ft>.lua            # per filetype general settings (:help ftplugin)
-├─ 4.* indent/<ft>.lua              # per filetype indent settings (:help indent-expression)
-├─ 4.* syntax/<ft>.vim              # per filetype syntax settings (:help syntax)
-├─ 4.* queries/<ft>/*.scm           # per filetype treesitter queries (:help treesitter-query)
-├─ 4.* colors/*.lua                 # color scheme files (:help colorscheme)
-│
-├─ doc/*.txt                        # personal documentation (:help helptags)
-│
-├─ spell/en.utf-8.{add,add.spl}     # personal spelling files (:help spell)
-│
-├─ compiler/{name}.{vim,lua}        # (:help compiler)
-│
-├─ lsp/<config>.lua                 # yeh boi (:help lsp)
-│
-├─ parser/{lang}.*                  # treesitter library search path (:help treesitter-parsers)
-│
-├─ menu.vim                         # glorious/disgusting mouse menus (:help menus) - on the fence for this one
-│
-├─ tutor/                           # Sanctimonious tutor creation (:help Tutor)
-│
-├─ ~/.local/state/nvim/undodir/*    # personal undo history (:help undodir) state_home
-│
-└─ ???/                             # TODO: Am I missing anything here? (:help usr)
+├─ ftdetect/*.vim
+├─ ftplugin/<ft>.lua
+├─ indent/<ft>.lua
+├─ syntax/<ft>.vim
+├─ queries/<ft>/*.scm
+├─ colors/*.lua
+├─ doc/*.txt
+├─ spell/en.utf-8.{add,add.spl}
+├─ compiler/{name}.{vim,lua}
+├─ lsp/<config>.lua
+├─ parser/{lang}.*
+├─ menu.vim
+├─ tutor/
 
+~/.local/state/nvim/
+│
+├─ viewdir/*
+└─ undodir/*
+```
+
+Current working structure
+
+```
+~/.config/nvim/ # (%LOCALAPPDATA%\nvim on Windows)
+│
+└─ init.lua
+
+~/.local/state/nvim/
+│
+├─ viewdir/*
+└─ undodir/*
 ```
