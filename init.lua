@@ -5,50 +5,34 @@
 -- $Author: Adrian Sanchez$
 -- $Notice: $
 
--- set.lua ---------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Basic Setup
+--------------------------------------------------------------------------------
 
--- Terminal settings
-vim.opt.termguicolors = true
+-- === Local Definitions ===
+local augroup = vim.api.nvim_create_augroup
+local yank_group = augroup("HighlightYank", {})
+local fold_group = augroup("remember_folds", { clear = true })
+local autocmd = vim.api.nvim_create_autocmd
 
--- Font settings
+-- === Leader Key ===
+vim.g.mapleader = " "
+vim.g.maplocalleader = " "
+
+-- === Font Settings ===
 vim.g.have_nerd_font = true
 
--- Colorscheme settings
-vim.cmd.colorscheme("unokai") -- TODO: look up how to create your own colorscheme in colors dir?
-
--- Transparency settings
-vim.api.nvim_set_hl(0, "Normal", { bg = "none" }) -- TODO: Normal?
-vim.api.nvim_set_hl(0, "NormalNC", { bg = "none" }) -- TODO: NormalNC?
-vim.api.nvim_set_hl(0, "EndOfBuffer", { bg = "none" }) -- TODO: EndOfBuffer?
-
--- Gutter & Column Display settings
-vim.opt.number = true
-vim.opt.relativenumber = true
-vim.opt.signcolumn = "yes"
-vim.opt.colorcolumn = "100"
-
--- Cursor & Mouse settings
-vim.opt.guicursor = ""
-vim.opt.cursorline = true
+-- === Mouse Settings ===
 vim.opt.mouse = "a"
 vim.opt.mousescroll = "ver:1,hor:1"
 
--- Text View, Conceal, & List settings
-vim.opt.wrap = false
-vim.opt.linebreak = true
+-- === Gutter & Column Settings ===
+vim.opt.number = true
+vim.opt.relativenumber = true
+vim.opt.signcolumn = "yes"
+vim.opt.colorcolumn = "80"
 
-vim.opt.scrolloff = 4
-vim.opt.sidescrolloff = 2
-
-vim.opt.conceallevel = 0
-vim.opt.concealcursor = ""
-
-vim.opt.list = true
-vim.opt.listchars = {
-    tab = "<->", trail = ".", nbsp = "_"
-}
-
--- Indent settings
+-- === Indent Settings ===
 vim.opt.tabstop = 4
 vim.opt.shiftwidth = 4
 vim.opt.softtabstop = 4
@@ -56,109 +40,56 @@ vim.opt.expandtab = true
 vim.opt.smartindent = true
 vim.opt.breakindent = true
 
--- Search settings
+-- === Text Wrap Settings ===
+vim.opt.wrap = false
+vim.opt.linebreak = true
+-- === Text Scrolloff Settings ===
+vim.opt.scrolloff = 4
+vim.opt.sidescrolloff = 2
+-- === Conceal Settings ===
+vim.opt.conceallevel = 0
+vim.opt.concealcursor = ""
+vim.opt.list = true
+vim.opt.listchars = {
+    tab = "<->", trail = ".", nbsp = "+"
+}
+
+-- === Search Settings ===
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 vim.opt.hlsearch = true
 vim.opt.incsearch = true
 vim.opt.iskeyword:append("-")
+-- Set highlight on search, but clear on pressing <Esc> in normal mode
+vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>")
 
--- Completion settings
-vim.opt.completeopt = "menuone,noinsert,noselect"
-
--- Status line settings
-vim.opt.showmode = true
-
--- Popup Menu settings
-vim.opt.pumheight = 10
-vim.opt.pumblend = 10
-
--- Floating Window settings
-vim.opt.winblend = 0
-
--- Screen Rendering settings
+-- === Buffer/Window/Tab/Screen Settings ===
+-- Screen Rendering
 vim.opt.lazyredraw = true
-
--- Backup settings
-vim.opt.backup = false
-vim.opt.writebackup = false
-
--- Swapfile settings
-vim.opt.swapfile = false
-
--- Undodir settings
-vim.opt.undofile = true
-vim.opt.undodir = vim.fn.stdpath("state") .. "/undodir"
-
--- Viewdir settings
-vim.opt.viewdir = vim.fn.stdpath("state") .. "/viewdir"
-
--- ??? settings
 vim.opt.updatetime = 300
 vim.opt.timeoutlen = 500
 vim.opt.autoread = true
 vim.opt.autowrite = false
-
--- File Navigation settings
-vim.opt.autochdir = true
-
--- Split Window settings
+-- Split Window Settings
 vim.opt.inccommand = "split"
 vim.opt.splitright = true
 vim.opt.splitbelow = true
 
--- Clipboard settings (TODO: have function for if on Windows)
-vim.schedule(function()
-    vim.opt.clipboard = "unnamedplus"
-end)
+-- === Backup Settings ===
+vim.opt.backupdir = vim.fn.stdpath("state") .. "/backupdir//"
+vim.opt.backup = true
+vim.opt.writebackup = true
 
--- keys.lua --------------------------------------------------------------------
+-- === Swap Settings ===
+vim.opt.directory = vim.fn.stdpath("state") .. "/swapdir//"
+vim.opt.swapfile = true
 
-vim.g.mapleader = " "
-vim.g.maplocalleader = " "
+-- === Undodir Settings ===
+vim.opt.undodir = vim.fn.stdpath("state") .. "/undodir//"
+vim.opt.undofile = true
 
--- Preserves text instead of replacing the register with the deleted text by
--- deleting text into the 'blackhole' register "_d.
-vim.keymap.set("v", "<leader>kp", [["_dP]], { desc = "[k]eep [p]aste" })
-vim.keymap.set({ "n", "v" }, "<leader>kd", [["_d]], { desc = "[k]eep [d]elete" })
-
--- Set highlight on search, but clear on pressing <Esc> in normal mode
-vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>")
-
--- Diagnostic keymaps
-vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous [d]iagnostic" })
-vim.keymap.set("n", "]d", vim.diagnostic.goto_next, { desc = "Next [d]iagnostic" })
-vim.keymap.set("n", "<leader>e", vim.diagnostic.open_float,
-    { desc = "Show diagnostic [e]rror messages" })
-vim.keymap.set("n", "<leader>q", vim.diagnostic.setloclist,
-    { desc = "Open diagnostic [q]uickfix list" })
-
--- Manual auto-formatting
-vim.keymap.set("n", "<leader>f", function()
-    local save_cursor = vim.fn.getcurpos()
-    vim.cmd("normal gg=G")
-    vim.fn.setpos('.', save_cursor)
-end, { desc = "[f]ormat File" })
-
--- cmd.lua ---------------------------------------------------------------------
-
-local augroup = vim.api.nvim_create_augroup
-local autocmd = vim.api.nvim_create_autocmd
-
-local yank_group = augroup("HighlightYank", {})
-autocmd("TextYankPost", {
-    desc = "Hightlight when yanking (copying) text",
-    group = yank_group,
-    pattern = "*",
-    callback = function()
-        vim.hl.on_yank({
-            higroup = "IncSearch",
-            timeout = 40,
-        })
-    end,
-})
-
-local fold_group = augroup("remember_folds", { clear = true })
+-- === Viewdir Settings ===
+vim.opt.viewdir = vim.fn.stdpath("state") .. "/viewdir//"
 autocmd({ "BufWinLeave" }, {
     group = fold_group,
     pattern = "*.*",
@@ -170,13 +101,85 @@ autocmd({ "BufWinEnter" }, {
     command = "silent! loadview",
 })
 
--- Enables wrap text for Markdown and Text files
-vim.cmd([[autocmd BufEnter *.md,*.txt,*.norg set wrap]])
--- Enable spell checking for Markdown and Text files
-vim.cmd([[autocmd BufEnter *.md,*.txt,*.norg set spell]])
+-- Register Settings (TODO: have function for if on Windows)
+vim.schedule(function()
+    vim.opt.clipboard = "unnamedplus"
+end)
+autocmd("TextYankPost", {
+    desc = "Hightlight when yanking (copying) text",
+    group = yank_group,
+    pattern = "*",
+    callback = function()
+        vim.hl.on_yank({
+            higroup = "IncSearch",
+            timeout = 40,
+        })
+    end,
+})
+-- Preserves text instead of replacing the register with the deleted text by
+-- deleting text into the 'blackhole' register "_d.
+vim.keymap.set("v", "<leader>kp", [["_dP]], { desc = "[k]eep [p]aste" })
+vim.keymap.set({ "n", "v" }, "<leader>kd", [["_d]], { desc = "[k]eep [d]elete" })
 
+--------------------------------------------------------------------------------
+-- Status line Settings
+--------------------------------------------------------------------------------
+vim.opt.showmode = true
+
+--------------------------------------------------------------------------------
+-- Completion & Popup Menu Settings :help ins-completion
+--------------------------------------------------------------------------------
+vim.opt.completeopt = "menuone,noinsert,noselect"
+vim.opt.pumheight = 10
+vim.opt.pumblend = 10
+
+--------------------------------------------------------------------------------
+-- Colorscheme & Fonts Settings
+--------------------------------------------------------------------------------
+vim.cmd.colorscheme("unokai") -- TODO: look up how to create your own colorscheme in colors dir?
+
+-- Transparency Settings
+vim.api.nvim_set_hl(0, "Normal", { bg = "none" }) -- TODO: Normal?
+vim.api.nvim_set_hl(0, "NormalNC", { bg = "none" }) -- TODO: NormalNC?
+vim.api.nvim_set_hl(0, "EndOfBuffer", { bg = "none" }) -- TODO: EndOfBuffer?
+
+vim.opt.cursorline = true
+
+-- Gui Settings
+vim.opt.termguicolors = true
+vim.opt.guicursor = ""
+
+--------------------------------------------------------------------------------
+-- Floating Window Settings
+--------------------------------------------------------------------------------
+vim.opt.winblend = 0
+
+--------------------------------------------------------------------------------
+-- File Navigation Settings
+--------------------------------------------------------------------------------
+vim.opt.autochdir = true
+
+--------------------------------------------------------------------------------
+-- Diagnostics TODO: put with lsp?
+--------------------------------------------------------------------------------
+vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous [d]iagnostic" })
+vim.keymap.set("n", "]d", vim.diagnostic.goto_next, { desc = "Next [d]iagnostic" })
+vim.keymap.set("n", "<leader>e", vim.diagnostic.open_float,
+    { desc = "Show diagnostic [e]rror messages" })
+vim.keymap.set("n", "<leader>q", vim.diagnostic.setloclist,
+    { desc = "Open diagnostic [q]uickfix list" })
+
+--------------------------------------------------------------------------------
+-- Formatting
+--------------------------------------------------------------------------------
 -- Getting rid of auto-inserted comments *spit* PFF-THUU *end-spit*
-vim.cmd([[autocmd BufEnter * set formatoptions-=cro ]])
+vim.opt.formatoptions:remove { "c", "r", "o" }
+
+vim.keymap.set("n", "<leader>f", function()
+    local save_cursor = vim.fn.getcurpos()
+    vim.cmd("normal gg=G")
+    vim.fn.setpos('.', save_cursor)
+end, { desc = "[f]ormat File" })
 
 -- Experimentation starts here -------------------------------------------------
 

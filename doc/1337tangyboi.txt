@@ -69,11 +69,38 @@ NEOVIM STRUCTURE                *1337tangyboi-nvim-structure*
     `├─ log                              # |log|`
     `├─ shada/*                          # |shada|`
     `├─ swap/*                           # |swap-file|`
+    `├─ backup/*                         # |backupdir|`
     `├─ viewdir/*                        # |viewdir|`
     `└─ undodir/*                        # |undodir|`
 
 ================================================================================
 NEOVIM MENTAL MODEL             *1337tangyboi-nvim-mental-model*
+    Quick reference for lua vs. vimscript |lua-vimscript|.
+    As this is a large document, some notable ones are below.
+
+    Variables: |lua-vim-variables|
+    |vim.v| variables.
+    |vim.b| buffer scoped variables. (TODO: add examples)
+    |vim.w| window scoped variables. (TODO: add examples)
+    |vim.t| tabpage scoped variables. (TODO: add examples)
+    |vim.g| global editor variables. (TODO: add examples)
+
+    Options: |lua-vim-options|
+    |vim.o|    options (vim-like)
+    |vim.bo|   buffer scoped options (vim-like)
+    |vim.wo|   window scoped options (vim-like)
+    |vim.go|   global scoped options (vim-like)
+
+    |vim.opt| options (lua-like)
+    |vim.opt_local| buffer or window scoped options (lua-like)
+    |vim.opt_global| global scoped options (lua-like)
+
+    |vim.opt:get()|  options (lua-like)
+    |vim.opt:append()|  options (lua-like)
+    |vim.opt:prepend()|  options (lua-like)
+    |vim.opt:remove()|  options (lua-like)
+
+    get, append, prepend, and remove can be done with opt_local and opt_global
 
 ================================================================================
 NEOVIM TREESITTER               *1337tangyboi-nvim-treesitter*
