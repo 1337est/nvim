@@ -1,0 +1,109 @@
+*1337tangyboi.txt*      For Neovim users who are 1337 and tangy!
+================================================================================
+INTRODUCTION                    *1337tangyboi*
+    This help file documents my custom Neovim configuration and philosophy. It covers how I think about Neovim's internals, structure, and my minimal configuration setup, since I think Neovim alone can get 100% of what you want with little effort, and 100% of what you think you need with some elbow grease. Type `:help 1337tangyboi` to open this file.
+
+================================================================================
+NEOVIM STRUCTURE                *1337tangyboi-nvim-structure*
+    Neovim's configuration follows the XDG Base Directory Specification:
+    |base-directories|.
+
+    From my understanding, the general overview of what neovim does: (fill
+    in any missing dirs)
+
+    `0.0 ~/.config/nvim/                  # (%LOCALAPPDATA%\nvim on Windows)`
+    `│`
+    `├─ 1.0 init.lua                      # runs immediately at startup |init.lua|`
+    `│`
+    `├─ 1.* lua/                          # |Lua| & |lua-module-load|`
+    `│   ├─ home/{set,keys,cmd,...}.lua   # home default setup, easy to comment in/out in init.lua`
+    `│   └─ work/{set,keys,cmd,...}.lua   # work default setup, easy to comment in/out in init.lua`
+    `│`
+    `├─ 2.0 pack/                         # Vim packages (optional if using a manager) |packages|`
+    `│  ├─ 2.1 start/                     # added to rtp automatically`
+    `│  │   └─ 2.2* <plugin>/             # Each plugin sourced alphabetically, .vim -> .lua`
+    `│  │       └─ 2.3 plugin/`
+    `│  │           ├─ 2.4*  *.vim        # .vim files are loaded first under plugin`
+    `│  │           └─ 2.5*  *.lua        # .lua files are loaded afterwards and can overwrite .vim`
+    `│  └─ opt/                           # load later via :packadd <plugin> (manual/scripted loading)`
+    `│`
+    `├─ 3.0 plugin/                       # auto sourced at startup (after pack/*/start/*)|write-plugin|`
+    `│   ├─ 3.1*  *.vim                   # first .vim files`
+    `│   └─ 3.2*  *.lua                   # then .lua files`
+    `│`
+    `├─ 4.0 after/                        # auto sourced AFTER all plugin/ above, your overrides |after-directory|`
+    `│   ├─ 4.1 plugin/                   # plugin overrides`
+    `│   │   ├─ 4.2*  *.vim               # first .vim files`
+    `│   │   └─ 4.3*  *.lua               # then .lua files`
+    `│   │`
+    `│   ├─ 6.* ftplugin/*.vim            # overrides`
+    `│   ├─ 6.* indent/<ft>.lua           # overrides`
+    `│   ├─ 6.* syntax/<ft>.vim           # overrides`
+    `│   ├─ 6.* parser/{lang}.*           # overrides`
+    `│   ├─ 6.* queries/<ft>/*.scm        # overrides`
+    `│   └─ 6.* colors/*.lua              # overrides`
+    `│`
+    `├─ 5.0 ftdetect/*.vim                # filetype detection on buffer/file load |ftdetect|`
+    `├─ 5.* ftplugin/<ft>.lua             # per filetype general settings |ftplugin|`
+    `├─ 5.* indent/<ft>.lua               # per filetype indent settings |indent-expression|`
+    `├─ 5.* syntax/<ft>.vim               # per filetype syntax settings |syntax|`
+    `├─ 5.* parser/{lang}.*               # |treesitter| & |treesitter-parsers|`
+    `├─ 5.* queries/<ft>/*.scm            # |treesitter| & |treesitter-query|`
+    `├─ 5.* colors/*.lua                  # color scheme files |colorscheme|`
+    `│`
+    `├─ spell/en.utf-8.{add,add.spl}      # personal spelling files |spell|`
+    `├─ autoload/<a>/<b>.vim              # function calls via a#b#funcinb() |autoload-functions|`
+    `├─ compiler/{name}.{vim,lua}         # |compiler|`
+    `├─ keymap/                           # literal keyboard mappings |mbyte-keymap|`
+    `│   ├─ {keymap}_utf-8.vim`
+    `│   └─ {keymap}.vim`
+    `├─ rplugin/                          # glorious/disgusting remote plugins *spit* |remote-plugin|`
+    `├─ lang/*/                           # |language| & |menutrans|`
+    `├─ lsp/<config>.lua                  # yeh boi |lsp| & |lsp-config|`
+    `├─ menu.vim                          # glorious/disgusting mouse menus |menus|`
+    `├─ doc/*.txt                         # |write-local-help| |add-local-help| & |helptags|`
+    `└─ tutor/                            # Sanctimonious tutor creation |Tutor|`
+
+    `~/.local/state/nvim/`
+    `│`
+    `├─ log                              # |log|`
+    `├─ shada/*                          # |shada|`
+    `├─ swap/*                           # |swap-file|`
+    `├─ viewdir/*                        # |viewdir|`
+    `└─ undodir/*                        # |undodir|`
+
+================================================================================
+NEOVIM MENTAL MODEL             *1337tangyboi-nvim-mental-model*
+
+================================================================================
+NEOVIM TREESITTER               *1337tangyboi-nvim-treesitter*
+
+================================================================================
+NEOVIM LSP                      *1337tangyboi-nvim-lsp*
+
+================================================================================
+MY MINIMAL STRUCTURE            *1337tangyboi-1337-structure*
+
+================================================================================
+MY MENTAL MODEL                 *1337tangyboi-1337-mental-model*
+
+================================================================================
+MY LUA MODULES                  *1337tangyboi-1337-modules*
+    Includes treesitter and lsp.
+
+================================================================================
+OS DIFF: LINUX & WINDOWS        *1337tangyboi-1337-os-diff*
+
+================================================================================
+CREDITS (SPECIAL THANKS)        *1337tangyboi-1337-credits*
+
+================================================================================
+BONUS                           *1337tangyboi-1337-bonus*
+    Bonus, to enter special tree characters, type what is below, followed by either <Enter> or <Space>:
+        `Ctrl + Shift + U + 2500` = ─
+        `Ctrl + Shift + U + 2502` = │
+        `Ctrl + Shift + U + 251C` = ├ (upper or lower `c`, doesn't matter)
+        `Ctrl + Shift + U + 2514` = └
+
+================================================================================
+vim:tw=78:ts=8:ft=help:norl:
