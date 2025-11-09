@@ -75,6 +75,8 @@ NEOVIM STRUCTURE                *1337tangyboi-nvim-structure*
 
 ================================================================================
 NEOVIM MENTAL MODEL             *1337tangyboi-nvim-mental-model*
+    You should read the neovim documentation which can be found by searching
+    `:help help.txt` in the command line.
     Quick reference for lua vs. vimscript |lua-vimscript|.
     As this is a large document, some notable ones are below.
 
@@ -101,6 +103,29 @@ NEOVIM MENTAL MODEL             *1337tangyboi-nvim-mental-model*
     |vim.opt:remove()|  options (lua-like)
 
     get, append, prepend, and remove can be done with opt_local and opt_global
+
+    I just learned what an autocommand, augroup, and events are. The au in
+    augroup stands for autocommand group. You don't need to use augroups, but
+    it's nice to use them where you can, because if you re-source your
+    init.lua file, each create_autocmd call will create a new rule, causing
+    duplicates since every time your reload/source your config, the events
+    would fire again! with a group you can "clear" them once as a local
+    variable, then create the autocmd without worry, because the old one would
+    have been "cleared".
+
+    Another thing I've learned about is a deeper understanding between the
+    difference of variables, options, and the _G global variable. Explain
+    below.
+
+    Another thing would be nvim screen has X number of tabs, tabs have Y
+    number of windows, windows have Z numbers of buffers, expand on this.
+    What's a viewport onto something else?
+
+    Explain what the statusline is simply and all of the options associated to
+    them from a simple standpoint and how the tabline, winbar, statusline, and
+    other things can use the same syntax for defining what it looks like.
+
+    Explain what the gutter is?
 
 ================================================================================
 NEOVIM TREESITTER               *1337tangyboi-nvim-treesitter*
