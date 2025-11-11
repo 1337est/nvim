@@ -172,29 +172,29 @@ autocmd({ "BufEnter" }, {
     end,
 })
 
--- lazy package manager used for grabbing plugins from the internet
-local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
-if not (vim.uv or vim.loop).fs_stat(lazypath) then
-    local lazyrepo = "https://github.com/folke/lazy.nvim.git"
-    local out = vim.fn.system({
-        "git",
-        "clone",
-        "--filter=blob:none",
-        "--branch=stable",
-        lazyrepo,
-        lazypath
-    })
-    if vim.v.shell_error ~= 0 then
-        vim.api.nvim_echo({
-            { "Failed to clone lazy.nvim:\n", "ErrorMsg" },
-            { out, "WarningMsg" },
-            { "\nPress any key to exit..." },
-        }, true, {})
-        vim.fn.getchar()
-        os.exit(1)
-    end
-end ---@diagnostic disable-next-line: undefined-field
-vim.opt.rtp:prepend(lazypath)
+-- -- lazy package manager used for grabbing plugins from the internet
+-- local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+-- if not (vim.uv or vim.loop).fs_stat(lazypath) then
+--     local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+--     local out = vim.fn.system({
+--         "git",
+--         "clone",
+--         "--filter=blob:none",
+--         "--branch=stable",
+--         lazyrepo,
+--         lazypath
+--     })
+--     if vim.v.shell_error ~= 0 then
+--         vim.api.nvim_echo({
+--             { "Failed to clone lazy.nvim:\n", "ErrorMsg" },
+--             { out, "WarningMsg" },
+--             { "\nPress any key to exit..." },
+--         }, true, {})
+--         vim.fn.getchar()
+--         os.exit(1)
+--     end
+-- end ---@diagnostic disable-next-line: undefined-field
+-- vim.opt.rtp:prepend(lazypath)
 
 -- Make sure to setup `mapleader` and `maplocalleader` before
 -- loading lazy.nvim so that mappings are correct.
@@ -205,29 +205,7 @@ vim.opt.rtp:prepend(lazypath)
 --     -- Each file in lua/plugins/* should return a table with the plugins you want to install
 --     spec = {
 --
---         {
---             "norcalli/nvim-colorizer.lua",
---             config = function()
---                 -- The documentation on this kinda sucks
---                 require("colorizer").setup(
---                 -- 1st table: list of filetypes
---                 -- 2nd table: list of default options from the plugin page
---                     { '*' }, -- all filetypes
---                     {
---                         RGB      = true, -- #FF0 hex codes
---                         RRGGBB   = true, -- #FF0000 hex codes
---                         names    = false, -- "Name" codes like blue
---                         RRGGBBAA = false, -- #RRGGBBAA hex codes
---                         rgb_fn   = false, -- CSS rgb() and rgba() functions
---                         hsl_fn   = false, -- CSS hsl() and hsla() functions
---                         css      = false, -- Enable all CSS features: rgb_fn, hsl_fn, names, RGB, RRGGBB
---                         css_fn   = false, -- Enable all CSS *functions*: rgb_fn, hsl_fn
---                         -- Available modes: foreground, background
---                         mode     = 'background', -- Set the display mode.
---                     }
---                 )
---             end,
---         },
+require("colorizer").setup()
 --
 --         {
 --             "lewis6991/gitsigns.nvim",
