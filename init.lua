@@ -172,39 +172,6 @@ autocmd({ "BufEnter" }, {
     end,
 })
 
--- -- lazy package manager used for grabbing plugins from the internet
--- local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
--- if not (vim.uv or vim.loop).fs_stat(lazypath) then
---     local lazyrepo = "https://github.com/folke/lazy.nvim.git"
---     local out = vim.fn.system({
---         "git",
---         "clone",
---         "--filter=blob:none",
---         "--branch=stable",
---         lazyrepo,
---         lazypath
---     })
---     if vim.v.shell_error ~= 0 then
---         vim.api.nvim_echo({
---             { "Failed to clone lazy.nvim:\n", "ErrorMsg" },
---             { out, "WarningMsg" },
---             { "\nPress any key to exit..." },
---         }, true, {})
---         vim.fn.getchar()
---         os.exit(1)
---     end
--- end ---@diagnostic disable-next-line: undefined-field
--- vim.opt.rtp:prepend(lazypath)
-
--- Make sure to setup `mapleader` and `maplocalleader` before
--- loading lazy.nvim so that mappings are correct.
--- This should have been done in set.lua
-
--- Setup lazy.nvim
--- require("lazy").setup({
---     -- Each file in lua/plugins/* should return a table with the plugins you want to install
---     spec = {
---
 -- TODO: Add require's pack/plugins/start/plugin/ for others not listed here.
 require("colorizer").setup()
 require("ibl").setup()
@@ -245,15 +212,7 @@ vim.api.nvim_set_hl(0, 'BufferVisibleSign', { fg = '#4a5859', bg = '#e0e0e0' })
 vim.api.nvim_set_hl(0, 'BufferInactive', { fg = '#6b7280', bg = '#f0f0f0' })
 vim.api.nvim_set_hl(0, 'BufferInactiveSign', { fg = '#6b7280', bg = '#f0f0f0' })
 vim.api.nvim_set_hl(0, 'BufferTabpageFill', { fg = '#6b7280', bg = '#f5f5f5' })
---
---         {
---             "iamcco/markdown-preview.nvim",
---             ft = { "markdown" },
---             config = function()
---                 vim.fn["mkdp#util#install"]()
---             end,
---         },
---
+
 --         {
 --             -- fuzzy finder for files
 --             "nvim-telescope/telescope.nvim",
@@ -417,11 +376,6 @@ vim.api.nvim_set_hl(0, 'BufferTabpageFill', { fg = '#6b7280', bg = '#f5f5f5' })
 --                 })
 --             end,
 --         },
---     },
---
---     checker = { notify = false },
---     change_detection = { notify = false },
--- })
 
 -- =============== Treesitter ===============
 -- Try to start Treesitter highlights for this buffer's filetype
