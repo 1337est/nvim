@@ -201,329 +201,307 @@ vim.opt.rtp:prepend(lazypath)
 -- This should have been done in set.lua
 
 -- Setup lazy.nvim
-require("lazy").setup({
-    -- Each file in lua/plugins/* should return a table with the plugins you want to install
-    spec = {
-
-        {
-            'romgrk/barbar.nvim',
-            dependencies = {
-                'lewis6991/gitsigns.nvim',
-                'nvim-tree/nvim-web-devicons',
-            },
-            init = function()
-                vim.g.barbar_auto_setup = false
-            end,
-            config = function()
-                require("barbar").setup {}
-                vim.api.nvim_set_hl(0, 'BufferCurrent', { fg = '#1c2526', bg = '#d0d0d0', bold = true })
-                vim.api.nvim_set_hl(0, 'BufferCurrentSign', { fg = '#1c2526', bg = '#d0d0d0' })
-                vim.api.nvim_set_hl(0, 'BufferCurrentMod', { fg = '#a8334c', bg = '#d0d0d0', bold = true })
-                vim.api.nvim_set_hl(0, 'BufferVisible', { fg = '#4a5859', bg = '#e0e0e0' })
-                vim.api.nvim_set_hl(0, 'BufferVisibleSign', { fg = '#4a5859', bg = '#e0e0e0' })
-                vim.api.nvim_set_hl(0, 'BufferInactive', { fg = '#6b7280', bg = '#f0f0f0' })
-                vim.api.nvim_set_hl(0, 'BufferInactiveSign', { fg = '#6b7280', bg = '#f0f0f0' })
-                vim.api.nvim_set_hl(0, 'BufferTabpageFill', { fg = '#6b7280', bg = '#f5f5f5' })
-            end,
-        },
-
-        {
-            "norcalli/nvim-colorizer.lua",
-            config = function()
-                -- The documentation on this kinda sucks
-                require("colorizer").setup(
-                -- 1st table: list of filetypes
-                -- 2nd table: list of default options from the plugin page
-                    { '*' }, -- all filetypes
-                    {
-                        RGB      = true, -- #FF0 hex codes
-                        RRGGBB   = true, -- #FF0000 hex codes
-                        names    = false, -- "Name" codes like blue
-                        RRGGBBAA = false, -- #RRGGBBAA hex codes
-                        rgb_fn   = false, -- CSS rgb() and rgba() functions
-                        hsl_fn   = false, -- CSS hsl() and hsla() functions
-                        css      = false, -- Enable all CSS features: rgb_fn, hsl_fn, names, RGB, RRGGBB
-                        css_fn   = false, -- Enable all CSS *functions*: rgb_fn, hsl_fn
-                        -- Available modes: foreground, background
-                        mode     = 'background', -- Set the display mode.
-                    }
-                )
-            end,
-        },
-
-        {
-            "lewis6991/gitsigns.nvim",
-            enabled = true,
-            config = function()
-                require("gitsigns").setup {
-                    signs = {
-                        add = { text = "+" },
-                        change = { text = "~" },
-                    },
-                    signs_staged = {
-                        add = { text = "+" },
-                        change = { text = "~" },
-                    },
-                }
-            end,
-        },
-
-        {
-            "lukas-reineke/indent-blankline.nvim",
-            main = "ibl",
-            opts = {},
-            config = function()
-                require("ibl").setup {
-                    exclude = { filetypes = {
-                        "lspinfo",
-                        "packer",
-                        "checkhealth",
-                        "help",
-                        "man",
-                        "gitcommit",
-                        "TelescopePrompt",
-                        "TelescopeResults",
-                        "",
-                        "dashboard",
-                    } }
-                }
-            end,
-        },
-
-        {
-            "nvim-lualine/lualine.nvim",
-            enabled = true,
-            dependencies = { "nvim-tree/nvim-web-devicons" },
-            config = function()
-                local symbols = { error = ' ', warn = ' ', info = ' ', hint = ' ' }
-                require("lualine").setup {
-                    options = {
-                        theme = "auto",
-                        disabled_filetypes = {
-                            statusline = { 'NvimTree' },
-                            winbar = { 'NvimTree' },
-                        },
-                    },
-                    sections = {
-                        lualine_a = { { "mode" } },
-                        lualine_b = { { "diagnostics", symbols = symbols, color = { bg = '#232323' } } },
-                        lualine_c = { { "filename", path = 4 } },
-                        lualine_x = { {
-                            "filetype",
-                            icon = { align = 'left' }
-                        } },
-                        lualine_y = {
-                            { "branch", color = { bg = '#232323' } },
-                            { "diff", color = { bg = '#323232' } },
-                        },
-                        lualine_z = { "location", "progress" },
-                    },
-                    inactive_sections = {
-                        lualine_a = { "filename" },
-                        lualine_z = { "location", "progress" },
-                    },
-                }
-            end,
-        },
-
-        {
-            "iamcco/markdown-preview.nvim",
-            ft = { "markdown" },
-            config = function()
-                vim.fn["mkdp#util#install"]()
-            end,
-        },
-
-        {
-            -- fuzzy finder for files
-            "nvim-telescope/telescope.nvim",
-            event = "VimEnter",
-            branch = "0.1.x",
-            dependencies = {
-                "nvim-lua/plenary.nvim",
-                {
-                    "nvim-telescope/telescope-fzf-native.nvim",
-                    build = "make",
-                    cond = function()
-                        return vim.fn.executable("make") == 1
-                    end,
-                },
-                { "nvim-telescope/telescope-ui-select.nvim" },
-                { "nvim-tree/nvim-web-devicons", enabled = vim.g.have_nerd_font },
-            },
-            config = function()
-                require("telescope").setup {
-                    extensions = {
-                        ["ui-select"] = { require("telescope.themes").get_dropdown() },
-                    },
-                    pickers = {
-                        find_files = {
-                            hidden = true,
-                            no_ignore = true,
-                            no_ignore_parent = true,
-                        },
-                    },
-                    defaults = {
-                        file_ignore_patterns = {
-                            "undodir",
-                            "node_modules",
-                        },
-                    },
-                }
-                -- Enable Telescope extensions if they are installed
-                pcall(require("telescope").load_extension, "fzf")
-                pcall(require("telescope").load_extension, "ui-select")
-                -- keymaps to call telescope functions
-                local tel = require("telescope.builtin")
-                map({
-                    mode = "n",
-                    keys = "<leader>sh",
-                    fn = tel.help_tags,
-                    desc = "[s]earch [h]elp",
-                    prefix = "TEL"
-                })
-                map({
-                    mode = "n",
-                    keys = "<leader>sk",
-                    fn = tel.keymaps,
-                    desc = "[s]earch [k]eymaps",
-                    prefix = "TEL"
-                })
-                map({
-                    mode = "n",
-                    keys = "<leader>sf",
-                    fn = tel.find_files,
-                    desc = "[s]earch [f]iles",
-                    prefix = "TEL"
-                })
-                map({
-                    mode = "n",
-                    keys = "<leader>ss",
-                    fn = tel.builtin,
-                    desc = "[s]earch [s]elect Telescope",
-                    prefix = "TEL"
-                })
-                map({
-                    mode = "n",
-                    keys = "<leader>sw",
-                    fn = tel.grep_string,
-                    desc = "[s]earch current [w]ord",
-                    prefix = "TEL"
-                })
-                map({
-                    mode = "n",
-                    keys = "<leader>sg",
-                    fn = tel.live_grep,
-                    desc = "[s]earch by [g]rep",
-                    prefix = "TEL"
-                })
-                map({
-                    mode = "n",
-                    keys = "<leader>sd",
-                    fn = tel.diagnostics,
-                    desc = "[s]earch [d]iagnostics",
-                    prefix = "TEL"
-                })
-                map({
-                    mode = "n",
-                    keys = "<leader>sr",
-                    fn = tel.resume,
-                    desc = "[s]earch [r]esume",
-                    prefix = "TEL"
-                })
-                map({
-                    mode = "n",
-                    keys = "<leader>s.",
-                    fn = tel.oldfiles,
-                    desc = "[s]earch Recent Files ('.' for repeat)",
-                    prefix = "TEL"
-                })
-                map({
-                    mode = "n",
-                    keys = "<leader><leader>",
-                    fn = tel.buffers,
-                    desc = "[ ] Find existing buffers",
-                    prefix = "TEL"
-                })
-
-                -- Search in current buffer
-                map({
-                    mode = "n",
-                    keys = "<leader>/",
-                    fn = function()
-                        tel.current_buffer_fuzzy_find(require("telescope.themes").get_dropdown({
-                            winblend = 10,
-                            previewer = false,
-                        }))
-                    end,
-                    desc = "[/] Fuzzily search in current buffer",
-                    prefix = "TEL",
-                })
-
-                -- Search open files
-                map({
-                    mode = "n",
-                    keys = "<leader>s/",
-                    fn = function()
-                        tel.live_grep({
-                            grep_open_files = true,
-                            prompt_title = "Live Grep in Open Files",
-                        })
-                    end,
-                    desc = "[s]earch [/] in Open Files",
-                    prefix = "TEL",
-                })
-
-                -- Search your Neovim config
-                map({
-                    mode = "n",
-                    keys = "<leader>sn",
-                    fn = function()
-                        tel.find_files({ cwd = vim.fn.stdpath("config") })
-                    end,
-                    desc = "[s]earch [n]eovim files",
-                    prefix = "TEL",
-                })
-
-                -- Search your notes
-                map({
-                    mode = "n",
-                    keys = "<leader>sN",
-                    fn = function()
-                        tel.find_files({ cwd = vim.fs.abspath("~/Desktop/notes") })
-                    end,
-                    desc = "[s]earch [n]eovim files",
-                    prefix = "TEL",
-                })
-            end,
-        },
-
-        {
-            {
-                "folke/which-key.nvim",
-                event = "VimEnter", -- Sets the loading event to 'VimEnter'
-                opts = {
-                    spec = {
-                        { "<leader>c", group = "[c]ode", mode = { "n", "x" } },
-                        { "<leader>d", group = "[d]ocument", mode = "n" },
-                        { "<leader>r", group = "[r]ename", mode = "n" },
-                        { "<leader>s", group = "[s]earch", mode = "n" },
-                        { "<leader>t", group = "[t]oggle", mode = "n" },
-                        { "<leader>w", group = "[w]orkspace", mode = "n" },
-                        { "<leader>k", group = "[k]eep", mode = { "n", "v" } },
-                        { "<leader>", group = "Leader", mode = { "n", "v" } },
-                        { "[", group = "Previous", mode = "n" },
-                        { "]", group = "Next", mode = "n" },
-                    }
-                }
-            },
-        },
-
-    },
-
-    checker = { notify = false },
-    change_detection = { notify = false },
-})
+-- require("lazy").setup({
+--     -- Each file in lua/plugins/* should return a table with the plugins you want to install
+--     spec = {
+--
+--         {
+--             "norcalli/nvim-colorizer.lua",
+--             config = function()
+--                 -- The documentation on this kinda sucks
+--                 require("colorizer").setup(
+--                 -- 1st table: list of filetypes
+--                 -- 2nd table: list of default options from the plugin page
+--                     { '*' }, -- all filetypes
+--                     {
+--                         RGB      = true, -- #FF0 hex codes
+--                         RRGGBB   = true, -- #FF0000 hex codes
+--                         names    = false, -- "Name" codes like blue
+--                         RRGGBBAA = false, -- #RRGGBBAA hex codes
+--                         rgb_fn   = false, -- CSS rgb() and rgba() functions
+--                         hsl_fn   = false, -- CSS hsl() and hsla() functions
+--                         css      = false, -- Enable all CSS features: rgb_fn, hsl_fn, names, RGB, RRGGBB
+--                         css_fn   = false, -- Enable all CSS *functions*: rgb_fn, hsl_fn
+--                         -- Available modes: foreground, background
+--                         mode     = 'background', -- Set the display mode.
+--                     }
+--                 )
+--             end,
+--         },
+--
+--         {
+--             "lewis6991/gitsigns.nvim",
+--             enabled = true,
+--             config = function()
+--                 require("gitsigns").setup {
+--                     signs = {
+--                         add = { text = "+" },
+--                         change = { text = "~" },
+--                     },
+--                     signs_staged = {
+--                         add = { text = "+" },
+--                         change = { text = "~" },
+--                     },
+--                 }
+--             end,
+--         },
+--
+--         {
+--             "lukas-reineke/indent-blankline.nvim",
+--             main = "ibl",
+--             opts = {},
+--             config = function()
+--                 require("ibl").setup {
+--                     exclude = { filetypes = {
+--                         "lspinfo",
+--                         "packer",
+--                         "checkhealth",
+--                         "help",
+--                         "man",
+--                         "gitcommit",
+--                         "TelescopePrompt",
+--                         "TelescopeResults",
+--                         "",
+--                         "dashboard",
+--                     } }
+--                 }
+--             end,
+--         },
+--
+--         {
+--             "nvim-lualine/lualine.nvim",
+--             enabled = true,
+--             dependencies = { "nvim-tree/nvim-web-devicons" },
+--             config = function()
+--                 local symbols = { error = ' ', warn = ' ', info = ' ', hint = ' ' }
+--                 require("lualine").setup {
+--                     options = {
+--                         theme = "auto",
+--                         disabled_filetypes = {
+--                             statusline = { 'NvimTree' },
+--                             winbar = { 'NvimTree' },
+--                         },
+--                     },
+--                     sections = {
+--                         lualine_a = { { "mode" } },
+--                         lualine_b = { { "diagnostics", symbols = symbols, color = { bg = '#232323' } } },
+--                         lualine_c = { { "filename", path = 4 } },
+--                         lualine_x = { {
+--                             "filetype",
+--                             icon = { align = 'left' }
+--                         } },
+--                         lualine_y = {
+--                             { "branch", color = { bg = '#232323' } },
+--                             { "diff", color = { bg = '#323232' } },
+--                         },
+--                         lualine_z = { "location", "progress" },
+--                     },
+--                     inactive_sections = {
+--                         lualine_a = { "filename" },
+--                         lualine_z = { "location", "progress" },
+--                     },
+--                 }
+--             end,
+--         },
+--
+--         {
+--             'romgrk/barbar.nvim',
+--             dependencies = {
+--                 'lewis6991/gitsigns.nvim',
+--                 'nvim-tree/nvim-web-devicons',
+--             },
+--             init = function()
+--                 vim.g.barbar_auto_setup = false
+--             end,
+--             config = function()
+--                 require("barbar").setup {}
+--                 vim.api.nvim_set_hl(0, 'BufferCurrent', { fg = '#1c2526', bg = '#d0d0d0', bold = true })
+--                 vim.api.nvim_set_hl(0, 'BufferCurrentSign', { fg = '#1c2526', bg = '#d0d0d0' })
+--                 vim.api.nvim_set_hl(0, 'BufferCurrentMod', { fg = '#a8334c', bg = '#d0d0d0', bold = true })
+--                 vim.api.nvim_set_hl(0, 'BufferVisible', { fg = '#4a5859', bg = '#e0e0e0' })
+--                 vim.api.nvim_set_hl(0, 'BufferVisibleSign', { fg = '#4a5859', bg = '#e0e0e0' })
+--                 vim.api.nvim_set_hl(0, 'BufferInactive', { fg = '#6b7280', bg = '#f0f0f0' })
+--                 vim.api.nvim_set_hl(0, 'BufferInactiveSign', { fg = '#6b7280', bg = '#f0f0f0' })
+--                 vim.api.nvim_set_hl(0, 'BufferTabpageFill', { fg = '#6b7280', bg = '#f5f5f5' })
+--             end,
+--         },
+--
+--         {
+--             "iamcco/markdown-preview.nvim",
+--             ft = { "markdown" },
+--             config = function()
+--                 vim.fn["mkdp#util#install"]()
+--             end,
+--         },
+--
+--         {
+--             -- fuzzy finder for files
+--             "nvim-telescope/telescope.nvim",
+--             event = "VimEnter",
+--             branch = "0.1.x",
+--             dependencies = {
+--                 "nvim-lua/plenary.nvim",
+--                 {
+--                     "nvim-telescope/telescope-fzf-native.nvim",
+--                     build = "make",
+--                     cond = function()
+--                         return vim.fn.executable("make") == 1
+--                     end,
+--                 },
+--                 { "nvim-telescope/telescope-ui-select.nvim" },
+--                 { "nvim-tree/nvim-web-devicons", enabled = vim.g.have_nerd_font },
+--             },
+--             config = function()
+--                 require("telescope").setup {
+--                     extensions = {
+--                         ["ui-select"] = { require("telescope.themes").get_dropdown() },
+--                     },
+--                     pickers = {
+--                         find_files = {
+--                             hidden = true,
+--                             no_ignore = true,
+--                             no_ignore_parent = true,
+--                         },
+--                     },
+--                     defaults = {
+--                         file_ignore_patterns = {
+--                             "undodir",
+--                             "node_modules",
+--                         },
+--                     },
+--                 }
+--                 -- Enable Telescope extensions if they are installed
+--                 pcall(require("telescope").load_extension, "fzf")
+--                 pcall(require("telescope").load_extension, "ui-select")
+--                 -- keymaps to call telescope functions
+--                 local tel = require("telescope.builtin")
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>sh",
+--                     fn = tel.help_tags,
+--                     desc = "[s]earch [h]elp",
+--                     prefix = "TEL"
+--                 })
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>sk",
+--                     fn = tel.keymaps,
+--                     desc = "[s]earch [k]eymaps",
+--                     prefix = "TEL"
+--                 })
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>sf",
+--                     fn = tel.find_files,
+--                     desc = "[s]earch [f]iles",
+--                     prefix = "TEL"
+--                 })
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>ss",
+--                     fn = tel.builtin,
+--                     desc = "[s]earch [s]elect Telescope",
+--                     prefix = "TEL"
+--                 })
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>sw",
+--                     fn = tel.grep_string,
+--                     desc = "[s]earch current [w]ord",
+--                     prefix = "TEL"
+--                 })
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>sg",
+--                     fn = tel.live_grep,
+--                     desc = "[s]earch by [g]rep",
+--                     prefix = "TEL"
+--                 })
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>sd",
+--                     fn = tel.diagnostics,
+--                     desc = "[s]earch [d]iagnostics",
+--                     prefix = "TEL"
+--                 })
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>sr",
+--                     fn = tel.resume,
+--                     desc = "[s]earch [r]esume",
+--                     prefix = "TEL"
+--                 })
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>s.",
+--                     fn = tel.oldfiles,
+--                     desc = "[s]earch Recent Files ('.' for repeat)",
+--                     prefix = "TEL"
+--                 })
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader><leader>",
+--                     fn = tel.buffers,
+--                     desc = "[ ] Find existing buffers",
+--                     prefix = "TEL"
+--                 })
+--
+--                 -- Search in current buffer
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>/",
+--                     fn = function()
+--                         tel.current_buffer_fuzzy_find(require("telescope.themes").get_dropdown({
+--                             winblend = 10,
+--                             previewer = false,
+--                         }))
+--                     end,
+--                     desc = "[/] Fuzzily search in current buffer",
+--                     prefix = "TEL",
+--                 })
+--
+--                 -- Search open files
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>s/",
+--                     fn = function()
+--                         tel.live_grep({
+--                             grep_open_files = true,
+--                             prompt_title = "Live Grep in Open Files",
+--                         })
+--                     end,
+--                     desc = "[s]earch [/] in Open Files",
+--                     prefix = "TEL",
+--                 })
+--
+--                 -- Search your Neovim config
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>sn",
+--                     fn = function()
+--                         tel.find_files({ cwd = vim.fn.stdpath("config") })
+--                     end,
+--                     desc = "[s]earch [n]eovim files",
+--                     prefix = "TEL",
+--                 })
+--
+--                 -- Search your notes
+--                 map({
+--                     mode = "n",
+--                     keys = "<leader>sN",
+--                     fn = function()
+--                         tel.find_files({ cwd = vim.fs.abspath("~/Desktop/notes") })
+--                     end,
+--                     desc = "[s]earch [n]eovim files",
+--                     prefix = "TEL",
+--                 })
+--             end,
+--         },
+--     },
+--
+--     checker = { notify = false },
+--     change_detection = { notify = false },
+-- })
 
 -- =============== Treesitter ===============
 -- Try to start Treesitter highlights for this buffer's filetype
