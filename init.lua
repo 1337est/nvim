@@ -205,30 +205,10 @@ autocmd({ "BufEnter" }, {
 --     -- Each file in lua/plugins/* should return a table with the plugins you want to install
 --     spec = {
 --
+-- TODO: Add require's pack/plugins/start/plugin/ for others not listed here.
 require("colorizer").setup()
---
---         {
---             "lukas-reineke/indent-blankline.nvim",
---             main = "ibl",
---             opts = {},
---             config = function()
---                 require("ibl").setup {
---                     exclude = { filetypes = {
---                         "lspinfo",
---                         "packer",
---                         "checkhealth",
---                         "help",
---                         "man",
---                         "gitcommit",
---                         "TelescopePrompt",
---                         "TelescopeResults",
---                         "",
---                         "dashboard",
---                     } }
---                 }
---             end,
---         },
---
+require("ibl").setup()
+
 --         {
 --             "nvim-lualine/lualine.nvim",
 --             enabled = true,
