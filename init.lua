@@ -226,12 +226,6 @@ local function map(args)
     vim.keymap.set(mode, keys, fn, opts)
 end
 
-map({ mode = "n", keys = "<Esc>", desc = "Clear search hl", fn = "<cmd>nohlsearch<CR>" })
-map({ mode = "v", keys = "<leader>p", desc = "[p]aste", fn = [["_dP]] })
-map({ mode = { "n", "v" }, keys = "<leader>d", desc = "[d]elete", fn = [["_d]] })
-map({ mode = "n", keys = "[d", desc = "Previous [d]iagnostic", fn = vim.diagnostic.goto_prev })
-map({ mode = "n", keys = "]d", desc = "Next [d]iagnostic", fn = vim.diagnostic.goto_next })
-
 -- =============== Plugins (Custom Autocmds, Augroups, Maps) ===============
 
 -- TODO: Add require's pack/plugins/start/plugin/ for others not listed here.
@@ -245,18 +239,128 @@ require("telescope").setup {
     defaults = { file_ignore_patterns = { "undodir", "node_modules", }, },
 }
 
+-- keymaps: '<leader>' + key ->  Regular extensions
+
+-- START: Make sure all these names match and are right
+map({
+    mode = "n",
+    keys = "<leader><Esc>",
+    desc = "Clear search hl",
+    fn = "<cmd>nohlsearch<CR>"
+})
+
+map({
+    mode = "v",
+    keys = "<leader>p",
+    desc = "[p]aste",
+    fn = [["_dP]]
+})
+
+map({
+    mode = { "n", "v" },
+    keys = "<leader>d",
+    desc = "[d]elete",
+    fn = [["_d]]
+})
+
+-- keymaps: ']' + key -> Next extensions
+map({
+    mode = "n",
+    keys = "]d",
+    desc = "Next [d]iagnostic",
+    fn = vim.diagnostic.goto_next
+})
+
+-- keymaps: '[' + key -> Previous extensions
+map({
+    mode = "n",
+    keys = "[d",
+    desc = "Previous [d]iagnostic",
+    fn = vim.diagnostic.goto_prev
+})
+
 local ok_tel, tel = pcall(require, 'telescope.builtin')
--- keymaps to call telescope functions
-map({ mode = "n", keys = "<leader>sh", desc = "[s]earch [h]elp", prefix = "TEL", fn = tel.help_tags })
-map({ mode = "n", keys = "<leader>sk", desc = "[s]earch [k]eymaps", prefix = "TEL", fn = tel.keymaps })
-map({ mode = "n", keys = "<leader>sf", desc = "[s]earch [f]iles", prefix = "TEL", fn = tel.find_files })
-map({ mode = "n", keys = "<leader>ss", desc = "[s]earch [s]elect Telescope", prefix = "TEL", fn = tel.builtin })
-map({ mode = "n", keys = "<leader>sw", desc = "[s]earch current [w]ord", prefix = "TEL", fn = tel.grep_string })
-map({ mode = "n", keys = "<leader>sg", desc = "[s]earch by [g]rep", prefix = "TEL", fn = tel.live_grep })
-map({ mode = "n", keys = "<leader>sd", desc = "[s]earch [d]iagnostics", prefix = "TEL", fn = tel.diagnostics })
-map({ mode = "n", keys = "<leader>sr", desc = "[s]earch [r]esume", prefix = "TEL", fn = tel.resume })
-map({ mode = "n", keys = "<leader>s.", desc = "[s]earch Recent Files ('.' for repeat)", prefix = "TEL", fn = tel.oldfiles })
-map({ mode = "n", keys = "<leader><leader>", desc = "[ ] Find existing buffers", prefix = "TEL", fn = tel.buffers })
+-- keymaps: '<leader>s' -> Search extensions
+map({
+    mode = "n",
+    keys = "<leader>snh",
+    desc = "[s]earch nvim [h]elp_tags",
+    prefix = "TEL",
+    fn = tel.help_tags
+})
+
+map({
+    mode = "n",
+    keys = "<leader>snm",
+    desc = "[s]earch nvim key[m]aps",
+    prefix = "TEL",
+    fn = tel.keymaps
+})
+
+map({
+    mode = "n",
+    keys = "<leader>stb",
+    desc = "[s]earch [t]el [b]uiltins",
+    prefix = "TEL",
+    fn = tel.builtin
+})
+
+map({
+    mode = "n",
+    keys = "<leader>sfn",
+    desc = "[s]earch [f]ile [n]ames",
+    prefix = "TEL",
+    fn = tel.find_files
+})
+
+map({
+    mode = "n",
+    keys = "<leader>swh",
+    desc = "[s]earch [w]ord [c]ursor",
+    prefix = "TEL",
+    fn = tel.grep_string
+})
+
+map({
+    mode = "n",
+    keys = "<leader>swg",
+    desc = "[s]earch [w]ord [g]rep",
+    prefix = "TEL",
+    fn = tel.live_grep
+})
+
+map({
+    mode = "n",
+    keys = "<leader>sd",
+    desc = "[s]earch [d]iagnostics",
+    prefix = "TEL",
+    fn = tel.diagnostics
+})
+
+-- LLO: should be ctrl-o <leader>t + ctrl-o
+map({
+    mode = "n",
+    keys = "<leader>sr",
+    desc = "[s]earch [r]esume",
+    prefix = "TEL",
+    fn = tel.resume
+})
+
+map({
+    mode = "n",
+    keys = "<leader>s.",
+    desc = "[s]earch Recent Files ('.' for repeat)",
+    prefix = "TEL",
+    fn = tel.oldfiles
+})
+
+map({
+    mode = "n",
+    keys = "<leader><leader>",
+    desc = "[ ] Find existing buffers",
+    prefix = "TEL",
+    fn = tel.buffers
+})
 
 map({
     mode = "n",
@@ -290,7 +394,7 @@ map({
     prefix = "TEL",
     fn = function() tel.find_files({ cwd = vim.fs.abspath("~/Desktop/notes") }) end,
 })
-
+-- END: Ending block for Start todo
 -- =============== LSP ===============
 
 -- Optional: default settings applied to *all* configs (wildcard "*")
