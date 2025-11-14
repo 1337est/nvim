@@ -1,3 +1,8 @@
+local utils = require("utils")
+local augroup = utils.augroup
+local autocmd = utils.autocmd
+local map = utils.map
+
 -- =============== Globals ===============
 vim.g.mapleader = " " -- Sets space as the leader key
 vim.g.maplocalleader = " " -- Sets space as the leader key
@@ -18,25 +23,35 @@ vim.opt.splitbelow = true -- new splits open below
 -- Floating windows
 vim.opt.winblend = 10
 
--- Basics
+-- Gutter
 vim.opt.number = true -- Make line numbers default
 vim.opt.relativenumber = true -- Shows line # away from current line #
 vim.opt.signcolumn = "yes" -- Show sign column
-vim.opt.termguicolors = true -- Enables 24-bit RGB color
-vim.opt.guicursor = "" -- Disable cursor styling
-vim.opt.lazyredraw = true
-vim.opt.updatetime = 300 -- Faster completion
-vim.opt.timeoutlen = 500 -- Mapped key sequence wait time
-vim.opt.mouse = "a" -- Enables mouse mode
-vim.opt.mousescroll = "ver:1,hor:1"
-vim.opt.confirm = true
+vim.opt.foldcolumn = "1"
+vim.opt.foldmethod = "indent"
+-- vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
+vim.opt.foldlevel = 99
+
 -- Indicator / hl-lines
 vim.opt.cursorline = true -- Show which line your cursor is on
 vim.opt.colorcolumn = "100" -- Line at the nth column
+
+-- gui styles
+vim.opt.termguicolors = true -- Enables 24-bit RGB color
+vim.opt.guicursor = "" -- Disable cursor styling
+
+-- screen rendering
+vim.opt.lazyredraw = true
+
+-- Mouse support
+vim.opt.mouse = "a" -- Enables mouse mode
+vim.opt.mousescroll = "ver:1,hor:1"
+
 -- automatic behavior
 vim.opt.autoread = true
 vim.opt.autowrite = false
 vim.opt.autochdir = false
+vim.opt.confirm = true
 
 -- Indent / text
 vim.opt.expandtab = true -- Use appropriate spaces to insert tabs
@@ -61,17 +76,14 @@ vim.opt.listchars = { tab = "<->", trail = ".", nbsp = "-", }
 vim.schedule(function() vim.opt.clipboard = "unnamedplus" end)
 
 -- Completions Ctrl-x-Ctrl-o
+vim.opt.updatetime = 250 -- Time after CursorHold Event (faster completions)
+vim.opt.timeoutlen = 300 -- Mapped key sequence wait time
 vim.opt.completeopt = "menuone,noinsert,noselect"
 vim.opt.pumheight = 10
 vim.opt.pumblend = 10
 
 -- Viewdir/folds
 vim.opt.viewdir = vim.fn.stdpath("state") .. "/viewdir//"
-vim.opt.foldcolumn = "1"
-vim.opt.foldmethod = "indent"
--- vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
-vim.opt.foldlevel = 99
-
 -- undodir
 vim.opt.undodir = vim.fn.stdpath("state") .. "/undodir//"
 vim.opt.undofile = true -- Save undo history
@@ -89,59 +101,12 @@ vim.opt.showtabline = 2
 
 -- =============== General Autocmds & Augroups ===============
 
---- augroup helper, clears resets autocmds when re-sourcing config
---- @param name string
---- @return integer         # augroup id
-local function augroup(name) return vim.api.nvim_create_augroup("1337." .. name, { clear = true }) end
-
-local function autocmd(args)
-    assert(type(args) == "table", "autocmd() expects a table")
-
-    local event = args.event or error("Missing 'event' in autocmd()")
-    local desc = args.desc or error("Missing 'desc' in autocmd()")
-    local prefix = args.prefix or "1337"
-    local group = args.group or error("Missing 'group' in autocmd()")
-    local callback = args.callback
-    local command = args.command
-
-    if (callback and command) then
-        error("autocmd(): Include 'callback' or 'command', you provided both")
-    elseif (not callback and not command) then
-        error("autocmd(): Include 'callback' or 'command', you didn't provide either.")
-    end
-
-    if (args.buffer and args.pattern) then
-        error("autocmd(): 'buffer' and 'pattern' are mutually exclusive, include only 1")
-    end
-
-    local opts = {
-        desc = ("%s: %s"):format(prefix, desc),
-        pattern = args.pattern,
-        buffer = args.buffer,
-        once = args.once,
-        nested = args.nested,
-    }
-
-    if group ~= nil then
-        local t = type(group)
-        if t == "string" then
-            opts.group = augroup(group) -- uses augroup helper above
-        elseif t == "number" then
-            opts.group = group -- existing group id
-        else
-            error("autocmd(): 'group' must be string or number")
-        end
-    end
-
-    if callback then opts.callback = callback else opts.command = command end
-    return vim.api.nvim_create_autocmd(event, opts)
-end
-
 autocmd({
     event    = "TextYankPost",
-    desc     = "Brief highlight on yank",
+    owner    = "1337",
     group    = "hl_on_yank",
-    pattern  = "*",
+    desc     = "Brief highlight on yank",
+    patbuf  = "*",
     callback = function()
         vim.hl.on_yank({ higroup = "IncSearch", timeout = 40 })
     end,
@@ -149,35 +114,40 @@ autocmd({
 
 autocmd({
     event    = "BufEnter",
-    desc     = "Removes automatic continuation comments when entering a buffer",
+    owner    = "1337",
     group    = "format_opts_remove_cro",
-    callback = function()
+    desc     = "Removes automatic continuation comments when entering a buffer",
+    patbuf  = "*",
+    fncmd = function()
         vim.opt.formatoptions:remove({ "c", "r", "o" })
     end,
 })
 
 autocmd({
     event   = "BufWinLeave",
+    owner   = "1337",
     desc    = "Remembers folds on window leave",
     group   = "fold_remember_on_leave",
-    pattern = "*.*",
+    patbuf = "*.*",
     command = "mkview",
 })
 
 autocmd({
     event   = "BufWinEnter",
-    desc    = "Remembers folds on window enter",
+    owner   = "1337",
     group   = "fold_remember_on_enter",
-    pattern = "*.*",
+    desc    = "Remembers folds on window enter",
+    patbuf = "*.*",
     command = "silent! loadview",
 })
 
 autocmd({
     event    = "BufEnter",
-    desc     = "Turns on text wrap + spell for text-ish files",
+    owner    = "1337",
     group    = "textfile_wrap_and_spell_on",
-    pattern  = { "*.md", "*.txt", "*.norg" },
-    callback = function()
+    desc     = "Turns on text wrap + spell for text-ish files",
+    patbuf  = { "*.md", "*.txt", "*.norg" },
+    fncmd = function()
         vim.opt_local.wrap  = true
         vim.opt_local.spell = true
     end,
@@ -185,46 +155,15 @@ autocmd({
 
 autocmd({
     event    = "FileType",
-    desc     = "Automatically starts treesitter with syntax enable fallback",
+    owner    = "1337",
     group    = "ts_auto_start",
-    callback = function(args)
+    desc     = "Automatically starts treesitter with syntax enable fallback",
+    patbuf  = "*",
+    fncmd = function(args)
         local ok = pcall(function() vim.treesitter.start(args.buf) end)
         if not ok then vim.cmd("syntax enable") end
     end,
 })
-
---- Wrapper for vim.keymap.set() to be explicit
---- Ex. Usage:
----   map({
----     mode   = 'n' or { 'n', 'x' },         -- required
----     keys   = '<leader>e',                 -- required
----     desc   = 'Open explorer',             -- required (used in which-key/help)
----     prefix = '1337',                      -- optional; prefixes desc ("1337: …")
----     fn     = my_handler_or_string_rhs,    -- required
----     opts   = { buffer = 0 },              -- optional; merged with sane defaults
----   })
----
---- Notes:
---- - Validates required fields early (useful during startup).
---- - Merges `opts` with { noremap = true, silent = true } via `"force"`.
---- - Final description becomes `"<prefix>: <desc>"` for consistent UX.
-local function map(args)
-    assert(type(args) == "table", "map() expects a table")
-
-    local mode = args.mode or error("Missing 'mode' in map()")
-    local keys = args.keys or error("Missing 'keys' in map()")
-    local desc = args.desc or error("Missing 'desc' in map()")
-    local prefix = args.prefix or "1337"
-    local fn = args.fn or error("Missing 'fn' in map()")
-
-    local opts = vim.tbl_extend("force", {
-        noremap = true,
-        silent = true,
-        desc = ("%s: %s"):format(prefix, desc),
-    }, args.opts or {})
-
-    vim.keymap.set(mode, keys, fn, opts)
-end
 
 -- =============== Plugins (Custom Autocmds, Augroups, Maps) ===============
 
@@ -245,6 +184,7 @@ require("telescope").setup {
 map({
     mode = "n",
     keys = "<leader><Esc>",
+    owner = "1337",
     desc = "Clear search hl",
     fn = "<cmd>nohlsearch<CR>"
 })
@@ -252,6 +192,7 @@ map({
 map({
     mode = "v",
     keys = "<leader>p",
+    owner = "1337",
     desc = "[p]aste",
     fn = [["_dP]]
 })
@@ -259,6 +200,7 @@ map({
 map({
     mode = { "n", "v" },
     keys = "<leader>d",
+    owner = "1337",
     desc = "[d]elete",
     fn = [["_d]]
 })
@@ -267,6 +209,7 @@ map({
 map({
     mode = "n",
     keys = "]d",
+    owner = "1337",
     desc = "Next [d]iagnostic",
     fn = vim.diagnostic.goto_next
 })
@@ -275,6 +218,7 @@ map({
 map({
     mode = "n",
     keys = "[d",
+    owner = "1337",
     desc = "Previous [d]iagnostic",
     fn = vim.diagnostic.goto_prev
 })
@@ -284,56 +228,56 @@ local ok_tel, tel = pcall(require, 'telescope.builtin')
 map({
     mode = "n",
     keys = "<leader>snh",
+    owner = "TEL",
     desc = "[s]earch nvim [h]elp_tags",
-    prefix = "TEL",
     fn = tel.help_tags
 })
 
 map({
     mode = "n",
     keys = "<leader>snm",
+    owner = "TEL",
     desc = "[s]earch nvim key[m]aps",
-    prefix = "TEL",
     fn = tel.keymaps
 })
 
 map({
     mode = "n",
     keys = "<leader>stb",
+    owner = "TEL",
     desc = "[s]earch [t]el [b]uiltins",
-    prefix = "TEL",
     fn = tel.builtin
 })
 
 map({
     mode = "n",
     keys = "<leader>sfn",
+    owner = "TEL",
     desc = "[s]earch [f]ile [n]ames",
-    prefix = "TEL",
     fn = tel.find_files
 })
 
 map({
     mode = "n",
     keys = "<leader>swh",
+    owner = "TEL",
     desc = "[s]earch [w]ord [c]ursor",
-    prefix = "TEL",
     fn = tel.grep_string
 })
 
 map({
     mode = "n",
     keys = "<leader>swg",
+    owner = "TEL",
     desc = "[s]earch [w]ord [g]rep",
-    prefix = "TEL",
     fn = tel.live_grep
 })
 
 map({
     mode = "n",
     keys = "<leader>sd",
+    owner = "TEL",
     desc = "[s]earch [d]iagnostics",
-    prefix = "TEL",
     fn = tel.diagnostics
 })
 
@@ -341,40 +285,40 @@ map({
 map({
     mode = "n",
     keys = "<leader>sr",
+    owner = "TEL",
     desc = "[s]earch [r]esume",
-    prefix = "TEL",
     fn = tel.resume
 })
 
 map({
     mode = "n",
     keys = "<leader>s.",
+    owner = "TEL",
     desc = "[s]earch Recent Files ('.' for repeat)",
-    prefix = "TEL",
     fn = tel.oldfiles
 })
 
 map({
     mode = "n",
     keys = "<leader><leader>",
+    owner = "TEL",
     desc = "[ ] Find existing buffers",
-    prefix = "TEL",
     fn = tel.buffers
 })
 
 map({
     mode = "n",
     keys = "<leader>/",
+    owner = "TEL",
     desc = "[/] Fuzzily search in current buffer",
-    prefix = "TEL",
     fn = function() tel.current_buffer_fuzzy_find(require("telescope.themes").get_dropdown({ winblend = 10, previewer = false, })) end,
 })
 
 map({
     mode = "n",
     keys = "<leader>s/",
+    owner = "TEL",
     desc = "[s]earch [/] in Open Files",
-    prefix = "TEL",
     fn = function() tel.live_grep({ grep_open_files = true, prompt_title = "Live Grep in Open Files", }) end,
 })
 
@@ -382,18 +326,11 @@ map({
 map({
     mode = "n",
     keys = "<leader>sn",
+    owner = "TEL",
     desc = "[s]earch [n]eovim files",
-    prefix = "TEL",
     fn = function() tel.find_files({ cwd = vim.fn.stdpath("config") }) end,
 })
 
-map({
-    mode = "n",
-    keys = "<leader>sN",
-    desc = "[s]earch [n]eovim files",
-    prefix = "TEL",
-    fn = function() tel.find_files({ cwd = vim.fs.abspath("~/Desktop/notes") }) end,
-})
 -- END: Ending block for Start todo
 -- =============== LSP ===============
 
@@ -488,15 +425,17 @@ vim.lsp.enable({
 --   vim.lsp.enable('clangd', false)  -- stop/disable
 --   vim.lsp.enable('clangd', true)   -- re-enable
 
-local lsp_attach_grp = augroup('lsp_attach')
-local lsp_detach_grp = augroup('lsp_detach')
+local lsp_owner = "LSP"
+local lsp_attach_grp = augroup(lsp_owner, 'attach')
+local lsp_detach_grp = augroup(lsp_owner, 'detach')
 
 autocmd({
     event    = "LspAttach",
-    desc     = 'Buffer-local LSP keymaps and features',
-    prefix   = "LSP",
+    owner    = lsp_owner,
     group    = lsp_attach_grp,
-    callback = function(e)
+    desc     = 'Buffer-local LSP keymaps and features',
+    patbuf  = "*",
+    fncmd = function(e)
         local bufnr  = e.buf
         local client = vim.lsp.get_client_by_id(e.data.client_id)
 
@@ -515,23 +454,83 @@ autocmd({
         local ws_syms   = ok_tel and tel.lsp_dynamic_workspace_symbols or function() vim.lsp.buf.workspace_symbol('') end
 
         -- Navigation
-        bmap({ mode = 'n', keys = 'grr', desc = '[g]oto [r]eferences', prefix = 'LSP', fn = refs })
-        bmap({ mode = 'n', keys = 'gri', desc = '[g]oto [I]mplementation', prefix = 'LSP', fn = goto_impl })
-        bmap({ mode = 'n', keys = 'grn', desc = '[r]e[n]ame', prefix = 'LSP', fn = vim.lsp.buf.rename })
-        bmap({ mode = 'n', keys = 'grt', desc = 'Type [D]efinition', prefix = 'LSP', fn = type_defs })
-        bmap({ mode = { 'n', 'x' }, keys = 'gra', desc = '[c]ode [a]ction', prefix = 'LSP', fn = vim.lsp.buf.code_action })
-        bmap({ mode = 'n', keys = 'gd', desc = '[g]oto [d]efinition', prefix = 'LSP', fn = goto_def })
-        bmap({ mode = 'n', keys = 'gD', desc = '[g]oto [D]eclaration', prefix = 'LSP', fn = vim.lsp.buf.declaration })
-        bmap({ mode = 'n', keys = '<leader>ds', desc = '[d]oc [s]ymbols', prefix = 'LSP', fn = doc_syms })
-        bmap({ mode = 'n', keys = '<leader>ws', desc = '[w]orkspace [s]ymbols', prefix = 'LSP', fn = ws_syms })
-        bmap({ mode = 'n', keys = 'K', desc = 'Hover docs', prefix = 'LSP', fn = vim.lsp.buf.hover })
+        bmap({
+            mode = 'n',
+            keys = 'grr',
+            owner = lsp_owner,
+            desc = '[g]oto [r]eferences',
+            fn = refs
+        })
+        bmap({
+            mode = 'n',
+            keys = 'gri',
+            owner = lsp_owner,
+            desc = '[g]oto [I]mplementation',
+            fn = goto_impl
+        })
+        bmap({
+            mode = 'n',
+            keys = 'grn',
+            owner = lsp_owner,
+            desc = '[r]e[n]ame',
+            fn = vim.lsp.buf.rename
+        })
+        bmap({
+            mode = 'n',
+            keys = 'grt',
+            owner = lsp_owner,
+            desc = 'Type [D]efinition',
+            fn = type_defs
+        })
+        bmap({
+            mode = { 'n', 'x' },
+            keys = 'gra',
+            owner = lsp_owner,
+            desc = '[c]ode [a]ction',
+            fn = vim.lsp.buf.code_action
+        })
+        bmap({
+            mode = 'n',
+            keys = 'gd',
+            owner = lsp_owner,
+            desc = '[g]oto [d]efinition',
+            fn = goto_def
+        })
+        bmap({
+            mode = 'n',
+            keys = 'gD',
+            owner = lsp_owner,
+            desc = '[g]oto [D]eclaration',
+            fn = vim.lsp.buf.declaration
+        })
+        bmap({
+            mode = 'n',
+            keys = '<leader>ds',
+            owner = lsp_owner,
+            desc = '[d]oc [s]ymbols',
+            fn = doc_syms
+        })
+        bmap({
+            mode = 'n',
+            keys = '<leader>ws',
+            owner = lsp_owner,
+            desc = '[w]orkspace [s]ymbols',
+            fn = ws_syms
+        })
+        bmap({
+            mode = 'n',
+            keys = 'K',
+            owner = lsp_owner,
+            desc = 'Hover docs',
+            fn = vim.lsp.buf.hover
+        })
 
         if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
             bmap({
                 mode = 'n',
                 keys = '<leader>th',
+                owner = lsp_owner,
                 desc = '[t]oggle Inlay [h]ints',
-                prefix = 'LSP',
                 fn = function()
                     local on = vim.lsp.inlay_hint.is_enabled({ bufnr = bufnr })
                     vim.lsp.inlay_hint.enable(not on, { bufnr = bufnr })
@@ -540,35 +539,35 @@ autocmd({
         end
 
         if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_formatting) then
-            local fmtgrp = augroup(('lsp_format_%d'):format(bufnr))
+            local lsp_fmt_grp = augroup(lsp_owner, ('format_%d'):format(bufnr))
             autocmd({
                 event = "BufWritePre",
+                owner = lsp_owner,
+                group = lsp_fmt_grp,
                 desc = "Format on save",
-                prefix = "LSP",
-                group = fmtgrp,
                 buffer = bufnr,
-                callback = function() vim.lsp.buf.format({ bufnr = bufnr, id = client.id, timeout_ms = 1500 }) end,
+                fncmd = function() vim.lsp.buf.format({ bufnr = bufnr, id = client.id, timeout_ms = 1500 }) end,
             })
         end
 
         -- Document highlight (if supported)
         if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
-            local hlgrp = augroup(('lsp_highlight_%d'):format(bufnr))
+            local lsp_hl_grp = augroup(lsp_owner, ('highlight_%d'):format(bufnr))
             autocmd({
                 event = { 'CursorHold', 'CursorHoldI' },
+                owner = lsp_owner,
+                group = lsp_hl_grp,
                 desc = "LSP document highlight",
-                prefix = "LSP",
-                group = hlgrp,
                 buffer = bufnr,
-                callback = vim.lsp.buf.document_highlight,
+                fncmd = vim.lsp.buf.document_highlight,
             })
             autocmd({
                 event = { 'CursorMoved', 'CursorMovedI', 'BufLeave' },
+                owner = lsp_owner,
+                group = lsp_hl_grp,
                 desc = "Clear LSP references",
-                prefix = "LSP",
-                group = hlgrp,
                 buffer = bufnr,
-                callback = vim.lsp.buf.clear_references,
+                fncmd = vim.lsp.buf.clear_references,
             })
         end
     end,
@@ -576,11 +575,12 @@ autocmd({
 
 autocmd({
     event    = 'LspDetach',
-    desc     = 'Clear LSP highlights on detach',
-    prefix   = "LSP",
+    owner    = lsp_owner,
     group    = lsp_detach_grp,
-    callback = function(e)
-        pcall(vim.api.nvim_del_augroup_by_name, ('1337.lsp_highlight_%d'):format(e.buf))
+    desc     = 'Clear LSP highlights on detach',
+    patbuf  = "*",
+    fncmd = function(e)
+        pcall(vim.api.nvim_del_augroup_by_name, ('LSP.highlight_%d'):format(e.buf))
         pcall(vim.lsp.buf.clear_references)
     end,
 })
@@ -599,47 +599,47 @@ local TAGS = {
     {
         hl = "1337TagTODO",
         words = {
-            " TODO: ", -- TODO: Leave a comment for something you need to get done.
-            " LLO: ", -- LLO: last left off.
-            " START: ", -- START: starts/go here first
-            " END: ", -- END: ends/go here last
-            " HERE: ", -- HERE: go here
+            "TODO:", -- TODO: Leave a comment for something you need to get done.
+            "LLO:", -- LLO: last left off.
+            "START:", -- START: starts/go here first
+            "END:", -- END: ends/go here last
+            "HERE:", -- HERE: go here
         }
     },
     {
         hl = "1337TagTEST",
         words = {
-            " TEST: ", -- TEST: testing or test
-            " EXP: ", -- EXP: experimental block
-            " TEMP: ", -- TEMP: this is temporary
+            " TEST:", -- TEST: testing or test
+            " EXP:", -- EXP: experimental block
+            " TEMP:", -- TEMP: this is temporary
         }
     },
     {
         hl = "1337TagPASS",
         words = {
-            " PASS: ", -- PASS: passing test
+            " PASS:", -- PASS: passing test
         }
     },
     {
         hl = "1337TagPERF",
         words = {
-            " PERF: ", -- PERF: performance block
-            " OPTIM: ", -- OPTIM: optimized/optimal/ or optimization block
+            " PERF:", -- PERF: performance block
+            " OPTIM:", -- OPTIM: optimized/optimal/ or optimization block
         }
     },
     {
         hl = "1337TagFAIL",
         words = {
-            " FAIL: ", -- FAIL: Failed block
-            " ERROR: ", -- ERROR: This probably breaks things
-            " FIXME: ", -- FIXME: please?
-            " BUG: ", -- BUG: Eww, squish it!
+            " FAIL:", -- FAIL: Failed block
+            " ERROR:", -- ERROR: This probably breaks things
+            " FIXME:", -- FIXME: please?
+            " BUG:", -- BUG: Eww, squish it!
         }
     },
     {
         hl = "1337TagWARN",
         words = {
-            " WARNING: ", -- WARNING: You have been warned...
+            " WARNING:", -- WARNING: You have been warned...
             " HACK: ", -- HACK: This was hacked up!
             " CAUTION: ", -- CAUTION: Proceed with caution, ok?
         }
@@ -770,13 +770,15 @@ vim.api.nvim_create_user_command("CommentTagsRefresh", function()
     refresh(0)
 end, { desc = "Refresh comment tag highlights (token-only)" })
 
--- Attach TS when possible; else fall back to simple autocmd refresh
-local grp_ts = augroup("comment_tags_ts")
+-- TODO: Attach TS when possible; else fall back to simple autocmd refresh
+local grp_ts = augroup("TS", "comment_tags_ts")
 autocmd({
     event = { "BufEnter", "FileType" },
-    desc = "Attach TreeSitter-based comment tags if parser is available",
+    owner = "TS",
     group = grp_ts,
-    callback = function(args)
+    desc = "Attach TreeSitter-based comment tags if parser is available",
+    patbuf = "*",
+    fncmd = function(args)
         if vim.b[args.buf].comment_tags_ts_attached then return end
         local ok = pcall(vim.treesitter.get_parser, args.buf)
         if not ok then return end
@@ -785,12 +787,14 @@ autocmd({
     end,
 })
 
-local grp_fb = augroup("comment_tags_fallback")
+local grp_fb = augroup("1337", "comment_tags_fallback")
 autocmd({
     event = { "BufEnter", "TextChanged", "InsertLeave", "BufWritePost" },
-    desc = "Fallback refresh of comment tags when TreeSitter is not attached",
+    owner = "1337",
     group = grp_fb,
-    callback = function(args)
+    desc = "Fallback refresh of comment tags when TreeSitter is not attached",
+    patbuf = "*",
+    fncmd = function(args)
         if vim.b[args.buf].comment_tags_ts_attached then return end -- TS will handle it
         refresh(args.buf)
     end
@@ -799,9 +803,11 @@ autocmd({
 -- Reapply groups & repaint on colorscheme reload
 autocmd({
     event = "ColorScheme",
-    desc = "Reapply comment tags on colorscheme reload",
+    owner = "1337",
     group = grp_fb,
-    callback = function()
+    desc = "Reapply comment tags on colorscheme reload",
+    patbuf = "*",
+    fncmd = function()
         if vim.api.nvim_buf_is_valid(0) then refresh(0) end
     end,
 })
