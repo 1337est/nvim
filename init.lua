@@ -3,27 +3,18 @@ local augroup = utils.augroup
 local autocmd = utils.autocmd
 local map = utils.map
 
--- =============== Globals ===============
+-----------------------------------------------------------------------------------
+-- AESTHETICS: HIGHLIGHTS / TREESITTER / COLORSCHEME / GUTTER / VIEW / CONCEAL / TEXT / WHITESPACE
+-----------------------------------------------------------------------------------
+-- colors/1337dark.lua
+vim.cmd.colorscheme("1337dark") -- check out colors/1337dark.lua
+
+-- globals
 vim.g.mapleader = " " -- Sets space as the leader key
 vim.g.maplocalleader = " " -- Sets space as the leader key
 vim.g.have_nerd_font = true -- For my nerd font
-vim.cmd.colorscheme("1337dark") -- check out colors/1337dark.lua
 
--- Search settings
-vim.opt.ignorecase = true
-vim.opt.smartcase = true
-vim.opt.incsearch = true -- Shows pattern match as you type
-vim.opt.inccommand = "split" -- preview substitutions live as you type
-vim.opt.hlsearch = true -- Set highlight on search
-vim.opt.iskeyword:append("-")
-
--- Window split behavior
-vim.opt.splitright = true -- new splits open right
-vim.opt.splitbelow = true -- new splits open below
--- Floating windows
-vim.opt.winblend = 10
-
--- Gutter
+-- gutter
 vim.opt.number = true -- Make line numbers default
 vim.opt.relativenumber = true -- Shows line # away from current line #
 vim.opt.signcolumn = "yes" -- Show sign column
@@ -32,304 +23,202 @@ vim.opt.foldmethod = "indent"
 -- vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
 vim.opt.foldlevel = 99
 
--- Indicator / hl-lines
+-- row/column indicators
 vim.opt.cursorline = true -- Show which line your cursor is on
 vim.opt.colorcolumn = "100" -- Line at the nth column
 
--- gui styles
+-- gui
 vim.opt.termguicolors = true -- Enables 24-bit RGB color
 vim.opt.guicursor = "" -- Disable cursor styling
 
--- screen rendering
+-- render
 vim.opt.lazyredraw = true
 
--- Mouse support
-vim.opt.mouse = "a" -- Enables mouse mode
-vim.opt.mousescroll = "ver:1,hor:1"
-
--- automatic behavior
-vim.opt.autoread = true
-vim.opt.autowrite = false
-vim.opt.autochdir = false
-vim.opt.confirm = true
-
--- Indent / text
+-- whitespace
 vim.opt.expandtab = true -- Use appropriate spaces to insert tabs
 vim.opt.shiftwidth = 4 -- 4 spaces for (auto)indenting
 vim.opt.tabstop = 4 -- tabs are 4 spaces
 vim.opt.smartindent = true -- Smart auto-indenting on new lines
--- Text wrap behavior
-vim.opt.wrap = false -- Don't wrap text
-vim.opt.linebreak = true -- Wraps words instead of characters
-vim.opt.scrolloff = 1 -- Minimal screen lines above/below the cursor
-vim.opt.sidescrolloff = 1 -- Minimal screen lines to keep left/right
 
--- Conceal text
+-- conceal
 vim.opt.conceallevel = 0
 vim.opt.concealcursor = ""
 vim.opt.list = true
 vim.opt.listchars = { tab = "<->", trail = ".", nbsp = "-", }
 
+-- statusline / windows / tabs
+vim.opt.showmode = false -- Don't show mode, since it's already in status line
+vim.opt.laststatus = 3
+vim.opt.showtabline = 2
+
+autocmd({
+    event  = "FileType",
+    owner  = "1337",
+    group  = "ts_auto_start",
+    desc   = "Automatically starts treesitter with syntax enable fallback",
+    patbuf = "*",
+    fncmd  = function(args)
+        local ok = pcall(function() vim.treesitter.start(args.buf) end)
+        if not ok then vim.cmd("syntax enable") end
+    end,
+})
+
+-----------------------------------------------------------------------------------
+-- BEHAVIOR: BUFFERS / VIEWPORTS / RENDERING / WRITING / READING / WINDOWS / TABS / FLOATS / POPUPS
+-----------------------------------------------------------------------------------
+vim.opt.autoread = true
+vim.opt.autowrite = false
+vim.opt.autochdir = false
+vim.opt.confirm = true
+
+vim.opt.splitright = true -- new splits open right
+vim.opt.splitbelow = true -- new splits open below
+vim.opt.winblend = 10
+
+vim.opt.wrap = false -- Don't wrap text
+vim.opt.spell = false
+vim.opt.linebreak = true -- Wraps words instead of characters
+vim.opt.scrolloff = 1 -- Minimal screen lines above/below the cursor
+vim.opt.sidescrolloff = 1 -- Minimal screen lines to keep left/right
+autocmd({
+    event  = "BufEnter",
+    owner  = "1337",
+    group  = "textfile_wrap_and_spell_on",
+    desc   = "Turns on text wrap + spell for text-ish files",
+    patbuf = { "*.md", "*.txt", "*.norg" },
+    fncmd  = function()
+        vim.opt_local.wrap  = true
+        vim.opt_local.spell = true
+    end,
+})
+
+
+-- view state
+vim.opt.viewdir = vim.fn.stdpath("state") .. "/viewdir//"
+autocmd({
+    event  = "BufWinLeave",
+    owner  = "1337",
+    desc   = "Remembers folds on window leave",
+    group  = "fold_remember_on_leave",
+    patbuf = "*.*",
+    fncmd  = "mkview",
+})
+autocmd({
+    event  = "BufWinEnter",
+    owner  = "1337",
+    group  = "fold_remember_on_enter",
+    desc   = "Remembers folds on window enter",
+    patbuf = "*.*",
+    fncmd  = "silent! loadview",
+})
+
+-- undo state
+vim.opt.undodir = vim.fn.stdpath("state") .. "/undodir//"
+vim.opt.undofile = true -- Save undo history
+
+-- backup state
+vim.opt.backup = false
+vim.opt.writebackup = false
+
+-- swap state
+vim.opt.swapfile = false
+
+----------------------------------------------------------------------------------------------
+-- ACTIONS: FINDING / SEARCHING / NAVIGATION / EXPLORER / MARKS / JUMPS / COMPLETIONS / MOVES
+----------------------------------------------------------------------------------------------
 -- Sync clipboard between OS and Neovim.
 --  Remove this option if you want your OS clipboard to remain independent.
 --  See `:help 'clipboard'`
 vim.schedule(function() vim.opt.clipboard = "unnamedplus" end)
+autocmd({
+    event = "TextYankPost",
+    owner = "1337",
+    group = "hl_on_yank",
+    desc = "Brief highlight on yank",
+    patbuf = "*",
+    fncmd = function()
+        vim.hl.on_yank({ higroup = "IncSearch", timeout = 40 })
+    end,
+})
+map({ mode = "x", keys = "<leader>p", owner = "1337", desc = "paste over without yanking", fn = [["_dP]] })
+map({ mode = { "n", "v" }, keys = "<leader>d", owner = "1337", desc = "delete without yanking", fn = [["_d]] })
 
--- Completions Ctrl-x-Ctrl-o
+-- searching
+vim.opt.ignorecase = true
+vim.opt.smartcase = true
+vim.opt.incsearch = true -- Shows pattern match as you type
+vim.opt.inccommand = "split" -- preview substitutions live as you type
+vim.opt.hlsearch = true -- Set highlight on search
+vim.opt.iskeyword:append("-")
+map({ mode = "n", keys = "n", owner = "1337", desc = "next search centered", fn = "nzz" })
+map({ mode = "n", keys = "N", owner = "1337", desc = "previoius search centered", fn = "Nzz" })
+map({ mode = "n", keys = "<C-u>", owner = "1337", desc = "Half page up centered", fn = "<C-u>zz" })
+map({ mode = "n", keys = "<C-d>", owner = "1337", desc = "Half page down centered", fn = "<C-d>zz" })
+map({ mode = "n", keys = "<C-f>", owner = "1337", desc = "Full page up centered", fn = "<C-f>zz" })
+map({ mode = "n", keys = "<C-b>", owner = "1337", desc = "Full page down centered", fn = "<C-b>zz" })
+map({ mode = "n", keys = "J", owner = "1337", desc = "Join lines, keep cursor position", fn = "mzJ`z" })
+
+-- Moving blocks of text with active selection
+map({ mode = "n", keys = "<A-j>", owner = "1337", desc = "Move line down", fn = ":m .+1<CR>==" })
+map({ mode = "n", keys = "<A-k>", owner = "1337", desc = "Move line up", fn = ":m .-2<CR>==" })
+map({ mode = "v", keys = "<A-j>", owner = "1337", desc = "Move selection down", fn = ":m '>+1<CR>gv=gv" })
+map({ mode = "v", keys = "<A-k>", owner = "1337", desc = "Move selection up", fn = ":m '<-2<CR>gv=gv" })
+map({ mode = "v", keys = "<A-.>", owner = "1337", desc = "Indent right reselect", fn = ">gv" })
+map({ mode = "v", keys = "<A-,>", owner = "1337", desc = "Indent left reselect", fn = "<gv" })
+
+-- File Explorering
+map({ mode = "n", keys = "<leader>e", owner = "1337", desc = "Explorer", fn = ":Explore<CR>" })
+
+-- mouse
+vim.opt.mouse = "a" -- Enables mouse mode
+vim.opt.mousescroll = "ver:1,hor:1"
+
+-- completions
 vim.opt.updatetime = 250 -- Time after CursorHold Event (faster completions)
 vim.opt.timeoutlen = 300 -- Mapped key sequence wait time
 vim.opt.completeopt = "menuone,noinsert,noselect"
 vim.opt.pumheight = 10
 vim.opt.pumblend = 10
 
--- Viewdir/folds
-vim.opt.viewdir = vim.fn.stdpath("state") .. "/viewdir//"
--- undodir
-vim.opt.undodir = vim.fn.stdpath("state") .. "/undodir//"
-vim.opt.undofile = true -- Save undo history
-
--- backups
-vim.opt.backup = false
-vim.opt.writebackup = false
-
--- swapfiles
-vim.opt.swapfile = false
-
-vim.opt.showmode = false -- Don't show mode, since it's already in status line
-vim.opt.laststatus = 3
-vim.opt.showtabline = 2
-
--- =============== General Autocmds & Augroups ===============
-
+-- formatting
 autocmd({
-    event    = "TextYankPost",
-    owner    = "1337",
-    group    = "hl_on_yank",
-    desc     = "Brief highlight on yank",
-    patbuf  = "*",
-    callback = function()
-        vim.hl.on_yank({ higroup = "IncSearch", timeout = 40 })
-    end,
-})
-
-autocmd({
-    event    = "BufEnter",
-    owner    = "1337",
-    group    = "format_opts_remove_cro",
-    desc     = "Removes automatic continuation comments when entering a buffer",
-    patbuf  = "*",
-    fncmd = function()
+    event  = "BufEnter",
+    owner  = "1337",
+    group  = "format_opts_remove_cro",
+    desc   = "Removes automatic continuation comments when entering a buffer",
+    patbuf = "*",
+    fncmd  = function()
         vim.opt.formatoptions:remove({ "c", "r", "o" })
     end,
 })
 
-autocmd({
-    event   = "BufWinLeave",
-    owner   = "1337",
-    desc    = "Remembers folds on window leave",
-    group   = "fold_remember_on_leave",
-    patbuf = "*.*",
-    command = "mkview",
-})
-
-autocmd({
-    event   = "BufWinEnter",
-    owner   = "1337",
-    group   = "fold_remember_on_enter",
-    desc    = "Remembers folds on window enter",
-    patbuf = "*.*",
-    command = "silent! loadview",
-})
-
-autocmd({
-    event    = "BufEnter",
-    owner    = "1337",
-    group    = "textfile_wrap_and_spell_on",
-    desc     = "Turns on text wrap + spell for text-ish files",
-    patbuf  = { "*.md", "*.txt", "*.norg" },
-    fncmd = function()
-        vim.opt_local.wrap  = true
-        vim.opt_local.spell = true
-    end,
-})
-
-autocmd({
-    event    = "FileType",
-    owner    = "1337",
-    group    = "ts_auto_start",
-    desc     = "Automatically starts treesitter with syntax enable fallback",
-    patbuf  = "*",
-    fncmd = function(args)
-        local ok = pcall(function() vim.treesitter.start(args.buf) end)
-        if not ok then vim.cmd("syntax enable") end
-    end,
-})
+------------------------------------------------------------------------------------------------------
 
 -- =============== Plugins (Custom Autocmds, Augroups, Maps) ===============
 
--- TODO: Add require's pack/plugins/start/plugin/ for others not listed here.
 require("colorizer").setup()
 require("ibl").setup()
 require("lualine").setup {}
 require("barbar").setup {}
+
+-- =========================== Search Telescope / Functions / Maps ============================
 require("telescope").setup {
     extensions = { ["ui-select"] = { require("telescope.themes").get_dropdown() }, },
     pickers = { find_files = { hidden = true, no_ignore = true, no_ignore_parent = true, }, },
     defaults = { file_ignore_patterns = { "undodir", "node_modules", }, },
 }
-
--- keymaps: '<leader>' + key ->  Regular extensions
-
--- START: Make sure all these names match and are right
-map({
-    mode = "n",
-    keys = "<leader><Esc>",
-    owner = "1337",
-    desc = "Clear search hl",
-    fn = "<cmd>nohlsearch<CR>"
-})
-
-map({
-    mode = "v",
-    keys = "<leader>p",
-    owner = "1337",
-    desc = "[p]aste",
-    fn = [["_dP]]
-})
-
-map({
-    mode = { "n", "v" },
-    keys = "<leader>d",
-    owner = "1337",
-    desc = "[d]elete",
-    fn = [["_d]]
-})
-
--- keymaps: ']' + key -> Next extensions
-map({
-    mode = "n",
-    keys = "]d",
-    owner = "1337",
-    desc = "Next [d]iagnostic",
-    fn = vim.diagnostic.goto_next
-})
-
--- keymaps: '[' + key -> Previous extensions
-map({
-    mode = "n",
-    keys = "[d",
-    owner = "1337",
-    desc = "Previous [d]iagnostic",
-    fn = vim.diagnostic.goto_prev
-})
-
 local ok_tel, tel = pcall(require, 'telescope.builtin')
--- keymaps: '<leader>s' -> Search extensions
-map({
-    mode = "n",
-    keys = "<leader>snh",
-    owner = "TEL",
-    desc = "[s]earch nvim [h]elp_tags",
-    fn = tel.help_tags
-})
 
-map({
-    mode = "n",
-    keys = "<leader>snm",
-    owner = "TEL",
-    desc = "[s]earch nvim key[m]aps",
-    fn = tel.keymaps
-})
+map({ mode = "n", keys = "<leader>st", owner = "TEL", desc = "telescope builtins", fn = tel.builtin })
 
-map({
-    mode = "n",
-    keys = "<leader>stb",
-    owner = "TEL",
-    desc = "[s]earch [t]el [b]uiltins",
-    fn = tel.builtin
-})
+map({ mode = "n", keys = "<leader>sk", owner = "TEL", desc = "search nvim keymaps", fn = tel.keymaps })
+map({ mode = "n", keys = "<leader>sh", owner = "TEL", desc = "search nvim help_tags", fn = tel.help_tags })
 
-map({
-    mode = "n",
-    keys = "<leader>sfn",
-    owner = "TEL",
-    desc = "[s]earch [f]ile [n]ames",
-    fn = tel.find_files
-})
+map({ mode = "n", keys = "<leader>sf", owner = "TEL", desc = "search file by name from cwd", fn = tel.find_files })
+map({ mode = "n", keys = "<leader>so", owner = "TEL", desc = "search file by name from file history", fn = tel.oldfiles })
+map({ mode = "n", keys = "<leader>sb", owner = "TEL", desc = "Find existing buffers", fn = tel.buffers })
 
-map({
-    mode = "n",
-    keys = "<leader>swh",
-    owner = "TEL",
-    desc = "[s]earch [w]ord [c]ursor",
-    fn = tel.grep_string
-})
-
-map({
-    mode = "n",
-    keys = "<leader>swg",
-    owner = "TEL",
-    desc = "[s]earch [w]ord [g]rep",
-    fn = tel.live_grep
-})
-
-map({
-    mode = "n",
-    keys = "<leader>sd",
-    owner = "TEL",
-    desc = "[s]earch [d]iagnostics",
-    fn = tel.diagnostics
-})
-
--- LLO: should be ctrl-o <leader>t + ctrl-o
-map({
-    mode = "n",
-    keys = "<leader>sr",
-    owner = "TEL",
-    desc = "[s]earch [r]esume",
-    fn = tel.resume
-})
-
-map({
-    mode = "n",
-    keys = "<leader>s.",
-    owner = "TEL",
-    desc = "[s]earch Recent Files ('.' for repeat)",
-    fn = tel.oldfiles
-})
-
-map({
-    mode = "n",
-    keys = "<leader><leader>",
-    owner = "TEL",
-    desc = "[ ] Find existing buffers",
-    fn = tel.buffers
-})
-
-map({
-    mode = "n",
-    keys = "<leader>/",
-    owner = "TEL",
-    desc = "[/] Fuzzily search in current buffer",
-    fn = function() tel.current_buffer_fuzzy_find(require("telescope.themes").get_dropdown({ winblend = 10, previewer = false, })) end,
-})
-
-map({
-    mode = "n",
-    keys = "<leader>s/",
-    owner = "TEL",
-    desc = "[s]earch [/] in Open Files",
-    fn = function() tel.live_grep({ grep_open_files = true, prompt_title = "Live Grep in Open Files", }) end,
-})
-
--- Search your Neovim config
-map({
-    mode = "n",
-    keys = "<leader>sn",
-    owner = "TEL",
-    desc = "[s]earch [n]eovim files",
-    fn = function() tel.find_files({ cwd = vim.fn.stdpath("config") }) end,
-})
+map({ mode = "n", keys = "<leader>s/", owner = "TEL", desc = "search word with dynamic grep", fn = tel.live_grep })
 
 -- END: Ending block for Start todo
 -- =============== LSP ===============
@@ -428,14 +317,15 @@ vim.lsp.enable({
 local lsp_owner = "LSP"
 local lsp_attach_grp = augroup(lsp_owner, 'attach')
 local lsp_detach_grp = augroup(lsp_owner, 'detach')
+local m = vim.lsp.protocol.Methods
 
 autocmd({
-    event    = "LspAttach",
-    owner    = lsp_owner,
-    group    = lsp_attach_grp,
-    desc     = 'Buffer-local LSP keymaps and features',
-    patbuf  = "*",
-    fncmd = function(e)
+    event  = "LspAttach",
+    owner  = lsp_owner,
+    group  = lsp_attach_grp,
+    desc   = 'Buffer-local LSP keymaps and features',
+    patbuf = "*",
+    fncmd  = function(e)
         local bufnr  = e.buf
         local client = vim.lsp.get_client_by_id(e.data.client_id)
 
@@ -445,87 +335,17 @@ autocmd({
             map(table)
         end
 
-        -- Prefer Telescope pickers if available; fall back to native functions
-        local goto_def  = ok_tel and tel.lsp_definitions or vim.lsp.buf.definition
-        local goto_impl = ok_tel and tel.lsp_implementations or vim.lsp.buf.implementation
-        local refs      = ok_tel and tel.lsp_references or vim.lsp.buf.references
-        local type_defs = ok_tel and tel.lsp_type_definitions or vim.lsp.buf.type_definition
-        local doc_syms  = ok_tel and tel.lsp_document_symbols or function() vim.lsp.buf.document_symbol() end
-        local ws_syms   = ok_tel and tel.lsp_dynamic_workspace_symbols or function() vim.lsp.buf.workspace_symbol('') end
-
-        -- Navigation
-        bmap({
-            mode = 'n',
-            keys = 'grr',
-            owner = lsp_owner,
-            desc = '[g]oto [r]eferences',
-            fn = refs
-        })
-        bmap({
-            mode = 'n',
-            keys = 'gri',
-            owner = lsp_owner,
-            desc = '[g]oto [I]mplementation',
-            fn = goto_impl
-        })
-        bmap({
-            mode = 'n',
-            keys = 'grn',
-            owner = lsp_owner,
-            desc = '[r]e[n]ame',
-            fn = vim.lsp.buf.rename
-        })
-        bmap({
-            mode = 'n',
-            keys = 'grt',
-            owner = lsp_owner,
-            desc = 'Type [D]efinition',
-            fn = type_defs
-        })
-        bmap({
-            mode = { 'n', 'x' },
-            keys = 'gra',
-            owner = lsp_owner,
-            desc = '[c]ode [a]ction',
-            fn = vim.lsp.buf.code_action
-        })
-        bmap({
-            mode = 'n',
-            keys = 'gd',
-            owner = lsp_owner,
-            desc = '[g]oto [d]efinition',
-            fn = goto_def
-        })
-        bmap({
-            mode = 'n',
-            keys = 'gD',
-            owner = lsp_owner,
-            desc = '[g]oto [D]eclaration',
-            fn = vim.lsp.buf.declaration
-        })
-        bmap({
-            mode = 'n',
-            keys = '<leader>ds',
-            owner = lsp_owner,
-            desc = '[d]oc [s]ymbols',
-            fn = doc_syms
-        })
-        bmap({
-            mode = 'n',
-            keys = '<leader>ws',
-            owner = lsp_owner,
-            desc = '[w]orkspace [s]ymbols',
-            fn = ws_syms
-        })
-        bmap({
-            mode = 'n',
-            keys = 'K',
-            owner = lsp_owner,
-            desc = 'Hover docs',
-            fn = vim.lsp.buf.hover
-        })
-
-        if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
+        bmap({ mode = { 'n', 'x' }, keys = 'gra', owner = lsp_owner, desc = 'code action', fn = vim.lsp.buf.code_action })
+        bmap({ mode = 'n', keys = 'gri', owner = lsp_owner, desc = 'goto Implementation', fn = vim.lsp.buf.implementation })
+        bmap({ mode = 'n', keys = 'grn', owner = lsp_owner, desc = 'rename', fn = vim.lsp.buf.rename })
+        bmap({ mode = 'n', keys = 'grr', owner = lsp_owner, desc = 'goto references', fn = vim.lsp.buf.references })
+        bmap({ mode = 'n', keys = 'grt', owner = lsp_owner, desc = 'Type Definition', fn = vim.lsp.buf.type_definition })
+        bmap({ mode = 'n', keys = 'grd', owner = lsp_owner, desc = 'goto definition', fn = vim.lsp.buf.definition })
+        bmap({ mode = 'n', keys = 'grD', owner = lsp_owner, desc = 'goto Declaration', fn = vim.lsp.buf.declaration })
+        bmap({ mode = 'n', keys = 'gO', owner = lsp_owner, desc = 'doc symbols', fn = vim.lsp.buf.document_symbol })
+        bmap({ mode = 'n', keys = 'gW', owner = lsp_owner, desc = 'workspace symbols', fn = vim.lsp.buf.workspace_symbol })
+        bmap({ mode = 'n', keys = 'K', owner = lsp_owner, desc = 'Hover docs', fn = vim.lsp.buf.hover })
+        if client and client.supports_method(m.textDocument_inlayHint) then
             bmap({
                 mode = 'n',
                 keys = '<leader>th',
@@ -538,52 +358,80 @@ autocmd({
             })
         end
 
-        if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_formatting) then
+        if client and client.supports_method(m.textDocument_formatting) then
             local lsp_fmt_grp = augroup(lsp_owner, ('format_%d'):format(bufnr))
             autocmd({
                 event = "BufWritePre",
                 owner = lsp_owner,
                 group = lsp_fmt_grp,
                 desc = "Format on save",
-                buffer = bufnr,
+                patbuf = bufnr,
                 fncmd = function() vim.lsp.buf.format({ bufnr = bufnr, id = client.id, timeout_ms = 1500 }) end,
             })
         end
 
         -- Document highlight (if supported)
-        if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
+        if client and client.supports_method(m.textDocument_documentHighlight) then
             local lsp_hl_grp = augroup(lsp_owner, ('highlight_%d'):format(bufnr))
             autocmd({
                 event = { 'CursorHold', 'CursorHoldI' },
                 owner = lsp_owner,
                 group = lsp_hl_grp,
                 desc = "LSP document highlight",
-                buffer = bufnr,
+                patbuf = bufnr,
                 fncmd = vim.lsp.buf.document_highlight,
             })
             autocmd({
-                event = { 'CursorMoved', 'CursorMovedI', 'BufLeave' },
+                event = { 'CursorMoved', 'CursorMovedI' },
                 owner = lsp_owner,
                 group = lsp_hl_grp,
                 desc = "Clear LSP references",
-                buffer = bufnr,
+                patbuf = bufnr,
                 fncmd = vim.lsp.buf.clear_references,
+            })
+            autocmd({
+                event  = 'LspDetach',
+                owner  = lsp_owner,
+                group  = lsp_detach_grp,
+                desc   = 'Clear LSP highlights on detach',
+                patbuf = "*",
+                fncmd  = function(e)
+                    pcall(vim.api.nvim_del_augroup_by_name, ('LSP.highlight_%d'):format(e.buf))
+                    pcall(vim.lsp.buf.clear_references)
+                end,
             })
         end
     end,
 })
 
-autocmd({
-    event    = 'LspDetach',
-    owner    = lsp_owner,
-    group    = lsp_detach_grp,
-    desc     = 'Clear LSP highlights on detach',
-    patbuf  = "*",
-    fncmd = function(e)
-        pcall(vim.api.nvim_del_augroup_by_name, ('LSP.highlight_%d'):format(e.buf))
-        pcall(vim.lsp.buf.clear_references)
-    end,
-})
+-- ======================= DIAGNOSTICS ====================================================
+vim.diagnostic.config = {
+    severity_sort = true,
+    float = { border = 'rounded', source = 'if_many' },
+    underline = { severity = vim.diagnostic.severity.ERROR },
+    signs = vim.g.have_nerd_font and {
+        text = {
+            [vim.diagnostic.severity.ERROR] = '󰅚 ',
+            [vim.diagnostic.severity.WARN] = '󰀪 ',
+            [vim.diagnostic.severity.INFO] = '󰋽 ',
+            [vim.diagnostic.severity.HINT] = '󰌶 ',
+        },
+    } or {},
+    virtual_text = {
+        source = 'if_many',
+        spacing = 2,
+        format = function(diagnostic)
+            local diagnostic_message = {
+                [vim.diagnostic.severity.ERROR] = diagnostic.message,
+                [vim.diagnostic.severity.WARN] = diagnostic.message,
+                [vim.diagnostic.severity.INFO] = diagnostic.message,
+                [vim.diagnostic.severity.HINT] = diagnostic.message,
+            }
+            return diagnostic_message[diagnostic.severity]
+        end,
+    },
+}
+map({ mode = "n", keys = "<leader>sd", owner = "TEL", desc = "search diagnostics list", fn = tel.diagnostics })
 
 -- HACK: Mostly generated by ChatGPT, need to go through and fix. A little buggy,
 -- but gets the job done.
@@ -599,11 +447,11 @@ local TAGS = {
     {
         hl = "1337TagTODO",
         words = {
-            "TODO:", -- TODO: Leave a comment for something you need to get done.
-            "LLO:", -- LLO: last left off.
-            "START:", -- START: starts/go here first
-            "END:", -- END: ends/go here last
-            "HERE:", -- HERE: go here
+            " TODO:", -- TODO: Leave a comment for something you need to get done.
+            " LLO:", -- LLO: last left off.
+            " START:", -- START: starts/go here first
+            " END:", -- END: ends/go here last
+            " HERE:", -- HERE: go here
         }
     },
     {
@@ -640,17 +488,17 @@ local TAGS = {
         hl = "1337TagWARN",
         words = {
             " WARNING:", -- WARNING: You have been warned...
-            " HACK: ", -- HACK: This was hacked up!
-            " CAUTION: ", -- CAUTION: Proceed with caution, ok?
+            " HACK:", -- HACK: This was hacked up!
+            " CAUTION:", -- CAUTION: Proceed with caution, ok?
         }
     },
     {
         hl = "1337TagNOTE",
         words = {
-            " NOTE: ", -- NOTE: Small note info.
-            " INFO: ", -- INFO: General info.
-            " NEW: ", -- NEW: New info.
-            " OLD: ", -- OLD: old info.
+            " NOTE:", -- NOTE: Small note info.
+            " INFO:", -- INFO: General info.
+            " NEW:", -- NEW: New info.
+            " OLD:", -- OLD: old info.
         }
     },
 }

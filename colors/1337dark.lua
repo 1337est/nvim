@@ -4,8 +4,11 @@ local hl = vim.api.nvim_set_hl
 
 -- One Dark palette
 local p = {
+    bg_light     = "#323232",
     bg           = "#202020",
-    bg_alt       = "#1A1A1A",
+    bg_dark      = "#151515",
+    bg_darker    = "#101010",
+    fg_light     = "#dadada",
     fg           = "#ababab",
     fg_alt       = "#828282",
     comment      = "#506070",
@@ -51,20 +54,54 @@ if vim.fn.exists("syntax_on") == 1 then vim.cmd("syntax reset") end
 vim.g.colors_name = "1337dark"
 
 -- TODO: Go through all of these to see what they do
-hl(0, "Normal", { fg = p.fg, bg = p.none })
-hl(0, "NormalNC", { fg = p.fg_alt, bg = p.none })
-hl(0, "EndOfBuffer", { fg = p.fg_alt, bg = p.none })
+hl(0, "Normal", { fg = p.fg, bg = p.bg })
+hl(0, "NormalNC", { fg = p.fg_alt, bg = p.bg_darker })
+hl(0, "EndOfBuffer", { fg = p.fg, bg = p.bg_dark })
 
+-- Floating windows
+hl(0, "NormalFloat", { fg = p.fg_light, bg = p.bg_dark })
+hl(0, "FloatBorder", { fg = p.blue, bg = p.bg_dark })
+hl(0, "FloatTitle", { fg = p.yellow, bg = p.bg_dark, bold = true })
+hl(0, "FloatFooter", { fg = p.orange_light, bg = p.bg, italic = true })
+
+hl(0, "SignColumn", { bg = p.cursorln })
+hl(0, "GitSignsAdd", { fg = p.green_dark, bg = p.gutter })
+hl(0, "GitSignsChange", { fg = p.blue_dark, bg = p.gutter })
+hl(0, "GitSignsDelete", { fg = p.red_dark, bg = p.gutter })
+hl(0, "FoldColumn", { fg = p.yellow, bg = p.cursorln, bold = true })
+hl(0, "Folded", { fg = p.yellow_dark, bg = p.bg_light, italic = true })
+
+-- Cursor styles
+hl(0, "Cursor", { reverse = true })
+hl(0, "lCursor", { link = "Cursor" })
+hl(0, "CursorIM", { link = "Cursor" })
+hl(0, "TermCursor", { link = "Cursor" })
 hl(0, "CursorLine", { bg = p.cursorln })
 hl(0, "CursorColumn", { bg = p.cursorln })
 hl(0, "ColorColumn", { bg = p.cursorln })
-hl(0, "CursorLineNr", { fg = p.yellow, bold = true })
-hl(0, "LineNr", { fg = p.gutter })
-hl(0, "SignColumn", { bg = p.bg })
-hl(0, "VertSplit", { fg = p.bg_alt })
-hl(0, "StatusLine", { fg = p.fg, bg = p.bg_alt })
-hl(0, "StatusLineNC", { fg = p.comment, bg = p.bg_alt })
-hl(0, "WinSeparator", { fg = p.bg_alt })
+hl(0, "CursorLineNr", { fg = p.yellow_light, bold = true })
+hl(0, "LineNr", { fg = p.red })
+hl(0, "CursorLineFold", { bg = p.yellow })
+hl(0, "CursorLineSign", { bg = p.yellow })
+
+-- Messages / cmdline area
+hl(0, "ModeMsg", { fg = p.cyan })
+hl(0, "MsgArea", { fg = p.fg, bg = p.bg })
+hl(0, "MsgSeparator", { fg = p.white, bg = p.bg })
+hl(0, "MoreMsg", { fg = p.orange_dark, bg = p.fg_light })
+
+hl(0, "ErrorMsg", { fg = p.red, bold = true })
+hl(0, "WarningMsg", { fg = p.orange, bold = true })
+
+hl(0, "DiffAdd", { fg = p.green, bg = p.none })
+hl(0, "DiffText", { fg = p.blue, bg = p.none })
+hl(0, "DiffChange", { fg = p.yellow, bg = p.none })
+hl(0, "DiffDelete", { fg = p.red, bg = p.none })
+
+hl(0, "VertSplit", { fg = p.bg_dark, bg = p.red })
+hl(0, "StatusLine", { fg = p.yellow, bg = p.bg_dark })
+hl(0, "StatusLineNC", { fg = p.comment, bg = p.bg_dark })
+hl(0, "WinSeparator", { fg = p.white })
 
 -- Buffers
 hl(0, 'BufferCurrent', { fg = '#1c2526', bg = '#d0d0d0', bold = true })
@@ -77,16 +114,14 @@ hl(0, 'BufferInactiveSign', { fg = '#6b7280', bg = '#f0f0f0' })
 hl(0, 'BufferTabpageFill', { fg = '#6b7280', bg = '#f5f5f5' })
 
 -- UI elements long
-hl(0, "Pmenu", { fg = p.fg, bg = p.bg_alt })
+hl(0, "Pmenu", { fg = p.fg, bg = p.bg_dark })
 hl(0, "PmenuSel", { fg = p.bg, bg = p.blue })
-hl(0, "PmenuSbar", { bg = p.bg_alt })
+hl(0, "PmenuSbar", { bg = p.bg_dark })
 hl(0, "PmenuThumb", { bg = p.comment })
-hl(0, "Visual", { bg = p.bg_alt })
+hl(0, "Visual", { reverse = true })
 hl(0, "Search", { fg = p.bg, bg = p.orange })
 hl(0, "IncSearch", { fg = p.bg, bg = p.yellow })
-hl(0, "MatchParen", { fg = p.yellow, bg = p.bg_alt, bold = true })
-hl(0, "Folded", { fg = p.comment, bg = p.bg_alt, italic = true })
-hl(0, "FoldColumn", { fg = p.comment, bg = p.bg })
+hl(0, "MatchParen", { fg = p.yellow, bg = p.bg_dark, bold = true })
 
 -- Text / syntax
 hl(0, "Comment", { fg = p.comment, italic = true })
@@ -121,10 +156,6 @@ hl(0, "DiagnosticUnderlineInfo", { undercurl = true, sp = p.blue })
 hl(0, "DiagnosticUnderlineHint", { undercurl = true, sp = p.cyan })
 
 -- Diff / git
-hl(0, "DiffAdd", { fg = p.green, bg = p.none })
-hl(0, "DiffDelete", { fg = p.red, bg = p.none })
-hl(0, "DiffChange", { fg = p.yellow, bg = p.none })
-hl(0, "DiffText", { fg = p.blue, bg = p.none })
 
 -- LSP / Treesitter link groups (basic)
 hl(0, "@function", { link = "Function" })
@@ -144,26 +175,19 @@ hl(0, "1337TagWARN", { fg = p.orange_dark, bg = p.white, bold = true })
 hl(0, "1337TagNOTE", { fg = p.blue_dark, bg = p.white, bold = true })
 
 -- TODO: Go through these later Made by chatgpt
--- Messages / cmdline area
-hl(0, "ErrorMsg", { fg = p.red, bold = true })
-hl(0, "WarningMsg", { fg = p.orange, bold = true })
-hl(0, "MoreMsg", { fg = p.green })
-hl(0, "MsgArea", { fg = p.fg, bg = p.bg })
-hl(0, "MsgSeparator", { fg = p.bg_alt, bg = p.bg })
-
 -- Whitespace / NonText
 hl(0, "NonText", { fg = p.gutter })
 hl(0, "Whitespace", { fg = p.gutter })
 hl(0, "SpecialKey", { fg = p.gutter })
 
 -- Tabline
-hl(0, "TabLine", { fg = p.fg_alt, bg = p.bg_alt })
-hl(0, "TabLineSel", { fg = p.fg, bg = p.bg, bold = true })
-hl(0, "TabLineFill", { fg = p.bg_alt, bg = p.bg_alt })
+hl(0, "TabLine", { fg = p.orange_dark, bg = p.black })
+hl(0, "TabLineSel", { fg = p.fg, bg = p.red, bold = true })
+hl(0, "TabLineFill", { fg = p.yellow_dark, bg = p.black })
 
 -- Winbar
-hl(0, "WinBar", { fg = p.fg, bg = p.bg_alt })
-hl(0, "WinBarNC", { fg = p.fg_alt, bg = p.bg_alt })
+hl(0, "WinBar", { fg = p.fg, bg = p.bg_dark })
+hl(0, "WinBarNC", { fg = p.fg_alt, bg = p.bg_dark })
 
 -- Spellchecking
 hl(0, "SpellBad", { undercurl = true, sp = p.red })
@@ -178,10 +202,10 @@ hl(0, "DiagnosticSignInfo", { link = "DiagnosticInfo" })
 hl(0, "DiagnosticSignHint", { link = "DiagnosticHint" })
 
 -- Virtual text (inline)
-hl(0, "DiagnosticVirtualTextError", { fg = p.red, bg = p.bg_alt })
-hl(0, "DiagnosticVirtualTextWarn", { fg = p.yellow, bg = p.bg_alt })
-hl(0, "DiagnosticVirtualTextInfo", { fg = p.blue, bg = p.bg_alt })
-hl(0, "DiagnosticVirtualTextHint", { fg = p.cyan, bg = p.bg_alt })
+hl(0, "DiagnosticVirtualTextError", { fg = p.red, bg = p.bg_dark })
+hl(0, "DiagnosticVirtualTextWarn", { fg = p.yellow, bg = p.bg_dark })
+hl(0, "DiagnosticVirtualTextInfo", { fg = p.blue, bg = p.bg_dark })
+hl(0, "DiagnosticVirtualTextHint", { fg = p.cyan, bg = p.bg_dark })
 
 -- Diagnostic floating windows
 hl(0, "DiagnosticFloatingError", { link = "DiagnosticError" })
@@ -194,7 +218,7 @@ hl(0, "LspReferenceText", { bg = p.cursorln })
 hl(0, "LspReferenceRead", { bg = p.cursorln })
 hl(0, "LspReferenceWrite", { bg = p.cursorln })
 hl(0, "LspSignatureActiveParameter", { fg = p.yellow, italic = true })
-hl(0, "LspInlayHint", { fg = p.fg_alt, bg = p.bg_alt, italic = true })
+hl(0, "LspInlayHint", { fg = p.fg_alt, bg = p.bg_dark, italic = true })
 hl(0, "LspCodeLens", { fg = p.comment, italic = true })
 hl(0, "LspCodeLensSeparator", { fg = p.comment })
 
@@ -209,11 +233,6 @@ hl(0, "@parameter", { fg = p.fg })
 hl(0, "@keyword.function", { fg = p.purple })
 hl(0, "@punctuation.bracket", { fg = p.fg })
 hl(0, "@punctuation.delimiter", { fg = p.fg })
-
--- gitsigns
-hl(0, "GitSignsAdd", { fg = p.green_dark, bg = p.bg })
-hl(0, "GitSignsChange", { fg = p.blue_dark, bg = p.bg })
-hl(0, "GitSignsDelete", { fg = p.red_dark, bg = p.bg })
 
 -- barbar / bufferline groups
 hl(0, "BufferCurrentIndex", { link = "BufferCurrent" })
@@ -231,37 +250,20 @@ hl(0, "Conceal", { fg = p.comment })
 
 -- Current search match (distinct from all matches)
 hl(0, "CurSearch", { link = "IncSearch" })
-
--- Cursor styles
-hl(0, "Cursor", { reverse = true })
-hl(0, "lCursor", { link = "Cursor" })
-hl(0, "CursorIM", { link = "Cursor" })
-hl(0, "TermCursor", { link = "Cursor" })
+hl(0, "Substitute", { fg = p.bg, bg = p.purple })
 
 -- Substitute highlight
-hl(0, "Substitute", { fg = p.bg, bg = p.purple })
 
 -- Relativenumber lines
 hl(0, "LineNrAbove", { link = "LineNr" })
 hl(0, "LineNrBelow", { link = "LineNr" })
 
--- When cursorline highlights the number/fold/sign columns
-hl(0, "CursorLineFold", { fg = p.comment, bg = p.cursorln })
-hl(0, "CursorLineSign", { fg = p.fg, bg = p.cursorln })
-
-hl(0, "ModeMsg", { fg = p.cyan })
 
 hl(0, "Question", { fg = p.cyan })
 
 -- Terminal Statuslines
 hl(0, "StatusLineTerm", { link = "StatusLine" })
 hl(0, "StatusLineTermNC", { link = "StatusLineNC" })
-
--- Floating windows
-hl(0, "NormalFloat", { fg = p.fg, bg = p.bg_alt })
-hl(0, "FloatBorder", { fg = p.blue, bg = p.bg_alt })
-hl(0, "FloatTitle", { fg = p.yellow, bg = p.bg_alt, bold = true })
-hl(0, "FloatFooter", { fg = p.comment, bg = p.bg_alt, italic = true })
 
 -- Kinds and extra info: keep them consistent with Pmenu/PmenuSel
 hl(0, "PmenuKind", { link = "Pmenu" })

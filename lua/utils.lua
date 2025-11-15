@@ -12,50 +12,45 @@ function M.augroup(_owner, _group)
 end
 
 function M.autocmd(args)
-  assert(type(args) == "table", "autocmd() expects a table")
+    assert(type(args) == "table", "autocmd() expects a table")
 
-  local event   = args.event  or error("Missing 'event' in autocmd()")
-  local owner   = args.owner  or error("Missing 'owner' in autocmd()")
-  local group   = args.group  or error("Missing 'group' in autocmd()")
-  local desc    = args.desc   or error("Missing 'desc' in autocmd()")
-  local patbuf = args.patbuf or error("Missing 'patbuf' in autocmd()")
+    local event  = args.event or error("Missing 'event' in autocmd()")
+    local owner  = args.owner or error("Missing 'owner' in autocmd()")
+    local group  = args.group or error("Missing 'group' in autocmd()")
+    local desc   = args.desc or error("Missing 'desc' in autocmd()")
+    local patbuf = args.patbuf or error("Missing 'patbuf' in autocmd()")
+    local fncmd  = args.fncmd or error("Missing 'fncmd' in autocmd()")
 
-  local opts = {}
+    local opts   = {}
 
-  if type(patbuf) == "number" then
-      opts.buffer = args.patbuf
-  else
-    opts.pattern = args.patbuf
-  end
-
-  if args.callback and args.command then
-    error("autocmd(): Include 'callback' or 'command', you provided both")
-  elseif not args.callback and not args.command then
-    error("autocmd(): Include 'callback' or 'command', you didn't provide either.")
-  end
-
-opts.desc   = ("%s: %s"):format(owner, desc)
-opts.once    = args.once   -- defaults to false
-opts.nested  = args.nested -- defaults to false
-
-  if group ~= nil then
-    local t = type(group)
-    if t == "string" then
-      opts.group = M.augroup(owner, group) -- use module augroup helper
-    elseif t == "number" then
-      opts.group = group -- existing group id
+    if type(patbuf) == "number" then
+        opts.buffer = args.patbuf
     else
-      error("autocmd(): 'group' must be string or number")
+        opts.pattern = args.patbuf
     end
-  end
 
-  if args.callback then
-    opts.callback = args.callback
-  elseif args.command then
-    opts.command = args.command
-  end
+    if type(fncmd) == "function" then
+        opts.callback = args.fncmd
+    elseif type(fncmd) == "string" then
+        opts.command = args.fncmd
+    end
 
-  return vim.api.nvim_create_autocmd(event, opts)
+    opts.desc   = ("%s: %s"):format(owner, desc)
+    opts.once   = args.once -- defaults to false
+    opts.nested = args.nested -- defaults to false
+
+    if group ~= nil then
+        local t = type(group)
+        if t == "string" then
+            opts.group = M.augroup(owner, group) -- use module augroup helper
+        elseif t == "number" then
+            opts.group = group -- existing group id
+        else
+            error("autocmd(): 'group' must be string or number")
+        end
+    end
+
+    return vim.api.nvim_create_autocmd(event, opts)
 end
 
 --- Wrapper for vim.keymap.set() to be explicit
