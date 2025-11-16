@@ -169,7 +169,7 @@ function _G.StatuslineMode()
     return " [?] "
 end
 
-vim.o.statusline = "%{%v:lua.StatuslineMode()%}%y %t%=%l,%c %3p%%"
+vim.o.statusline = "%{%v:lua.StatuslineMode()%}%y %<%f%=%l,%c %3p%%"
 
 autocmd({
     event  = "FileType",
