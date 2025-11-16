@@ -516,6 +516,38 @@ local function in_comment(buf, row, col)
     return type(nm) == "string" and nm:lower():find("comment", 1, true) ~= nil
 end
 
+-- Hex color highlighter: "#RRGGBB" -> colored bg, easy to see fg
+local function highlight_hex_colors(buf, row, line)
+    local init = 1
+
+    while true do
+        -- find 6‑digit hex like #ff00aa / #FF00AA
+        local s, e = line:find("#%x%x%x%x%x%x", init)
+        if not s then break end
+
+        local col0        = s - 1
+        local color       = line:sub(s, e) -- "#rrggbb"
+        local group       = "1337Hex_" .. color:sub(2) -- "1337Hex_ff00aa"
+
+        -- compute a legible fg based on brightness of bg
+        local fg_r        = tonumber(color:sub(2, 3), 16) or 0
+        local fg_g        = tonumber(color:sub(4, 5), 16) or 0
+        local fg_b        = tonumber(color:sub(6, 7), 16) or 0
+
+        -- luminance formula
+        local luminance   = (0.299 * fg_r) + (0.587 * fg_g) + (0.114 * fg_b)
+        local computed_fg = (luminance > 186) and "#000000" or "#ffffff"
+
+        -- bg is the hex, fg is auto-selected to maximize contrast
+        vim.api.nvim_set_hl(0, group, { bg = color, fg = computed_fg })
+
+        -- if you ONLY want these in comments, wrap this in `if in_comment(...) then ... end`
+        vim.api.nvim_buf_add_highlight(buf, ns, group, row, col0, col0 + #color)
+
+        init = e + 1
+    end
+end
+
 -- Range-based scan & highlight (clears + repaints only the range)
 local function refresh_range(buf, srow, erow)
     buf = buf or 0
@@ -530,6 +562,7 @@ local function refresh_range(buf, srow, erow)
 
     for i, line in ipairs(lines) do
         local row = srow + i - 1
+        -- Comment tag highlights
         for _, tag in ipairs(TAGS) do
             for _, word in ipairs(tag.words) do
                 local init = 1
@@ -544,6 +577,8 @@ local function refresh_range(buf, srow, erow)
                 end
             end
         end
+        -- hex color highlighting (#000000 -> #ffffff)
+        highlight_hex_colors(buf, row, line)
     end
 end
 
