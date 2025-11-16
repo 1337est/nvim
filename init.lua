@@ -52,69 +52,124 @@ vim.opt.laststatus     = 3
 vim.opt.showtabline    = 2
 vim.opt.ruler          = true
 local MODES            = {
-    normal = { -- TODO: make bg = orange in statusline
-        n         = "[N]", -- normal
-        no        = "[NP]", -- operator-pending
-        nov       = "[NP-V]", -- forced charwise
-        noV       = "[NP-VL]", -- forced linewise
-        ["no\22"] = "[NP-VB]", -- forced blockwise
-        nt        = "[NT]", -- normal terminal
-        -- Normal via i_CTRL-O / terminal variants
-        niI       = "[N->I]", -- normal back to insert
-        niR       = "[N->R]", -- normal back to replace
-        niV       = "[N->Rv]", -- normal back to virtual replace
-        ntT       = "[NT->T]", -- normal terminal back to Terminal
+    {
+        hl = "User1",
+        normal = { -- TODO: make bg = orange in statusline
+            n         = "[N]", -- normal
+            no        = "[NP]", -- operator-pending
+            nov       = "[NP-V]", -- forced charwise
+            noV       = "[NP-VL]", -- forced linewise
+            ["no\22"] = "[NP-VB]", -- forced blockwise
+            nt        = "[NT]", -- normal terminal
+            -- Normal via i_CTRL-O / terminal variants
+            niI       = "[N->I]", -- normal back to insert
+            niR       = "[N->R]", -- normal back to replace
+            niV       = "[N->Rv]", -- normal back to virtual replace
+            ntT       = "[NT->T]", -- normal terminal back to Terminal
+        },
     },
-    visual = { -- TODO: make bg = blue in statusline
-        -- Visual / Select-mode via v_CTRL-O
-        v        = "[V]", -- visual mode
-        vs       = "[V-S]", -- visual select
-        V        = "[VL]", -- Visual line
-        Vs       = "[VL-S]", -- visual select
-        ["\22"]  = "[VB]", -- Visual block
-        ["\22s"] = "[VB-S]", -- Visual block select
+    {
+        hl = "User2",
+        visual = { -- TODO: make bg = blue in statusline
+            -- Visual / Select-mode via v_CTRL-O
+            v        = "[V]", -- visual mode
+            vs       = "[V-S]", -- visual select
+            V        = "[VL]", -- Visual line
+            Vs       = "[VL-S]", -- visual select
+            ["\22"]  = "[VB]", -- Visual block
+            ["\22s"] = "[VB-S]", -- Visual block select
+        },
     },
-    select = { -- TODO: make bg = cyan in statusline
-        -- Select modes (char/line/block)
-        s       = "[S]", -- select
-        S       = "[SL]", -- select line
-        ["\19"] = "[SB]", -- Select block <Ctrl-S>
+    {
+        hl = "User3",
+        select = { -- TODO: make bg = cyan in statusline
+            -- Select modes (char/line/block)
+            s       = "[S]", -- select
+            S       = "[SL]", -- select line
+            ["\19"] = "[SB]", -- Select block <Ctrl-S>
+        },
     },
-    insert = { -- TODO: make bg = yellow in statusline
-        -- Insert + completions variants
-        i  = "[I]", -- insert
-        ic = "[I-c]", -- insert completion generic
-        ix = "[I-cx]", -- insert completion via Ctrl-x
+    {
+        hl = "User4",
+        insert = { -- TODO: make bg = yellow in statusline
+            -- Insert + completions variants
+            i  = "[I]", -- insert
+            ic = "[I-c]", -- insert completion generic
+            ix = "[I-cx]", -- insert completion via Ctrl-x
+        },
     },
-    replace = { -- TODO: make bg = purple in statusline
-        -- Replace / Virtual-Replace + completion variants
-        R   = "[R]", -- replace
-        Rc  = "[R-c]", -- replace completion generic
-        Rx  = "[R-cx]", -- replace completion via Ctrl-x
-        Rv  = "[Rv]", -- virtual replace
-        Rvc = "[Rv-c]", -- virtual replace completion generic
-        Rvx = "[Rv-cx]", -- virtual replace completion via Ctrl-x
+    {
+        hl = "User5",
+        replace = { -- TODO: make bg = purple in statusline
+            -- Replace / Virtual-Replace + completion variants
+            R   = "[R]", -- replace
+            Rc  = "[R-c]", -- replace completion generic
+            Rx  = "[R-cx]", -- replace completion via Ctrl-x
+            Rv  = "[Rv]", -- virtual replace
+            Rvc = "[Rv-c]", -- virtual replace completion generic
+            Rvx = "[Rv-cx]", -- virtual replace completion via Ctrl-x
+        },
     },
-    command = { -- TODO: make bg = red in statusline
-        -- Command-line editing variants
-        c   = "[C]", -- command
-        cr  = "[C-r]", -- command replace
-        cv  = "[Ex]", -- command Ex
-        cvr = "[Ex-r]", -- command Ex replace
+    {
+        hl = "User6",
+        command = { -- TODO: make bg = red in statusline
+            -- Command-line editing variants
+            c   = "[C]", -- command
+            cr  = "[C-r]", -- command replace
+            cv  = "[Ex]", -- command Ex
+            cvr = "[Ex-r]", -- command Ex replace
+        },
     },
-    -- Prompts / external / terminal
-    terminal = { -- TODO: make bg = green in statusline
-        t = "[T]", -- terminal
+    {
+        hl = "User7",
+        -- Prompts / external / terminal
+        terminal = { -- TODO: make bg = green in statusline
+            t = "[T]", -- terminal
+        },
     },
-    extra = { -- TODO: don't worry about this one. Does this even show up in the statusline?
-        r      = "[Hit]", -- hit enter prompt
-        rm     = "[More]", -- -- more-- prompt
-        ["r?"] = "[Conf]", -- :confirm query of some sort
-        ["!"]  = "[!]", -- Shell or external command is executing
+    {
+        hl = "User1",
+        extra = { -- TODO: don't worry about this one. Does this even show up in the statusline?
+            r      = "[Hit]", -- hit enter prompt
+            rm     = "[More]", -- -- more-- prompt
+            ["r?"] = "[Conf]", -- :confirm query of some sort
+            ["!"]  = "[!]", -- Shell or external command is executing
+        },
     },
 }
 
-vim.o.statusline       = "%{mode()} %y %t%=%l,%c %3p%%"
+-- build mode segment using MODES + User1..User7 hl groups
+function _G.StatuslineMode()
+    -- non-0 arg gets extendded mode string for extra info
+    local cur_mode = vim.fn.mode(1)
+
+    for _, entry in ipairs(MODES) do
+        local hl = entry.hl or "User1"
+
+        -- each entry has exactly one of: normal/visual/select/...
+        for key, mode_map in pairs(entry) do
+            if key ~= "hl" and type(mode_map) == "table" then
+                local label = mode_map[cur_mode]
+                if label then
+                    -- If hl is "UserN", prefer %N* syntax; otherwise use %#Group#
+                    local idx = hl:match("^User(%d+)$")
+                    if idx then
+                        -- -> %1* [N]%*  (highlights with User1)
+                        return string.format("%%%s* %s %%* ", idx, label)
+                    else
+                        -- Fallback: explicit highlight group name
+                        return string.format("%%#%s# %s %%* ", hl, label)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Fallback if we somehow don't know the mode
+    return " [?] "
+end
+
+vim.o.statusline = "%{%v:lua.StatuslineMode()%}%y %t%=%l,%c %3p%%"
 
 autocmd({
     event  = "FileType",

@@ -167,10 +167,16 @@ hl(0, "WildMenu", { fg = p.bg, bg = p.blue, bold = true })
 hl(0, "WinBar", { fg = p.fg, bg = p.bg_dark })
 hl(0, "WinBarNC", { fg = p.fg_alt, bg = p.bg_dark })
 
--- TODO: need to add
--- "User1" .. "User9", for statusline and rulerformat
+hl(0, "User1", { fg = p.black, bg = p.orange, bold = true })
+hl(0, "User2", { fg = p.black, bg = p.blue, bold = true })
+hl(0, "User3", { fg = p.black, bg = p.cyan, bold = true })
+hl(0, "User4", { fg = p.black, bg = p.yellow, bold = true })
+hl(0, "User5", { fg = p.black, bg = p.purple, bold = true })
+hl(0, "User6", { fg = p.black, bg = p.red, bold = true })
+hl(0, "User7", { fg = p.black, bg = p.green, bold = true })
+-- hl(0, "User8", { fg = p.black, bg = p.orange, bold = true })
+-- hl(0, "User9", { fg = p.black, bg = p.orange, bold = true })
 --
--- -- TODO: Need to go through
 -- -- diagnostics
 hl(0, "Error", { fg = p.red, bold = true })
 hl(0, "ErrorMsg", { fg = p.red, bold = true })
