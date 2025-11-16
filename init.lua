@@ -10,46 +10,111 @@ local map = utils.map
 vim.cmd.colorscheme("1337dark") -- check out colors/1337dark.lua
 
 -- globals
-vim.g.mapleader = " " -- Sets space as the leader key
-vim.g.maplocalleader = " " -- Sets space as the leader key
-vim.g.have_nerd_font = true -- For my nerd font
+vim.g.mapleader        = " " -- Sets space as the leader key
+vim.g.maplocalleader   = " " -- Sets space as the leader key
+vim.g.have_nerd_font   = true -- For my nerd font
 
 -- gutter
-vim.opt.number = true -- Make line numbers default
+vim.opt.number         = true -- Make line numbers default
 vim.opt.relativenumber = true -- Shows line # away from current line #
-vim.opt.signcolumn = "yes" -- Show sign column
-vim.opt.foldcolumn = "1"
-vim.opt.foldmethod = "indent"
+vim.opt.signcolumn     = "yes" -- Show sign column
+vim.opt.foldcolumn     = "1"
+vim.opt.foldmethod     = "indent"
 -- vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
-vim.opt.foldlevel = 99
+vim.opt.foldlevel      = 99
 
 -- row/column indicators
-vim.opt.cursorline = true -- Show which line your cursor is on
-vim.opt.colorcolumn = "100" -- Line at the nth column
+vim.opt.cursorline     = true -- Show which line your cursor is on
+vim.opt.colorcolumn    = "100" -- Line at the nth column
 
 -- gui
-vim.opt.termguicolors = true -- Enables 24-bit RGB color
-vim.opt.guicursor = "" -- Disable cursor styling
+vim.opt.termguicolors  = true -- Enables 24-bit RGB color
+vim.opt.guicursor      = "" -- Disable cursor styling
 
 -- render
-vim.opt.lazyredraw = true
+vim.opt.lazyredraw     = true
 
 -- whitespace
-vim.opt.expandtab = true -- Use appropriate spaces to insert tabs
-vim.opt.shiftwidth = 4 -- 4 spaces for (auto)indenting
-vim.opt.tabstop = 4 -- tabs are 4 spaces
-vim.opt.smartindent = true -- Smart auto-indenting on new lines
+vim.opt.expandtab      = true -- Use appropriate spaces to insert tabs
+vim.opt.shiftwidth     = 4 -- 4 spaces for (auto)indenting
+vim.opt.tabstop        = 4 -- tabs are 4 spaces
+vim.opt.smartindent    = true -- Smart auto-indenting on new lines
 
 -- conceal
-vim.opt.conceallevel = 0
-vim.opt.concealcursor = ""
-vim.opt.list = true
-vim.opt.listchars = { tab = "<->", trail = ".", nbsp = "-", }
+vim.opt.conceallevel   = 0
+vim.opt.concealcursor  = ""
+vim.opt.list           = true
+vim.opt.listchars      = { tab = "<->", trail = ".", nbsp = "-", }
 
 -- statusline / windows / tabs
-vim.opt.showmode = false -- Don't show mode, since it's already in status line
-vim.opt.laststatus = 3
-vim.opt.showtabline = 2
+vim.opt.showmode       = false -- Don't show mode, since it's already in status line
+vim.opt.laststatus     = 3
+vim.opt.showtabline    = 2
+vim.opt.ruler          = true
+local MODES            = {
+    normal = { -- TODO: make bg = orange in statusline
+        n         = "[N]", -- normal
+        no        = "[NP]", -- operator-pending
+        nov       = "[NP-V]", -- forced charwise
+        noV       = "[NP-VL]", -- forced linewise
+        ["no\22"] = "[NP-VB]", -- forced blockwise
+        nt        = "[NT]", -- normal terminal
+        -- Normal via i_CTRL-O / terminal variants
+        niI       = "[N->I]", -- normal back to insert
+        niR       = "[N->R]", -- normal back to replace
+        niV       = "[N->Rv]", -- normal back to virtual replace
+        ntT       = "[NT->T]", -- normal terminal back to Terminal
+    },
+    visual = { -- TODO: make bg = blue in statusline
+        -- Visual / Select-mode via v_CTRL-O
+        v        = "[V]", -- visual mode
+        vs       = "[V-S]", -- visual select
+        V        = "[VL]", -- Visual line
+        Vs       = "[VL-S]", -- visual select
+        ["\22"]  = "[VB]", -- Visual block
+        ["\22s"] = "[VB-S]", -- Visual block select
+    },
+    select = { -- TODO: make bg = cyan in statusline
+        -- Select modes (char/line/block)
+        s       = "[S]", -- select
+        S       = "[SL]", -- select line
+        ["\19"] = "[SB]", -- Select block <Ctrl-S>
+    },
+    insert = { -- TODO: make bg = yellow in statusline
+        -- Insert + completions variants
+        i  = "[I]", -- insert
+        ic = "[I-c]", -- insert completion generic
+        ix = "[I-cx]", -- insert completion via Ctrl-x
+    },
+    replace = { -- TODO: make bg = purple in statusline
+        -- Replace / Virtual-Replace + completion variants
+        R   = "[R]", -- replace
+        Rc  = "[R-c]", -- replace completion generic
+        Rx  = "[R-cx]", -- replace completion via Ctrl-x
+        Rv  = "[Rv]", -- virtual replace
+        Rvc = "[Rv-c]", -- virtual replace completion generic
+        Rvx = "[Rv-cx]", -- virtual replace completion via Ctrl-x
+    },
+    command = { -- TODO: make bg = red in statusline
+        -- Command-line editing variants
+        c   = "[C]", -- command
+        cr  = "[C-r]", -- command replace
+        cv  = "[Ex]", -- command Ex
+        cvr = "[Ex-r]", -- command Ex replace
+    },
+    -- Prompts / external / terminal
+    terminal = { -- TODO: make bg = green in statusline
+        t = "[T]", -- terminal
+    },
+    extra = { -- TODO: don't worry about this one. Does this even show up in the statusline?
+        r      = "[Hit]", -- hit enter prompt
+        rm     = "[More]", -- -- more-- prompt
+        ["r?"] = "[Conf]", -- :confirm query of some sort
+        ["!"]  = "[!]", -- Shell or external command is executing
+    },
+}
+
+vim.o.statusline       = "%{mode()} %y %t%=%l,%c %3p%%"
 
 autocmd({
     event  = "FileType",
@@ -91,7 +156,6 @@ autocmd({
         vim.opt_local.spell = true
     end,
 })
-
 
 -- view state
 vim.opt.viewdir = vim.fn.stdpath("state") .. "/viewdir//"
