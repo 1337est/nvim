@@ -196,11 +196,6 @@ autocmd({
 
 -- =============== Plugins (Custom Autocmds, Augroups, Maps) ===============
 
-require("colorizer").setup()
-require("ibl").setup()
-require("lualine").setup {}
-require("barbar").setup {}
-
 -- =========================== Search Telescope / Functions / Maps ============================
 require("telescope").setup {
     extensions = { ["ui-select"] = { require("telescope.themes").get_dropdown() }, },
@@ -220,7 +215,6 @@ map({ mode = "n", keys = "<leader>sb", owner = "TEL", desc = "Find existing buff
 
 map({ mode = "n", keys = "<leader>s/", owner = "TEL", desc = "search word with dynamic grep", fn = tel.live_grep })
 
--- END: Ending block for Start todo
 -- =============== LSP ===============
 
 -- Optional: default settings applied to *all* configs (wildcard "*")
@@ -437,7 +431,7 @@ map({ mode = "n", keys = "<leader>sd", owner = "TEL", desc = "search diagnostics
 -- but gets the job done.
 --------------------------------------------------------------------------------
 -- Comment tag highlights (plugin-free, token-only) + Tree-sitter incremental
--- - Highlights ONLY the tag tokens (e.g. "TODO: ") when inside comments
+-- - Highlights ONLY the tag tokens (e.g." TODO:") when inside comments
 -- - Uses TS on_changedtree for near-keystroke updates when available
 -- - Falls back to simple autocmd-based refresh when no TS parser exists
 --------------------------------------------------------------------------------
@@ -618,7 +612,6 @@ vim.api.nvim_create_user_command("CommentTagsRefresh", function()
     refresh(0)
 end, { desc = "Refresh comment tag highlights (token-only)" })
 
--- TODO: Attach TS when possible; else fall back to simple autocmd refresh
 local grp_ts = augroup("TS", "comment_tags_ts")
 autocmd({
     event = { "BufEnter", "FileType" },

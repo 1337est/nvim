@@ -86,7 +86,6 @@ hl(0, "Delimiter", { fg = p.orange_dark })
 hl(0, "SpecialComment", { fg = p.orange_dark })
 hl(0, "Debug", { fg = p.orange_dark })
 hl(0, "Underlined", { fg = p.cyan_light, underline = true })
-hl(0, "Error", { fg = p.red, bold = true })
 hl(0, "Todo", { fg = p.purple_dark, bold = true })
 hl(0, "Added", { fg = p.green_light })
 hl(0, "Changed", { fg = p.blue_light })
@@ -108,7 +107,6 @@ hl(0, "DiffDelete", { fg = p.red, bg = p.none })
 hl(0, "DiffText", { fg = p.blue, bg = p.none })
 hl(0, "EndOfBuffer", { fg = p.fg, bg = p.bg_dark })
 hl(0, "TermCursor", { link = "Cursor" })
-hl(0, "ErrorMsg", { fg = p.red, bold = true })
 hl(0, "WinSeparator", { fg = p.red_light, bg = p.orange_dark, bold = true })
 hl(0, "Folded", { fg = p.yellow_dark, bg = p.bg, italic = true })
 hl(0, "FoldColumn", { fg = p.yellow, bg = p.cursorln, bold = true })
@@ -157,8 +155,8 @@ hl(0, "StatusLine", { fg = p.yellow, bg = p.bg_dark })
 hl(0, "StatusLineNC", { fg = p.comment, bg = p.bg_dark })
 hl(0, "StatusLineTerm", { link = "StatusLine" })
 hl(0, "StatusLineTermNC", { link = "StatusLineNC" })
-hl(0, "TabLine", { fg = p.orange_dark, bg = p.black })
-hl(0, "TabLineSel", { fg = p.fg, bg = p.red, bold = true })
+hl(0, "TabLine", { fg = p.fg, bg = p.black })
+hl(0, "TabLineSel", { fg = p.orange_dark, bg = p.fg_dark, bold = true })
 hl(0, "TabLineFill", { fg = p.yellow_dark, bg = p.black })
 hl(0, "Title", { fg = p.blue_light, bold = true })
 hl(0, "Visual", { reverse = true })
@@ -169,6 +167,57 @@ hl(0, "WildMenu", { fg = p.bg, bg = p.blue, bold = true })
 hl(0, "WinBar", { fg = p.fg, bg = p.bg_dark })
 hl(0, "WinBarNC", { fg = p.fg_alt, bg = p.bg_dark })
 
+-- TODO: need to add
+-- "User1" .. "User9", for statusline and rulerformat
+--
+-- -- TODO: Need to go through
+-- -- diagnostics
+hl(0, "Error", { fg = p.red, bold = true })
+hl(0, "ErrorMsg", { fg = p.red, bold = true })
+hl(0, "DiagnosticError", { fg = p.red })
+hl(0, "DiagnosticVirtualTextError", { fg = p.red, bg = p.bg_dark })
+hl(0, "DiagnosticVirtualLinesError", { fg = p.red, bg = p.bg_dark })
+hl(0, "DiagnosticUnderlineError", { undercurl = true, sp = p.red })
+hl(0, "DiagnosticFloatingError", { link = "DiagnosticError" })
+hl(0, "DiagnosticSignError", { link = "DiagnosticError" })
+
+
+
+
+
+
+
+hl(0, "DiagnosticWarn", { fg = p.yellow })
+hl(0, "DiagnosticVirtualTextWarn", { fg = p.yellow, bg = p.bg_dark })
+hl(0, "DiagnosticVirtualLinesWarn", { fg = p.yellow, bg = p.bg_dark })
+hl(0, "DiagnosticUnderlineWarn", { undercurl = true, sp = p.yellow })
+hl(0, "DiagnosticFloatingWarn", { link = "DiagnosticWarn" })
+hl(0, "DiagnosticSignWarn", { link = "DiagnosticWarn" })
+
+hl(0, "DiagnosticInfo", { fg = p.cyan })
+hl(0, "DiagnosticVirtualTextInfo", { fg = p.cyan, bg = p.bg_dark })
+hl(0, "DiagnosticVirtualLinesInfo", { fg = p.cyan, bg = p.bg_dark })
+hl(0, "DiagnosticUnderlineInfo", { undercurl = true, sp = p.cyan })
+hl(0, "DiagnosticFloatingInfo", { link = "DiagnosticInfo" })
+hl(0, "DiagnosticSignInfo", { link = "DiagnosticInfo" })
+
+hl(0, "DiagnosticHint", { fg = p.blue })
+hl(0, "DiagnosticVirtualTextHint", { fg = p.blue, bg = p.bg_dark })
+hl(0, "DiagnosticVirtualLinesHint", { fg = p.blue, bg = p.bg_dark })
+hl(0, "DiagnosticUnderlineHint", { undercurl = true, sp = p.blue })
+hl(0, "DiagnosticFloatingHint", { link = "DiagnosticHint" })
+hl(0, "DiagnosticSignHint", { link = "DiagnosticHint" })
+
+hl(0, "DiagnosticOk", { fg = p.green })
+hl(0, "DiagnosticVirtualTextOk", { fg = p.green, bg = p.bg_dark })
+hl(0, "DiagnosticVirtualLinesOk", { fg = p.green, bg = p.bg_dark })
+hl(0, "DiagnosticUnderlineOk", { undercurl = true, sp = p.green })
+hl(0, "DiagnosticFloatingOk", { link = "DiagnosticOk" })
+hl(0, "DiagnosticSignOk", { link = "DiagnosticOk" })
+
+hl(0, "DiagnosticDeprecated", { strikethrough = true })
+hl(0, "DiagnosticUnnecessary", { link = "Comment" })
+
 -- Personal highlights for my comment tags
 hl(0, "1337TagTODO", { fg = p.purple_dark, bg = p.white, bold = true })
 hl(0, "1337TagTEST", { fg = p.cyan_dark, bg = p.white, bold = true })
@@ -177,35 +226,3 @@ hl(0, "1337TagPERF", { fg = p.green_dark, bg = p.white, bold = true })
 hl(0, "1337TagFAIL", { fg = p.red_dark, bg = p.white, bold = true })
 hl(0, "1337TagWARN", { fg = p.orange_dark, bg = p.white, bold = true })
 hl(0, "1337TagNOTE", { fg = p.blue_dark, bg = p.white, bold = true })
-
--- TODO: need to add
--- "User1" .. "User9", for statusline and rulerformat
-
--- TODO: Need to go through
--- gutter
-hl(0, "GitSignsAdd", { fg = p.green_dark, bg = p.gutter })
-hl(0, "GitSignsChange", { fg = p.blue_dark, bg = p.gutter })
-hl(0, "GitSignsDelete", { fg = p.red_dark, bg = p.gutter })
-hl(0, "VertSplit", { fg = p.bg_dark, bg = p.red })
--- diagnostics
-hl(0, "DiagnosticError", { fg = p.red })
-hl(0, "DiagnosticWarn", { fg = p.yellow })
-hl(0, "DiagnosticInfo", { fg = p.blue })
-hl(0, "DiagnosticHint", { fg = p.cyan })
-hl(0, "DiagnosticUnderlineError", { undercurl = true, sp = p.red })
-hl(0, "DiagnosticUnderlineWarn", { undercurl = true, sp = p.yellow })
-hl(0, "DiagnosticUnderlineInfo", { undercurl = true, sp = p.blue })
-hl(0, "DiagnosticUnderlineHint", { undercurl = true, sp = p.cyan })
-hl(0, "DiagnosticSignError", { link = "DiagnosticError" })
-hl(0, "DiagnosticSignWarn", { link = "DiagnosticWarn" })
-hl(0, "DiagnosticSignInfo", { link = "DiagnosticInfo" })
-hl(0, "DiagnosticSignHint", { link = "DiagnosticHint" })
-hl(0, "DiagnosticVirtualTextError", { fg = p.red, bg = p.bg_dark })
-hl(0, "DiagnosticVirtualTextWarn", { fg = p.yellow, bg = p.bg_dark })
-hl(0, "DiagnosticVirtualTextInfo", { fg = p.blue, bg = p.bg_dark })
-hl(0, "DiagnosticVirtualTextHint", { fg = p.cyan, bg = p.bg_dark })
-hl(0, "DiagnosticFloatingError", { link = "DiagnosticError" })
-hl(0, "DiagnosticFloatingWarn", { link = "DiagnosticWarn" })
-hl(0, "DiagnosticFloatingInfo", { link = "DiagnosticInfo" })
-hl(0, "DiagnosticFloatingHint", { link = "DiagnosticHint" })
--- LSP-specific groups

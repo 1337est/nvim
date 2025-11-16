@@ -1,4 +1,0 @@
-std = "neovim"
-
-[config]
-empty_if = { comments_count = true }
