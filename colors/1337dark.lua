@@ -8,7 +8,8 @@ local c    = {
 
     -- neutrals
     black = "#000000",
-    gray_darker = "#1e1e1e",
+    gray_darkest = "#1e1e1e",
+    gray_darker = "#333333",
     gray_dark = "#2a2a2a",
     gray = "#5c5c5c",
     gray_light = "#a0a0a0",
@@ -20,7 +21,7 @@ local c    = {
     red = "#f63b34",
     red_dark = "#f42924",
     red_darker = "#fb020c",
-    red_darkest = "#200808",
+    red_darkest = "#100808",
     -- red / orange / rust-colored
     rust_lighter = "#e58c6b",
     rust_light = "#d57a5e",
@@ -34,7 +35,14 @@ local c    = {
     orange = "#ff8800",
     orange_dark = "#ff6600",
     orange_darker = "#ff4400",
-    orange_darkest = "#180800",
+    orange_darkest = "#300800",
+    -- brownish yellows, like djon mustard
+    mustard_darkest = "#280808",
+    mustard_darker = "#512a18",
+    mustard_dark = "#714a09",
+    mustard = "#93691d",
+    mustard_light = "#b5803b",
+    mustard_lighter = "#dba05c",
     -- yellows / golds (I like GOOOooolldd)
     yellow_lighter = "#f2f9ba",
     yellow_light = "#f5f07b",
@@ -48,7 +56,7 @@ local c    = {
     olive = "#99a35e",
     olive_dark = "#7a8548",
     olive_darker = "#5a6235",
-    olive_darkest = "#102000",
+    olive_darkest = "#101000",
     -- bulba (sauuuurrr, light greenery with dino genes)
     bulba_lighter = "#c4f8e1",
     bulba_light = "#aedbc0",
@@ -62,6 +70,7 @@ local c    = {
     green = "#6fae47",
     green_dark = "#43892b",
     green_darker = "#226609",
+    green_darkest = "#021b04",
     -- cyans / teals
     cyan_lighter = "#6fd3dd",
     cyan_light = "#57c0ca",
@@ -90,11 +99,18 @@ local c    = {
     purple_dark = "#844a9c",
     purple_darker = "#5c326e",
     purple_darkest = "#100810",
+
+    -- onedark
+    od_fg = "#abb2bf",
+    od_purple = "#c678dd",
+    od_dark_red = "#993939",
+    od_dark_purple = "#8a3fa0",
+    od_diff_add = "#31392b",
 }
 
 -- semantic aliases ----------------------
-c.bg       = c.bulba_darkest
-c.bg_dark  = c.blue_darkest
+c.bg       = c.blue_darkest
+c.bg_dark  = c.bulba_darkest
 c.bg_light = c.cobalt_darkest
 
 c.fg       = c.gray_lighter
@@ -104,7 +120,7 @@ c.fg_alt   = c.gray_light
 
 c.comment  = c.yellow_lighter
 c.gutter   = c.orange_light
-c.cursorln = c.cobalt_darker
+c.cursorln = c.gray
 
 -- Reset highlights -----------------------------------------------------------
 vim.cmd("highlight clear")
@@ -113,7 +129,7 @@ vim.g.colors_name = "1337dark"
 
 -- Syntax ---------------------------------------------------------------------
 hl(0, "Normal", { fg = c.fg, bg = c.bg })
-hl(0, "NormalNC", { fg = c.fg_alt, bg = c.bg_dark })
+hl(0, "NormalNC", { fg = c.fg_alt, bg = c.bg_light })
 hl(0, "NormalFloat", { fg = c.fg, bg = c.bg_dark })
 
 hl(0, "Comment", { fg = c.comment, italic = true }) -- any comment
@@ -125,8 +141,8 @@ hl(0, "Number", { fg = c.orange_lighter }) -- numbers
 hl(0, "Float", { fg = c.orange_lighter }) -- floats
 hl(0, "Boolean", { fg = c.orange_lighter }) -- TRUE, false, etc.
 
-hl(0, "Identifier", { fg = c.cobalt_lighter }) -- variable names
-hl(0, "Function", { fg = c.cobalt }) -- function names (also: methods for classes)
+hl(0, "Identifier", { fg = c.red_lighter }) -- variable names
+hl(0, "Function", { fg = c.cobalt_light }) -- function names (also: methods for classes)
 
 hl(0, "Statement", { fg = c.purple }) -- any statement
 hl(0, "Conditional", { fg = c.purple }) -- if, then, else, endif, swtich, etc.
@@ -136,11 +152,11 @@ hl(0, "Operator", { fg = c.purple }) -- sizeof, +, *, etc.
 hl(0, "Keyword", { fg = c.purple_light }) -- other keywords
 hl(0, "Exception", { fg = c.purple }) -- try, catch, throw
 
-hl(0, "PreProc", { fg = c.red_dark }) -- preprocessor generics
-hl(0, "Include", { fg = c.red_dark }) -- #include
-hl(0, "Define", { fg = c.red_dark }) -- #define
-hl(0, "Macro", { fg = c.red_dark }) -- same as Define
-hl(0, "PreCondit", { fg = c.red_dark }) -- #if, #else, #endif, etc.
+hl(0, "PreProc", { fg = c.purple }) -- preprocessor generics
+hl(0, "Include", { fg = c.puple }) -- #include
+hl(0, "Define", { fg = c.purple }) -- #define
+hl(0, "Macro", { fg = c.red }) -- same as Define
+hl(0, "PreCondit", { fg = c.purple }) -- #if, #else, #endif, etc.
 
 hl(0, "Type", { fg = c.yellow_light }) -- int, long, char, etc.
 hl(0, "StorageClass", { fg = c.yellow_light }) -- static, register, volatile, etc.
@@ -149,9 +165,9 @@ hl(0, "Typedef", { fg = c.yellow_light }) -- typedef
 
 hl(0, "Special", { fg = c.orange_dark }) -- special symbols
 hl(0, "SpecialChar", { fg = c.orange_dark }) -- special characters in a constant '\n'
-hl(0, "Tag", { fg = c.orange_dark }) -- You can use CTRL-] on this
-hl(0, "Delimiter", { fg = c.orange_dark }) -- character that needs attention
-hl(0, "SpecialComment", { fg = c.orange_dark }) -- special things inside comments
+hl(0, "Tag", { fg = c.green }) -- You can use CTRL-] on this
+hl(0, "Delimiter", { fg = c.gray_lighter }) -- character that needs attention
+hl(0, "SpecialComment", { fg = c.gray }) -- special things inside comments
 hl(0, "Debug", { fg = c.orange_dark }) -- debug statements
 
 hl(0, "Underlined", { fg = c.cyan_light, underline = true }) -- like HTML links
@@ -191,7 +207,7 @@ hl(0, "IncSearch", { fg = c.bg, bg = c.yellow })
 hl(0, "Substitute", { fg = c.bg, bg = c.purple })
 
 hl(0, "LineNr", { fg = c.gutter, bg = c.blue_darker })
-hl(0, "EndOfBuffer", { fg = c.gutter, bg = c.bg_light })
+hl(0, "EndOfBuffer", { fg = c.gutter, bg = c.olive_darkest })
 hl(0, "LineNrAbove", { link = "LineNr" })
 hl(0, "LineNrBelow", { link = "LineNr" })
 hl(0, "CursorLineNr", { fg = c.yellow_light, bold = true })
@@ -247,7 +263,7 @@ hl(0, "TabLineFill", { fg = c.yellow, bg = c.yellow_darkest })
 
 hl(0, "Title", { fg = c.yellow, bg = c.cobalt_darkest, bold = true })
 
-hl(0, "Visual", { bg = c.gray }) -- selection
+hl(0, "Visual", { bg = c.mustard_darker }) -- selection
 hl(0, "VisualNOS", { link = "Visual" })
 
 hl(0, "WarningMsg", { fg = c.orange, bold = true })
