@@ -99,13 +99,6 @@ local c    = {
     purple_dark = "#844a9c",
     purple_darker = "#5c326e",
     purple_darkest = "#100810",
-
-    -- onedark
-    od_fg = "#abb2bf",
-    od_purple = "#c678dd",
-    od_dark_red = "#993939",
-    od_dark_purple = "#8a3fa0",
-    od_diff_add = "#31392b",
 }
 
 -- semantic aliases ----------------------
