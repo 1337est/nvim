@@ -54,7 +54,7 @@ vim.opt.ruler          = true
 local MODES            = {
     {
         hl = "User1",
-        normal = { -- TODO: make bg = orange in statusline
+        normal = {
             n         = "[N]", -- normal
             no        = "[NP]", -- operator-pending
             nov       = "[NP-V]", -- forced charwise
@@ -70,7 +70,7 @@ local MODES            = {
     },
     {
         hl = "User2",
-        visual = { -- TODO: make bg = blue in statusline
+        visual = {
             -- Visual / Select-mode via v_CTRL-O
             v        = "[V]", -- visual mode
             vs       = "[V-S]", -- visual select
@@ -82,7 +82,7 @@ local MODES            = {
     },
     {
         hl = "User3",
-        select = { -- TODO: make bg = cyan in statusline
+        select = {
             -- Select modes (char/line/block)
             s       = "[S]", -- select
             S       = "[SL]", -- select line
@@ -91,7 +91,7 @@ local MODES            = {
     },
     {
         hl = "User4",
-        insert = { -- TODO: make bg = yellow in statusline
+        insert = {
             -- Insert + completions variants
             i  = "[I]", -- insert
             ic = "[I-c]", -- insert completion generic
@@ -100,7 +100,7 @@ local MODES            = {
     },
     {
         hl = "User5",
-        replace = { -- TODO: make bg = purple in statusline
+        replace = {
             -- Replace / Virtual-Replace + completion variants
             R   = "[R]", -- replace
             Rc  = "[R-c]", -- replace completion generic
@@ -112,7 +112,7 @@ local MODES            = {
     },
     {
         hl = "User6",
-        command = { -- TODO: make bg = red in statusline
+        command = {
             -- Command-line editing variants
             c   = "[C]", -- command
             cr  = "[C-r]", -- command replace
@@ -123,13 +123,13 @@ local MODES            = {
     {
         hl = "User7",
         -- Prompts / external / terminal
-        terminal = { -- TODO: make bg = green in statusline
+        terminal = {
             t = "[T]", -- terminal
         },
     },
     {
         hl = "User1",
-        extra = { -- TODO: don't worry about this one. Does this even show up in the statusline?
+        extra = {
             r      = "[Hit]", -- hit enter prompt
             rm     = "[More]", -- -- more-- prompt
             ["r?"] = "[Conf]", -- :confirm query of some sort
@@ -288,6 +288,9 @@ map({ mode = "v", keys = "<A-,>", owner = "1337", desc = "Indent left reselect",
 
 -- File Explorering
 map({ mode = "n", keys = "<leader>e", owner = "1337", desc = "Explorer", fn = ":Explore<CR>" })
+
+-- reloading config
+map({ mode = "n", keys = "<leader>r", owner = "1337", desc = "write and reload file", fn = ":w<CR>:so<CR>" })
 
 -- mouse
 vim.opt.mouse = "a" -- Enables mouse mode
