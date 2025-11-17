@@ -76,10 +76,12 @@ vim.opt.sidescrolloff  = 1 -- Minimal screen lines to keep left/right
 vim.opt.undodir        = vim.fn.stdpath("state") .. "/undodir//"
 vim.opt.undofile       = true -- Save undo history
 
+-- view state
+vim.opt.viewdir        = vim.fn.stdpath("state") .. "/viewdir//"
+
 -- backup state
 vim.opt.backup         = false
 vim.opt.writebackup    = false
-
 -- swap state
 vim.opt.swapfile       = false
 
