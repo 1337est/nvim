@@ -1,3 +1,13 @@
+# `nvim -V1 -v`: output below at home computer
+```
+NVIM v0.11.5
+Build type: RelWithDebInfo
+LuaJIT 2.1.1762795099
+Compilation: /usr/bin/cc -march=x86-64 -mtune=generic -O2 -pipe -fno-plt -fexceptions     -Wp,-D_FORTIFY_SOURCE=3 -Wformat -Werror=format-security     -fstack-clash-protection -fcf-protection     -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -ffile-prefix-map=/build/neovim/src=/usr/src/debug/neovim -flto=auto -O2 -g -flto=auto -fno-fat-lto-objects -Wall -Wextra -pedantic -Wno-unused-parameter -Wstrict-prototypes -std=gnu99 -Wshadow -Wconversion -Wvla -Wdouble-promotion -Wmissing-noreturn -Wmissing-format-attribute -Wmissing-prototypes -fsigned-char -fstack-protector-strong -Wno-conversion -fno-common -Wno-unused-result -Wimplicit-fallthrough -fdiagnostics-color=always  -DUNIT_TESTING -D_GNU_SOURCE -DINCLUDE_GENERATED_DECLARATIONS -DUTF8PROC_STATIC -I/usr/include/luajit-2.1 -I/usr/include -I/build/neovim/src/neovim/build/src/nvim/auto -I/build/neovim/src/neovim/build/include -I/build/neovim/src/neovim/build/cmake.config -I/build/neovim/src/neovim/src
+
+   system vimrc file: "$VIM/sysinit.vim"
+  fall-back for $VIM: "/usr/share/nvim"
+```
 # neovim minimal config. TODO: plugins & TLDR
 
 I've simplified things below, need to add my plugins structure that I have detailed above
