@@ -5,18 +5,6 @@ local autocmd = utils.autocmd
 -- ===================== Generic autocmds =====================
 
 autocmd({
-    event  = "BufEnter",
-    owner  = "1337",
-    group  = "textfile_wrap_and_spell_on",
-    desc   = "Turns on text wrap + spell for text-ish files",
-    patbuf = { "*.md", "*.txt", "*.norg" },
-    fncmd  = function()
-        vim.opt_local.wrap  = true
-        vim.opt_local.spell = true
-    end,
-})
-
-autocmd({
     event  = "BufWinLeave",
     owner  = "1337",
     desc   = "Remembers folds on window leave",
