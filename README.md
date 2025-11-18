@@ -4,6 +4,7 @@ neovim (needed)
 ripgrep (needed)
 fd (needed)
 git (needed)
+ctags (needed)
 jetbrains font (needed/optional)
 ninja (needed)
 git clone https://github.com/LuaLS/lua-language-server

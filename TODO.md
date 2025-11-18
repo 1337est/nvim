@@ -1,3 +1,7 @@
+# Quick todo
+
+- [ ] Install `ctags` - dependency
+
 # Telescope Builtin Functions I want to replace
 
 Either a list of functions I want replaced from telescope of functions I want to make custom
