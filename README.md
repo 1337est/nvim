@@ -1,3 +1,23 @@
+# Dependencies
+
+neovim (needed)
+ripgrep (needed)
+fd (needed)
+git (needed)
+jetbrains font (needed/optional)
+ninja (needed)
+git clone https://github.com/LuaLS/lua-language-server
+cd lua-language-server
+./make.sh (or./make.bat)
+
+clangd (optional)
+lua-language-server (optional)
+zls (optional)
+gopls (optional)
+rust-analyzer (optional)
+
+
+
 # `nvim -V1 -v`: output below at home computer
 ```
 NVIM v0.11.5

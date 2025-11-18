@@ -82,7 +82,7 @@ function _G.LspBufKeymaps(bufnr, client)
     bmap({ mode = 'n', keys = 'K', owner = lsp_owner, desc = 'Hover docs', fn = vim.lsp.buf.hover })
 
     -- optional inlay hints toggle
-    if client and client.supports_method(m.textDocument_inlayHint) then
+    if client and client:supports_method(m.textDocument_inlayHint) then
         bmap({
             mode = 'n',
             keys = '<leader>th',

@@ -65,7 +65,7 @@ autocmd({
             pcall(_G.LspBufKeymaps, bufnr, client)
         end
 
-        if client and client.supports_method(m.textDocument_formatting) then
+        if client and client:supports_method(m.textDocument_formatting) then
             local lsp_fmt_grp = augroup(lsp_owner, ('format_%d'):format(bufnr))
             autocmd({
                 event = "BufWritePre",
@@ -78,7 +78,7 @@ autocmd({
         end
 
         -- Document highlight (if supported)
-        if client and client.supports_method(m.textDocument_documentHighlight) then
+        if client and client:supports_method(m.textDocument_documentHighlight) then
             local lsp_hl_grp = augroup(lsp_owner, ('highlight_%d'):format(bufnr))
             autocmd({
                 event = { 'CursorHold', 'CursorHoldI' },
