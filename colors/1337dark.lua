@@ -1,6 +1,4 @@
--- 1337dark.lua — warm onedark-ish Neovim colorscheme
-
-local hl   = vim.api.nvim_set_hl
+-- 1337dark.lua — warm onedark-ish Neovim colorscheme, structure from vim.lua
 
 -- Base palette --------------------------------------------------
 local c    = {
@@ -102,225 +100,255 @@ local c    = {
 }
 
 -- semantic aliases ----------------------
-c.bg       = c.blue_darkest
 c.bg_dark  = c.bulba_darkest
+c.bg       = c.blue_darkest
 c.bg_light = c.cobalt_darkest
+c.bg_alt   = c.blue_darker
 
-c.fg       = c.gray_lighter
 c.fg_light = c.white
+c.fg       = c.gray_lighter
 c.fg_dark  = c.gray
 c.fg_alt   = c.gray_light
 
-c.comment  = c.yellow_lighter
-c.gutter   = c.orange_light
-c.cursorln = c.gray
+c.comment  = c.mustard_light
+c.const    = c.orange_lighter
+c.string   = c.green_lighter
+c.var      = c.red_lighter
+c.fn       = c.cobalt_light
+c.keyword  = c.purple_lighter
+c.preproc  = c.purple
+c.type     = c.yellow_light
+c.special  = c.red_dark
+
+c.error    = c.red
+c.warn     = c.rust
+c.info     = c.cyan_dark -- used also for test
+c.hint     = c.cobalt
+c.ok       = c.green
+c.perf     = c.yellow -- gold?
+c.todo     = c.purple
+
+c.add      = c.green
+c.changed  = c.orange
+c.delete   = c.red
 
 -- Reset highlights -----------------------------------------------------------
 vim.cmd("highlight clear")
 if vim.fn.exists("syntax_on") == 1 then vim.cmd("syntax reset") end
 vim.g.colors_name = "1337dark"
 
--- Syntax ---------------------------------------------------------------------
-hl(0, "Normal", { fg = c.fg, bg = c.bg })
-hl(0, "NormalNC", { fg = c.fg_alt, bg = c.bg_light })
-hl(0, "NormalFloat", { fg = c.fg, bg = c.bg_dark })
+local hl = function(name, val)
+    -- Force links
+    val.force = true
 
-hl(0, "Comment", { fg = c.comment, italic = true }) -- any comment
+    -- Make sure that 'cterm' attributes are not populated from 'gui'
+    val.cterm = val.cterm or {} ---@type vim.api.keyset.highlight
 
-hl(0, "Constant", { fg = c.cyan }) -- any constant
-hl(0, "String", { fg = c.green_lighter }) -- a string constant: "this is a string"
-hl(0, "Character", { fg = c.green_lighter }) -- a character constant: 'c', '\n'
-hl(0, "Number", { fg = c.orange_lighter }) -- numbers
-hl(0, "Float", { fg = c.orange_lighter }) -- floats
-hl(0, "Boolean", { fg = c.orange_lighter }) -- TRUE, false, etc.
+    -- Define global highlight
+    vim.api.nvim_set_hl(0, name, val)
+end
 
-hl(0, "Identifier", { fg = c.red_lighter }) -- variable names
-hl(0, "Function", { fg = c.cobalt_light }) -- function names (also: methods for classes)
+-- General code syntax --------------------------------------------------------------
+hl("Comment", { fg = c.comment, italic = true }) -- any comment
 
-hl(0, "Statement", { fg = c.purple }) -- any statement
-hl(0, "Conditional", { fg = c.purple }) -- if, then, else, endif, swtich, etc.
-hl(0, "Repeat", { fg = c.purple }) -- for, do, while, etc.
-hl(0, "Label", { fg = c.purple }) -- case, default, etc.
-hl(0, "Operator", { fg = c.purple }) -- sizeof, +, *, etc.
-hl(0, "Keyword", { fg = c.purple_light }) -- other keywords
-hl(0, "Exception", { fg = c.purple }) -- try, catch, throw
+hl("Constant", { fg = c.const }) -- any constant
+hl("Number", { fg = c.const }) -- numbers
+hl("Float", { fg = c.const }) -- floats
+hl("Boolean", { fg = c.const }) -- TRUE, false, etc.
+hl("String", { fg = c.string }) -- a string constant: "this is a string"
+hl("Character", { fg = c.string }) -- a character constant: 'c', '\n'
 
-hl(0, "PreProc", { fg = c.purple }) -- preprocessor generics
-hl(0, "Include", { fg = c.puple }) -- #include
-hl(0, "Define", { fg = c.purple }) -- #define
-hl(0, "Macro", { fg = c.red }) -- same as Define
-hl(0, "PreCondit", { fg = c.purple }) -- #if, #else, #endif, etc.
+hl("Identifier", { fg = c.var }) -- variable names
+hl("Function", { fg = c.fn }) -- function names (also: methods for classes)
 
-hl(0, "Type", { fg = c.yellow_light }) -- int, long, char, etc.
-hl(0, "StorageClass", { fg = c.yellow_light }) -- static, register, volatile, etc.
-hl(0, "Structure", { fg = c.yellow_light }) -- struct, union, enum, etc
-hl(0, "Typedef", { fg = c.yellow_light }) -- typedef
+hl("Keyword", { fg = c.keyword }) -- keywords
+hl("Statement", { fg = c.keyword }) -- any statement
+hl("Conditional", { fg = c.keyword }) -- if, then, else, endif, swtich, etc.
+hl("Repeat", { fg = c.keyword }) -- for, do, while, etc.
+hl("Label", { fg = c.keyword }) -- case, default, etc.
+hl("Operator", { fg = c.keyword }) -- sizeof, +, *, etc.
+hl("Exception", { fg = c.keyword }) -- try, catch, throw
 
-hl(0, "Special", { fg = c.orange_dark }) -- special symbols
-hl(0, "SpecialChar", { fg = c.orange_dark }) -- special characters in a constant '\n'
-hl(0, "Tag", { fg = c.green }) -- You can use CTRL-] on this
-hl(0, "Delimiter", { fg = c.gray_lighter }) -- character that needs attention
-hl(0, "SpecialComment", { fg = c.gray }) -- special things inside comments
-hl(0, "Debug", { fg = c.orange_dark }) -- debug statements
+hl("PreProc", { fg = c.preproc }) -- preprocessor generics
+hl("Include", { fg = c.preproc }) -- #include
+hl("Define", { fg = c.preproc }) -- #define
+hl("Macro", { fg = c.preproc }) -- same as Define
+hl("PreCondit", { fg = c.preproc }) -- #if, #else, #endif, etc.
 
-hl(0, "Underlined", { fg = c.cyan_light, underline = true }) -- like HTML links
+hl("Type", { fg = c.type }) -- int, long, char, etc.
+hl("StorageClass", { fg = c.type }) -- static, register, volatile, etc.
+hl("Structure", { fg = c.type }) -- struct, union, enum, etc
+hl("Typedef", { fg = c.type }) -- typedef
 
-hl(0, "Todo", { fg = c.purple_dark, bg = c.white, bold = true }) -- TODO FIXME XXX
+hl("Special", { fg = c.special }) -- special symbols - table {} in lua
+hl("SpecialChar", { fg = c.special }) -- special characters in a constant '\n'
+hl("Tag", { fg = c.special }) -- like html/xml tags
+hl("SpecialComment", { fg = c.special }) -- special things inside comments
+hl("Debug", { fg = c.special }) -- debug statements
+hl("Delimiter", { fg = c.yellow_light }) -- character that needs attention
 
-hl(0, "Added", { fg = c.green_light }) -- Added line in a diff
-hl(0, "Changed", { fg = c.cobalt_lighter }) -- Changed line in a diff
-hl(0, "Removed", { fg = c.red_light }) -- Removed line in a diff
+hl("Underlined", { fg = c.cyan_light, underline = true }) -- like HTML links
+
+hl("Todo", { fg = c.todo, bg = c.white, bold = true }) -- TODO FIXME XXX
+
+hl("DiffText", { fg = c.fg })
+hl("Added", { fg = c.add }) -- Added line in a diff
+hl("DiffAdd", { fg = c.add })
+hl("Changed", { fg = c.orange }) -- Changed line in a diff
+hl("DiffChange", { fg = c.changed })
+hl("Removed", { fg = c.red }) -- Removed line in a diff
+hl("DiffDelete", { fg = c.delete })
+
+-- General Syntax --------------------------------------------------------------
+
+hl("Normal", { fg = c.fg, bg = c.bg })
+hl("NormalNC", { fg = c.fg_alt, bg = c.bg_light })
+hl("NormalFloat", { fg = c.fg, bg = c.bg_dark })
+hl("EndOfBuffer", { fg = c.orange_light, bg = c.olive_darkest })
+
+hl("FloatBorder", { fg = c.cobalt, bg = c.bg_dark })
+hl("FloatTitle", { fg = c.yellow, bg = c.bg_dark, bold = true })
+hl("FloatFooter", { fg = c.orange_light, bg = c.bg_dark, italic = true })
+
+hl("ColorColumn", { bg = c.bulba_darkest }) -- used for colors set with colorcolumn
+
+hl("IncSearch", { fg = c.bg, bg = c.yellow })
+hl("CurSearch", { link = "IncSearch" }) -- current match for the last search
+hl("Substitute", { fg = c.bg, bg = c.purple_lighter })
+hl("MatchParen", { fg = c.yellow_light, bg = c.bg_dark, bold = true })
+
+hl("Conceal", { fg = c.gray }) -- placeholder characters subbed for concealed text
+
+hl("Directory", { fg = c.cobalt_light })
+
+hl("Cursor", { fg = c.bg, bg = c.fg }) -- character under the cursor
+hl("lCursor", { link = "Cursor" })
+hl("CursorIM", { link = "Cursor" })
+hl("TermCursor", { link = "Cursor" })
+hl("CursorColumn", { bg = c.gray })
+hl("CursorLine", { bg = c.gray })
 
 -- UI / editor ----------------------------------------------------------------
-hl(0, "ColorColumn", { bg = c.orange_lighter }) -- used for colors set with colorcolumn
-hl(0, "Conceal", { fg = c.comment }) -- placeholder characters subbed for concealed text
-hl(0, "CurSearch", { link = "IncSearch" }) -- current match for the last search
 
-hl(0, "Cursor", { fg = c.bg, bg = c.fg }) -- character under the cursor
-hl(0, "lCursor", { link = "Cursor" })
-hl(0, "CursorIM", { link = "Cursor" })
+hl("WinSeparator", { fg = c.yellow, bg = c.yellow_darkest })
+hl("Folded", { fg = c.orange_dark, bg = c.yellow_lighter, italic = true })
+hl("FoldColumn", { fg = c.yellow, bg = c.cyan_darkest, bold = true })
+hl("SignColumn", { bg = c.black })
+hl("LineNr", { fg = c.orange_light, bg = c.bg_alt })
+hl("LineNrAbove", { link = "LineNr" })
+hl("LineNrBelow", { link = "LineNr" })
+hl("CursorLineNr", { fg = c.yellow_light, bold = true })
+hl("CursorLineFold", { fg = c.black, bg = c.yellow, bold = true })
+hl("CursorLineSign", { bg = c.bg })
 
-hl(0, "CursorColumn", { bg = c.cursorln })
-hl(0, "CursorLine", { bg = c.cursorln })
+hl("ModeMsg", { fg = c.cyan })
+hl("MsgArea", { fg = c.fg, bg = c.bg })
+hl("MsgSeparator", { fg = c.white, bg = c.bg })
+hl("MoreMsg", { fg = c.orange_light, bg = c.bg })
 
-hl(0, "Directory", { fg = c.cobalt })
-hl(0, "DiffAdd", { fg = c.green_light, bg = c.none })
-hl(0, "DiffChange", { fg = c.yellow, bg = c.none })
-hl(0, "DiffDelete", { fg = c.red, bg = c.none })
-hl(0, "DiffText", { fg = c.cobalt_lighter, bg = c.none })
+hl("NonText", { fg = c.red })
+hl("SpecialKey", { fg = c.red })
+hl("Whitespace", { fg = c.fg })
 
-hl(0, "TermCursor", { link = "Cursor" })
+hl("Pmenu", { fg = c.fg, bg = c.bg_dark })
+hl("PmenuSel", { fg = c.bg, bg = c.cobalt })
+hl("PmenuKind", { link = "Pmenu" })
+hl("PmenuKindSel", { link = "PmenuSel" })
+hl("PmenuExtra", { link = "Pmenu" })
+hl("PmenuExtraSel", { link = "PmenuSel" })
+hl("PmenuSbar", { bg = c.bg_dark })
+hl("PmenuThumb", { bg = c.comment })
+hl("PmenuMatch", { fg = c.yellow_light, bold = true })
+hl("PmenuMatchSel", { fg = c.yellow_light, bg = c.cobalt, bold = true })
+hl("ComplMatchIns", { link = "PmenuMatchSel" })
 
-hl(0, "WinSeparator", { fg = c.yellow, bg = c.yellow_darkest })
-hl(0, "Folded", { fg = c.orange_dark, bg = c.yellow_lighter, italic = true })
-hl(0, "FoldColumn", { fg = c.yellow, bg = c.cyan_darkest, bold = true })
-hl(0, "SignColumn", { bg = c.black })
+hl("Question", { fg = c.cyan })
+hl("QuickFixLine", { fg = c.fg, bg = c.gray })
 
-hl(0, "IncSearch", { fg = c.bg, bg = c.yellow })
-hl(0, "Substitute", { fg = c.bg, bg = c.purple })
+hl("Search", { fg = c.bg, bg = c.orange })
+hl("SnippetTabstop", { fg = c.yellow_light, bg = c.gray, italic = true })
 
-hl(0, "LineNr", { fg = c.gutter, bg = c.blue_darker })
-hl(0, "EndOfBuffer", { fg = c.gutter, bg = c.olive_darkest })
-hl(0, "LineNrAbove", { link = "LineNr" })
-hl(0, "LineNrBelow", { link = "LineNr" })
-hl(0, "CursorLineNr", { fg = c.yellow_light, bold = true })
-hl(0, "CursorLineFold", { fg = c.black, bg = c.yellow, bold = true })
-hl(0, "CursorLineSign", { bg = c.bg })
+hl("SpellBad", { undercurl = true, sp = c.red })
+hl("SpellCap", { undercurl = true, sp = c.yellow })
+hl("SpellLocal", { undercurl = true, sp = c.cobalt })
+hl("SpellRare", { undercurl = true, sp = c.purple })
 
-hl(0, "MatchParen", { fg = c.yellow_light, bg = c.bg_dark, bold = true })
+hl("StatusLine", { fg = c.yellow, bg = c.yellow_darkest })
+hl("StatusLineNC", { fg = c.comment, bg = c.bg_dark })
+hl("StatusLineTerm", { link = "StatusLine" })
+hl("StatusLineTermNC", { link = "StatusLineNC" })
 
-hl(0, "ModeMsg", { fg = c.cyan })
-hl(0, "MsgArea", { fg = c.fg, bg = c.bg })
-hl(0, "MsgSeparator", { fg = c.white, bg = c.bg })
-hl(0, "MoreMsg", { fg = c.orange_light, bg = c.bg })
+hl("TabLine", { fg = c.fg_light, bg = c.gray_darker })
+hl("TabLineSel", { fg = c.orange_darker, bg = c.yellow_darker, bold = true })
+hl("TabLineFill", { fg = c.yellow, bg = c.yellow_darkest })
 
-hl(0, "NonText", { fg = c.gutter })
-hl(0, "SpecialKey", { fg = c.gutter })
-hl(0, "Whitespace", { fg = c.gutter })
+hl("Title", { fg = c.yellow, bg = c.cobalt_darkest, bold = true })
 
-hl(0, "FloatBorder", { fg = c.cobalt, bg = c.bg_dark })
-hl(0, "FloatTitle", { fg = c.yellow, bg = c.bg_dark, bold = true })
-hl(0, "FloatFooter", { fg = c.orange_light, bg = c.bg_dark, italic = true })
+hl("Visual", { bg = c.mustard_darker }) -- selection
+hl("VisualNOS", { link = "Visual" })
 
-hl(0, "Pmenu", { fg = c.fg, bg = c.bg_dark })
-hl(0, "PmenuSel", { fg = c.bg, bg = c.cobalt })
-hl(0, "PmenuKind", { link = "Pmenu" })
-hl(0, "PmenuKindSel", { link = "PmenuSel" })
-hl(0, "PmenuExtra", { link = "Pmenu" })
-hl(0, "PmenuExtraSel", { link = "PmenuSel" })
-hl(0, "PmenuSbar", { bg = c.bg_dark })
-hl(0, "PmenuThumb", { bg = c.comment })
-hl(0, "PmenuMatch", { fg = c.yellow_light, bold = true })
-hl(0, "PmenuMatchSel", { fg = c.yellow_light, bg = c.cobalt, bold = true })
-hl(0, "ComplMatchIns", { link = "PmenuMatchSel" })
+hl("WarningMsg", { fg = c.orange, bold = true })
+hl("WildMenu", { fg = c.bg, bg = c.cobalt, bold = true })
 
-hl(0, "Question", { fg = c.cyan })
-hl(0, "QuickFixLine", { fg = c.fg, bg = c.cursorln })
-
-hl(0, "Search", { fg = c.bg, bg = c.orange })
-hl(0, "SnippetTabstop", { fg = c.yellow_light, bg = c.cursorln, italic = true })
-
-hl(0, "SpellBad", { undercurl = true, sp = c.red })
-hl(0, "SpellCap", { undercurl = true, sp = c.yellow })
-hl(0, "SpellLocal", { undercurl = true, sp = c.cobalt })
-hl(0, "SpellRare", { undercurl = true, sp = c.purple })
-
-hl(0, "StatusLine", { fg = c.yellow, bg = c.yellow_darkest })
-hl(0, "StatusLineNC", { fg = c.comment, bg = c.bg_dark })
-hl(0, "StatusLineTerm", { link = "StatusLine" })
-hl(0, "StatusLineTermNC", { link = "StatusLineNC" })
-
-hl(0, "TabLine", { fg = c.fg_light, bg = c.gray_darker })
-hl(0, "TabLineSel", { fg = c.orange_darker, bg = c.yellow_darker, bold = true })
-hl(0, "TabLineFill", { fg = c.yellow, bg = c.yellow_darkest })
-
-hl(0, "Title", { fg = c.yellow, bg = c.cobalt_darkest, bold = true })
-
-hl(0, "Visual", { bg = c.mustard_darker }) -- selection
-hl(0, "VisualNOS", { link = "Visual" })
-
-hl(0, "WarningMsg", { fg = c.orange, bold = true })
-hl(0, "WildMenu", { fg = c.bg, bg = c.cobalt, bold = true })
-
-hl(0, "WinBar", { fg = c.rust_darkest, bg = c.yellow })
-hl(0, "WinBarNC", { fg = c.yellow, bg = c.bg })
+hl("WinBar", { fg = c.rust_darkest, bg = c.yellow })
+hl("WinBarNC", { fg = c.yellow, bg = c.bg })
 
 -- Diagnostics ----------------------------------------------------------------
-hl(0, "Error", { fg = c.red, bold = true })
-hl(0, "ErrorMsg", { fg = c.red, bold = true })
+hl("Error", { fg = c.error, bold = true })
+hl("ErrorMsg", { fg = c.error, bold = true })
 
-hl(0, "DiagnosticError", { fg = c.red })
-hl(0, "DiagnosticVirtualTextError", { fg = c.red, bg = c.bg_dark })
-hl(0, "DiagnosticVirtualLinesError", { fg = c.red, bg = c.bg_dark })
-hl(0, "DiagnosticUnderlineError", { undercurl = true, sp = c.red })
-hl(0, "DiagnosticFloatingError", { link = "DiagnosticError" })
-hl(0, "DiagnosticSignError", { link = "DiagnosticError" })
+hl("DiagnosticError", { fg = c.error })
+hl("DiagnosticVirtualTextError", { fg = c.error, bg = c.bg_dark })
+hl("DiagnosticVirtualLinesError", { fg = c.error, bg = c.bg_dark })
+hl("DiagnosticUnderlineError", { undercurl = true, sp = c.error })
+hl("DiagnosticFloatingError", { link = "DiagnosticError" })
+hl("DiagnosticSignError", { link = "DiagnosticError" })
 
-hl(0, "DiagnosticWarn", { fg = c.yellow })
-hl(0, "DiagnosticVirtualTextWarn", { fg = c.yellow, bg = c.bg_dark })
-hl(0, "DiagnosticVirtualLinesWarn", { fg = c.yellow, bg = c.bg_dark })
-hl(0, "DiagnosticUnderlineWarn", { undercurl = true, sp = c.yellow })
-hl(0, "DiagnosticFloatingWarn", { link = "DiagnosticWarn" })
-hl(0, "DiagnosticSignWarn", { link = "DiagnosticWarn" })
+hl("DiagnosticWarn", { fg = c.warn })
+hl("DiagnosticVirtualTextWarn", { fg = c.warn, bg = c.bg_dark })
+hl("DiagnosticVirtualLinesWarn", { fg = c.warn, bg = c.bg_dark })
+hl("DiagnosticUnderlineWarn", { undercurl = true, sp = c.warn })
+hl("DiagnosticFloatingWarn", { link = "DiagnosticWarn" })
+hl("DiagnosticSignWarn", { link = "DiagnosticWarn" })
 
-hl(0, "DiagnosticInfo", { fg = c.cyan })
-hl(0, "DiagnosticVirtualTextInfo", { fg = c.cyan, bg = c.bg_dark })
-hl(0, "DiagnosticVirtualLinesInfo", { fg = c.cyan, bg = c.bg_dark })
-hl(0, "DiagnosticUnderlineInfo", { undercurl = true, sp = c.cyan })
-hl(0, "DiagnosticFloatingInfo", { link = "DiagnosticInfo" })
-hl(0, "DiagnosticSignInfo", { link = "DiagnosticInfo" })
+hl("DiagnosticInfo", { fg = c.info })
+hl("DiagnosticVirtualTextInfo", { fg = c.info, bg = c.bg_dark })
+hl("DiagnosticVirtualLinesInfo", { fg = c.info, bg = c.bg_dark })
+hl("DiagnosticUnderlineInfo", { undercurl = true, sp = c.info })
+hl("DiagnosticFloatingInfo", { link = "DiagnosticInfo" })
+hl("DiagnosticSignInfo", { link = "DiagnosticInfo" })
 
-hl(0, "DiagnosticHint", { fg = c.cobalt })
-hl(0, "DiagnosticVirtualTextHint", { fg = c.cobalt, bg = c.bg_dark })
-hl(0, "DiagnosticVirtualLinesHint", { fg = c.cobalt, bg = c.bg_dark })
-hl(0, "DiagnosticUnderlineHint", { undercurl = true, sp = c.cobalt })
-hl(0, "DiagnosticFloatingHint", { link = "DiagnosticHint" })
-hl(0, "DiagnosticSignHint", { link = "DiagnosticHint" })
+hl("DiagnosticHint", { fg = c.hint })
+hl("DiagnosticVirtualTextHint", { fg = c.hint, bg = c.bg_dark })
+hl("DiagnosticVirtualLinesHint", { fg = c.hint, bg = c.bg_dark })
+hl("DiagnosticUnderlineHint", { undercurl = true, sp = c.hint })
+hl("DiagnosticFloatingHint", { link = "DiagnosticHint" })
+hl("DiagnosticSignHint", { link = "DiagnosticHint" })
 
-hl(0, "DiagnosticOk", { fg = c.green_light })
-hl(0, "DiagnosticVirtualTextOk", { fg = c.green_light, bg = c.bg_dark })
-hl(0, "DiagnosticVirtualLinesOk", { fg = c.green_light, bg = c.bg_dark })
-hl(0, "DiagnosticUnderlineOk", { undercurl = true, sp = c.green_light })
-hl(0, "DiagnosticFloatingOk", { link = "DiagnosticOk" })
-hl(0, "DiagnosticSignOk", { link = "DiagnosticOk" })
+hl("DiagnosticOk", { fg = c.ok })
+hl("DiagnosticVirtualTextOk", { fg = c.ok, bg = c.bg_dark })
+hl("DiagnosticVirtualLinesOk", { fg = c.ok, bg = c.bg_dark })
+hl("DiagnosticUnderlineOk", { undercurl = true, sp = c.ok })
+hl("DiagnosticFloatingOk", { link = "DiagnosticOk" })
+hl("DiagnosticSignOk", { link = "DiagnosticOk" })
 
-hl(0, "DiagnosticDeprecated", { strikethrough = true })
-hl(0, "DiagnosticUnnecessary", { link = "Comment" })
-
--- User1..7 (for your statusline mode segment) --------------------------------
-hl(0, "User1", { fg = c.black, bg = c.blue, bold = true }) -- normal
-hl(0, "User2", { fg = c.black, bg = c.orange, bold = true }) -- visual
-hl(0, "User3", { fg = c.black, bg = c.rust_lighter, bold = true }) -- select
-hl(0, "User4", { fg = c.black, bg = c.green_dark, bold = true }) -- insert
-hl(0, "User5", { fg = c.black, bg = c.purple, bold = true }) -- replace
-hl(0, "User6", { fg = c.black, bg = c.red, bold = true }) -- command
-hl(0, "User7", { fg = c.black, bg = c.yellow, bold = true }) -- terminal
+hl("DiagnosticDeprecated", { strikethrough = true })
+hl("DiagnosticUnnecessary", { link = "Comment" })
 
 -- Personal comment tags ------------------------------------------------------
-hl(0, "1337TagTODO", { fg = c.purple_dark, bg = c.white, bold = true })
-hl(0, "1337TagTEST", { fg = c.cyan_dark, bg = c.white, bold = true })
-hl(0, "1337TagPASS", { fg = c.green_dark, bg = c.white, bold = true })
-hl(0, "1337TagPERF", { fg = c.green_dark, bg = c.white, bold = true })
-hl(0, "1337TagFAIL", { fg = c.red_dark, bg = c.white, bold = true })
-hl(0, "1337TagWARN", { fg = c.orange_dark, bg = c.white, bold = true })
-hl(0, "1337TagNOTE", { fg = c.cobalt_dark, bg = c.white, bold = true })
+hl("1337TagTODO", { fg = c.purple_dark, bg = c.white, bold = true })
+hl("1337TagTEST", { fg = c.cyan_dark, bg = c.white, bold = true })
+hl("1337TagPASS", { fg = c.green_dark, bg = c.white, bold = true })
+hl("1337TagPERF", { fg = c.green_dark, bg = c.white, bold = true })
+hl("1337TagFAIL", { fg = c.error, bg = c.white, bold = true })
+hl("1337TagWARN", { fg = c.warn, bg = c.white, bold = true })
+hl("1337TagNOTE", { fg = c.cobalt_dark, bg = c.white, bold = true })
+
+-- User1..7 (for your statusline mode segment) --------------------------------
+hl("User1", { fg = c.black, bg = c.blue, bold = true }) -- normal
+hl("User2", { fg = c.black, bg = c.orange, bold = true }) -- visual
+hl("User3", { fg = c.black, bg = c.rust_lighter, bold = true }) -- select
+hl("User4", { fg = c.black, bg = c.green_dark, bold = true }) -- insert
+hl("User5", { fg = c.black, bg = c.purple, bold = true }) -- replace
+hl("User6", { fg = c.black, bg = c.red, bold = true }) -- command
+hl("User7", { fg = c.black, bg = c.yellow, bold = true }) -- terminal
