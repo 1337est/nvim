@@ -1,6 +1,7 @@
 # Quick todo
 
-- [ ] Install `ctags` - dependency
+- [ ] Implement a basic/custom vim.snippet via the builtin vim lua module vim.snippet
+-- [ ] Work the basic implementation with potential language servers: clangd, lua_ls, zig, etc...
 
 # Telescope Builtin Functions I want to replace
 
