@@ -246,7 +246,7 @@ hl("WinBar", { fg = c.yellow_light, bg = c.olive_darker })
 hl("WinBarNC", { fg = c.yellow, bg = c.bg_dark })
 
 -- TODO: Expand on snippet implementations via builtin vim lua module vim.snippet
-hl("SnippetTabstop", { fg = c.yellow, bg = c.cobalt_dark, italic = true })
+hl("SnippetTabstop", { fg = c.bg, bg = c.yellow, bold = true })
 
 hl("Conceal", {}) -- placeholder characters subbed for concealed text
 hl("Directory", { fg = c.cobalt_light })
@@ -352,3 +352,240 @@ hl("User4", { fg = c.black, bg = c.green_dark, bold = true }) -- insert
 hl("User5", { fg = c.black, bg = c.purple, bold = true }) -- replace
 hl("User6", { fg = c.black, bg = c.red, bold = true }) -- command
 hl("User7", { fg = c.black, bg = c.yellow, bold = true }) -- terminal
+
+-- TODO: :help treesitter-highlight
+----------------------------------------------------------------------
+-- Treesitter / semantic highlights blueprint
+-- Based on Neovim docs + your 1337dark palette
+----------------------------------------------------------------------
+
+-- Variables ---------------------------------------------------------
+-- hl("@variable", { link = "Identifier" })
+-- hl("@variable.builtin", { fg = c.red, italic = true }) -- e.g. this, self
+-- hl("@variable.parameter", { fg = c.var, italic = true })
+-- hl("@variable.parameter.builtin", { fg = c.red, italic = true })
+-- hl("@variable.member", { fg = c.var }) -- object / struct fields
+
+-- Constants ---------------------------------------------------------
+-- hl("@constant", { link = "Constant" })
+-- hl("@constant.builtin", { fg = c.const, bold = true })
+-- hl("@constant.macro", { link = "Macro" })
+
+-- Modules / namespaces ---------------------------------------------
+-- hl("@module", { fg = c.type }) -- modules / namespaces
+-- hl("@module.builtin", { fg = c.type, bold = true })
+-- hl("@label", { link = "Label" })
+
+-- Strings -----------------------------------------------------------
+-- hl("@string", { link = "String" })
+-- hl("@string.documentation", { fg = c.comment, italic = true }) -- docstrings
+-- hl("@string.regexp", { fg = c.cyan_light })
+-- hl("@string.escape", { fg = c.cyan_lighter, bold = true })
+-- hl("@string.special", { fg = c.mustard_lighter })
+-- hl("@string.special.symbol", { fg = c.mustard })
+-- hl("@string.special.path", { fg = c.olive_lighter })
+-- hl("@string.special.url", { fg = c.cyan, underline = true })
+
+-- Characters / literals --------------------------------------------
+-- hl("@character", { link = "Character" })
+-- hl("@character.special", { fg = c.orange_lighter })
+
+-- hl("@boolean", { link = "Boolean" })
+-- hl("@number", { link = "Number" })
+-- hl("@number.float", { link = "Float" })
+
+-- Types -------------------------------------------------------------
+-- hl("@type", { link = "Type" })
+-- hl("@type.builtin", { fg = c.type, bold = true })
+-- hl("@type.definition", { link = "Typedef" })
+
+-- hl("@attribute", { link = "PreProc" })
+-- hl("@attribute.builtin", { fg = c.preproc, italic = true })
+-- hl("@property", { fg = c.var }) -- keys in key/value pairs
+
+-- Functions / methods / constructors -------------------------------
+-- hl("@function", { link = "Function" })
+-- hl("@function.builtin", { fg = c.fn, bold = true })
+-- hl("@function.call", { link = "Function" })
+-- hl("@function.macro", { link = "Macro" })
+
+-- hl("@function.method", { link = "Function" })
+-- hl("@function.method.call", { link = "Function" })
+
+-- hl("@constructor", { fg = c.fn, bold = true })
+-- hl("@operator", { link = "Operator" })
+
+-- Keywords ----------------------------------------------------------
+-- hl("@keyword", { link = "Keyword" })
+-- hl("@keyword.coroutine", { fg = c.keyword, italic = true })
+-- hl("@keyword.function", { link = "Keyword" })
+-- hl("@keyword.operator", { link = "Keyword" })
+-- hl("@keyword.import", { link = "Include" })
+-- hl("@keyword.type", { fg = c.type })
+-- hl("@keyword.modifier", { fg = c.keyword, italic = true })
+-- hl("@keyword.repeat", { link = "Repeat" })
+-- hl("@keyword.return", { fg = c.keyword, bold = true })
+-- hl("@keyword.debug", { fg = c.warn })
+-- hl("@keyword.exception", { link = "Exception" })
+
+-- hl("@keyword.conditional", { link = "Conditional" })
+-- hl("@keyword.conditional.ternary", { fg = c.keyword })
+
+-- hl("@keyword.directive", { link = "PreProc" })
+-- hl("@keyword.directive.define", { link = "Define" })
+
+-- Punctuation -------------------------------------------------------
+-- hl("@punctuation.delimiter", { link = "Delimiter" }) -- ; . ,
+-- hl("@punctuation.bracket", { fg = c.fg }) -- () {} []
+-- hl("@punctuation.special", { fg = c.special }) -- interpolation, etc.
+
+-- Comments ----------------------------------------------------------
+-- hl("@comment", { link = "Comment" })
+-- hl("@comment.documentation", { fg = c.comment, italic = true })
+
+-- hl("@comment.error", { fg = c.error, bold = true })
+-- hl("@comment.warning", { fg = c.warn, bold = true })
+-- hl("@comment.todo", { link = "1337TagTODO" })
+-- hl("@comment.note", { fg = c.cobalt_dark, bold = true })
+
+-- Markup (Markdown / help / etc.) ----------------------------------
+-- hl("@markup.strong", { bold = true })
+-- hl("@markup.italic", { italic = true })
+-- hl("@markup.strikethrough", { strikethrough = true })
+-- hl("@markup.underline", { underline = true })
+
+-- hl("@markup.heading", { link = "Title" })
+-- hl("@markup.heading.1", { fg = c.yellow, bold = true })
+-- hl("@markup.heading.2", { fg = c.mustard_lighter, bold = true })
+-- hl("@markup.heading.3", { fg = c.orange_lighter, bold = true })
+-- hl("@markup.heading.4", { fg = c.cyan_light, bold = true })
+-- hl("@markup.heading.5", { fg = c.cobalt_light, bold = true })
+-- hl("@markup.heading.6", { fg = c.purple_lighter, bold = true })
+
+-- hl("@markup.quote", { fg = c.comment, italic = true })
+-- hl("@markup.math", { fg = c.cyan_light })
+
+-- hl("@markup.link", { fg = c.cyan })
+-- hl("@markup.link.label", { fg = c.cyan_light, underline = true })
+-- hl("@markup.link.url", { fg = c.cyan, underline = true })
+
+-- hl("@markup.raw", { fg = c.mustard_lighter }) -- inline code
+-- hl("@markup.raw.block", { fg = c.mustard_lighter, bg = c.bg_dark })
+
+-- hl("@markup.list", { fg = c.yellow })
+-- hl("@markup.list.checked", { fg = c.green })
+-- hl("@markup.list.unchecked", { fg = c.fg_alt })
+
+-- Diff --------------------------------------------------------------
+-- hl("@diff.plus", { link = "DiffAdd" })
+-- hl("@diff.minus", { link = "DiffDelete" })
+-- hl("@diff.delta", { link = "DiffChange" })
+
+-- Tags (HTML / XML etc.) -------------------------------------------
+-- hl("@tag", { fg = c.cobalt_light })
+-- hl("@tag.builtin", { fg = c.cobalt_lighter, bold = true })
+-- hl("@tag.attribute", { fg = c.mustard_lighter })
+-- hl("@tag.delimiter", { fg = c.fg_alt })
+
+-- TODO: :help lsp-semantic-highlight
+----------------------------------------------------------------------
+-- LSP semantic token highlights (vim.lsp.semantic_tokens)
+-- See :h lsp-semantic-highlight
+----------------------------------------------------------------------
+
+-- TYPES / SYMBOL KINDS ----------------------------------------------
+
+-- hl("@lsp.type.class", { link = "Type" }) -- class Foo {}
+-- hl("@lsp.type.interface", { fg = c.type, italic = true }) -- interface-like types
+-- hl("@lsp.type.struct", { link = "Structure" }) -- struct Foo
+
+-- hl("@lsp.type.enum", { link = "Structure" }) -- enum Foo
+-- hl("@lsp.type.enumMember", { link = "Constant" }) -- Foo::Bar
+
+-- hl("@lsp.type.type", { link = "Type" }) -- general type
+-- hl("@lsp.type.typeParameter", { fg = c.type, italic = true }) -- template <T>, generics
+
+-- hl("@lsp.type.namespace", { fg = c.type }) -- namespaces / modules / packages
+
+-- hl("@lsp.type.macro", { link = "Macro" }) -- MACRO_NAME
+-- hl("@lsp.type.keyword", { link = "Keyword" }) -- language keywords
+
+-- hl("@lsp.type.number", { link = "Number" }) -- numeric literal
+-- hl("@lsp.type.string", { link = "String" }) -- string literal
+-- hl("@lsp.type.regexp", { fg = c.cyan_light }) -- regex literal
+
+-- hl("@lsp.type.operator", { link = "Operator" }) -- +, -, &&, etc.
+
+-- hl("@lsp.type.function", { link = "Function" }) -- free functions
+-- hl("@lsp.type.method", { link = "Function" }) -- member functions / methods
+
+-- hl("@lsp.type.property", { fg = c.var }) -- object fields / properties
+-- hl("@lsp.type.event", { fg = c.var, italic = true }) -- event-like properties
+
+-- hl("@lsp.type.parameter", { fg = c.var, italic = true }) -- function params
+
+-- hl("@lsp.type.variable", { link = "Identifier" }) -- local/global variables
+
+-- hl("@lsp.type.comment", { link = "Comment" }) -- comment tokens
+-- hl("@lsp.type.decorator", { link = "PreProc" }) -- decorators / annotations
+
+-- @lsp.type.modifier       Tokens that represent a modifier
+
+----------------------------------------------------------------------
+-- MODIFIERS (applied on top of base types)
+-- Keep these mostly stylistic so they compose well with the base group.
+----------------------------------------------------------------------
+
+-- hl("@lsp.mod.abstract", { italic = true }) -- abstract classes/methods
+-- hl("@lsp.mod.async", { italic = true }) -- async functions
+
+-- hl("@lsp.mod.declaration", { underline = true }) -- declarations
+-- hl("@lsp.mod.definition", { bold = true }) -- definitions
+
+-- hl("@lsp.mod.defaultLibrary", { bold = true }) -- stdlib / builtins
+
+-- hl("@lsp.mod.deprecated", { strikethrough = true }) -- deprecated symbols
+-- hl("@lsp.mod.documentation", { italic = true }) -- in docs only
+
+-- hl("@lsp.mod.modification", { bold = true }) -- write access
+-- hl("@lsp.mod.readonly", { underline = true }) -- const / readonly
+-- hl("@lsp.mod.static", { underline = true, italic = true }) -- static members
+
+-- TODO: :help lsp-highlight
+----------------------------------------------------------------------
+-- LSP reference / inlay / codelens / signature highlights
+-- See :h lsp-highlight
+----------------------------------------------------------------------
+
+-- Reference highlights (vim.lsp.buf.document_highlight) -------------
+
+-- Generic "text" reference (read or write)
+-- hl("LspReferenceText", { fg = c.fg, bg = c.cobalt_darker, underline = true, })
+
+-- Read references (e.g. usages)
+-- hl("LspReferenceRead", { fg = c.fg, bg = c.cobalt_dark, underline = true, })
+
+-- Write references (assignments / mutations)
+-- hl("LspReferenceWrite", { fg = c.black, bg = c.orange, bold = true, })
+
+-- Reference target (e.g. hover range / definition target)
+-- hl("LspReferenceTarget", { fg = c.black, bg = c.yellow, bold = true, })
+
+-- Inlay hints ------------------------------------------------------
+-- (parameter types, inferred types, etc.)
+-- hl("LspInlayHint", { fg = c.fg_alt, bg = c.bg_dark, italic = true, })
+
+----------------------------------------------------------------------
+-- LSP CodeLens
+-- Used for inline virtual text above functions, tests, etc.
+----------------------------------------------------------------------
+
+-- hl("LspCodeLens", { fg = c.comment, bg = c.none, italic = true, })
+-- hl("LspCodeLensSeparator", { fg = c.fg_alt, bg = c.none, })
+
+----------------------------------------------------------------------
+-- LSP Signature Help
+-- vim.lsp.handlers.signature_help()
+----------------------------------------------------------------------
+
+-- hl("LspSignatureActiveParameter", { fg = c.yellow, bg = c.cobalt_darker, bold = true, })
