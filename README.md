@@ -1,23 +1,22 @@
 # Dependencies
 
-neovim (needed)
+neovim (needed)... duh
 ripgrep (needed)
 fd (needed)
 git (needed)
-ctags (needed)
 jetbrains font (needed/optional)
-ninja (needed)
+ninja (needed) for the lua-language-server script
 git clone https://github.com/LuaLS/lua-language-server
 cd lua-language-server
 ./make.sh (or./make.bat)
 
+language servers
+ctags (needed) (universal, not exuberant) - this can replace the goto definition from an lsp.
 clangd (optional)
 lua-language-server (optional)
 zls (optional)
 gopls (optional)
 rust-analyzer (optional)
-
-
 
 # `nvim -V1 -v`: output below at home computer
 ```
