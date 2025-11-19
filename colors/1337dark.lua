@@ -110,8 +110,9 @@ c.fg       = c.gray_lighter
 c.fg_dark  = c.gray
 c.fg_alt   = c.gray_light
 
-c.comment  = c.mustard_light
-c.const    = c.orange_lighter
+c.comment  = c.mustard_lighter -- TODO: I still feel like comments are just barely off and need to be tweaked a bit
+c.const    = c.cyan
+c.num      = c.orange_lighter
 c.string   = c.green_lighter
 c.var      = c.red_lighter
 c.fn       = c.cobalt_light
@@ -151,10 +152,10 @@ end
 -- General code syntax --------------------------------------------------------------
 hl("Comment", { fg = c.comment, italic = true }) -- any comment
 
-hl("Constant", { fg = c.const }) -- any constant
-hl("Number", { fg = c.const }) -- numbers
-hl("Float", { fg = c.const }) -- floats
-hl("Boolean", { fg = c.const }) -- TRUE, false, etc.
+hl("Constant", { fg = c.const }) -- any constant cyan
+hl("Number", { fg = c.num }) -- numbers
+hl("Float", { fg = c.num }) -- floats
+hl("Boolean", { fg = c.num }) -- TRUE, false, etc.
 hl("String", { fg = c.string }) -- a string constant: "this is a string"
 hl("Character", { fg = c.string }) -- a character constant: 'c', '\n'
 
@@ -169,58 +170,70 @@ hl("Label", { fg = c.keyword }) -- case, default, etc.
 hl("Operator", { fg = c.keyword }) -- sizeof, +, *, etc.
 hl("Exception", { fg = c.keyword }) -- try, catch, throw
 
-hl("PreProc", { fg = c.preproc }) -- preprocessor generics
-hl("Include", { fg = c.preproc }) -- #include
+hl("PreProc", { fg = c.type }) -- preprocessor generics
+hl("Include", { fg = c.fn }) -- #include
 hl("Define", { fg = c.preproc }) -- #define
 hl("Macro", { fg = c.preproc }) -- same as Define
-hl("PreCondit", { fg = c.preproc }) -- #if, #else, #endif, etc.
+hl("PreCondit", { fg = c.type }) -- #if, #else, #endif, etc.
 
 hl("Type", { fg = c.type }) -- int, long, char, etc.
 hl("StorageClass", { fg = c.type }) -- static, register, volatile, etc.
 hl("Structure", { fg = c.type }) -- struct, union, enum, etc
 hl("Typedef", { fg = c.type }) -- typedef
 
-hl("Special", { fg = c.special }) -- special symbols - table {} in lua
-hl("SpecialChar", { fg = c.special }) -- special characters in a constant '\n'
-hl("Tag", { fg = c.special }) -- like html/xml tags
-hl("SpecialComment", { fg = c.special }) -- special things inside comments
-hl("Debug", { fg = c.special }) -- debug statements
-hl("Delimiter", { fg = c.yellow_light }) -- character that needs attention
+hl("Special", { fg = c.fn }) -- special symbols - table {} in lua
+hl("SpecialChar", { fg = c.num }) -- special characters in a constant '\n'
+hl("Tag", {}) -- like html/xml tags
+hl("SpecialComment", { fg = c.comment }) -- special things inside comments
+hl("Debug", {}) -- debug statements
+hl("Delimiter", {}) -- character that needs attention
 
 hl("Underlined", { fg = c.cyan_light, underline = true }) -- like HTML links
 
 hl("Todo", { fg = c.todo, bg = c.white, bold = true }) -- TODO FIXME XXX
 
-hl("DiffText", { fg = c.fg })
+hl("DiffText", { fg = c.black, bg = c.changed })
 hl("Added", { fg = c.add }) -- Added line in a diff
-hl("DiffAdd", { fg = c.add })
-hl("Changed", { fg = c.orange }) -- Changed line in a diff
-hl("DiffChange", { fg = c.changed })
-hl("Removed", { fg = c.red }) -- Removed line in a diff
-hl("DiffDelete", { fg = c.delete })
+hl("DiffAdd", { fg = c.black, bg = c.add })
+hl("Changed", { fg = c.changed }) -- Changed line in a diff
+hl("DiffChange", { fg = c.changed, underline = true })
+hl("Removed", { fg = c.delete }) -- Removed line in a diff
+hl("DiffDelete", { fg = c.black, bg = c.delete })
 
 -- General Syntax --------------------------------------------------------------
+-- TODO: Last left off here
 
 hl("Normal", { fg = c.fg, bg = c.bg })
 hl("NormalNC", { fg = c.fg_alt, bg = c.bg_light })
 hl("NormalFloat", { fg = c.fg, bg = c.bg_dark })
-hl("EndOfBuffer", { fg = c.orange_light, bg = c.olive_darkest })
+hl("EndOfBuffer", { fg = c.orange_light, bg = c.purple_darkest })
 
 hl("FloatBorder", { fg = c.cobalt, bg = c.bg_dark })
 hl("FloatTitle", { fg = c.yellow, bg = c.bg_dark, bold = true })
 hl("FloatFooter", { fg = c.orange_light, bg = c.bg_dark, italic = true })
 
-hl("ColorColumn", { bg = c.bulba_darkest }) -- used for colors set with colorcolumn
+hl("ColorColumn", { bg = c.bulba_darkest })
 
-hl("IncSearch", { fg = c.bg, bg = c.yellow })
+hl("Search", { fg = c.gray_dark, bg = c.yellow })
+hl("IncSearch", { fg = c.black, bg = c.orange })
 hl("CurSearch", { link = "IncSearch" }) -- current match for the last search
 hl("Substitute", { fg = c.bg, bg = c.purple_lighter })
-hl("MatchParen", { fg = c.yellow_light, bg = c.bg_dark, bold = true })
+hl("MatchParen", { fg = c.black, bg = c.orange, underline = true })
 
-hl("Conceal", { fg = c.gray }) -- placeholder characters subbed for concealed text
+hl("Pmenu", { fg = c.fg, bg = c.bg_alt })
+hl("PmenuSel", { fg = c.bg, bg = c.cobalt_dark })
+hl("PmenuKind", { link = "Pmenu" })
+hl("PmenuKindSel", { link = "PmenuSel" })
+hl("PmenuExtra", { link = "Pmenu" })
+hl("PmenuExtraSel", { link = "PmenuSel" })
+hl("PmenuSbar", { bg = c.bg_alt })
+hl("PmenuThumb", { bg = c.comment })
+hl("PmenuMatch", { fg = c.yellow, bold = true })
+hl("PmenuMatchSel", { fg = c.yellow, bg = c.cobalt_dark, bold = true })
+hl("ComplMatchIns", { link = "PmenuMatchSel" })
 
+hl("Conceal", {}) -- placeholder characters subbed for concealed text
 hl("Directory", { fg = c.cobalt_light })
-
 hl("Cursor", { fg = c.bg, bg = c.fg }) -- character under the cursor
 hl("lCursor", { link = "Cursor" })
 hl("CursorIM", { link = "Cursor" })
@@ -232,63 +245,69 @@ hl("CursorLine", { bg = c.gray })
 
 hl("WinSeparator", { fg = c.yellow, bg = c.yellow_darkest })
 hl("Folded", { fg = c.orange_dark, bg = c.yellow_lighter, italic = true })
-hl("FoldColumn", { fg = c.yellow, bg = c.cyan_darkest, bold = true })
-hl("SignColumn", { bg = c.black })
+hl("FoldColumn", { bg = c.olive_darkest })
+hl("SignColumn", { bg = c.olive_darkest })
 hl("LineNr", { fg = c.orange_light, bg = c.bg_alt })
 hl("LineNrAbove", { link = "LineNr" })
 hl("LineNrBelow", { link = "LineNr" })
-hl("CursorLineNr", { fg = c.yellow_light, bold = true })
-hl("CursorLineFold", { fg = c.black, bg = c.yellow, bold = true })
+hl("CursorLineNr", { fg = c.orange_lighter })
+hl("CursorLineFold", { bg = c.bg })
 hl("CursorLineSign", { bg = c.bg })
 
-hl("ModeMsg", { fg = c.cyan })
+hl("ModeMsg", { fg = c.orange_lighter })
 hl("MsgArea", { fg = c.fg, bg = c.bg })
 hl("MsgSeparator", { fg = c.white, bg = c.bg })
 hl("MoreMsg", { fg = c.orange_light, bg = c.bg })
 
-hl("NonText", { fg = c.red })
-hl("SpecialKey", { fg = c.red })
-hl("Whitespace", { fg = c.fg })
+hl("NonText", { fg = c.fg_alt })
+hl("SpecialKey", { fg = c.fg_alt })
+hl("Whitespace", { fg = c.fg_alt })
 
-hl("Pmenu", { fg = c.fg, bg = c.bg_dark })
-hl("PmenuSel", { fg = c.bg, bg = c.cobalt })
-hl("PmenuKind", { link = "Pmenu" })
-hl("PmenuKindSel", { link = "PmenuSel" })
-hl("PmenuExtra", { link = "Pmenu" })
-hl("PmenuExtraSel", { link = "PmenuSel" })
-hl("PmenuSbar", { bg = c.bg_dark })
-hl("PmenuThumb", { bg = c.comment })
-hl("PmenuMatch", { fg = c.yellow_light, bold = true })
-hl("PmenuMatchSel", { fg = c.yellow_light, bg = c.cobalt, bold = true })
-hl("ComplMatchIns", { link = "PmenuMatchSel" })
-
+-- TODO: Last left off here
 hl("Question", { fg = c.cyan })
+-- call s:h("Question", { "fg": s:purple }) " hit-enter prompt and yes/no questions
 hl("QuickFixLine", { fg = c.fg, bg = c.gray })
+-- call s:h("QuickFixLine", { "fg": s:black, "bg": s:yellow }) " Current quickfix item in the quickfix window.
 
-hl("Search", { fg = c.bg, bg = c.orange })
 hl("SnippetTabstop", { fg = c.yellow_light, bg = c.gray, italic = true })
 
 hl("SpellBad", { undercurl = true, sp = c.red })
+-- call s:h("SpellBad", { "fg": s:red, "gui": "underline", "cterm": "underline" }) " Word that is not recognized by the spellchecker. This will be combined with the highlighting used otherwise.
 hl("SpellCap", { undercurl = true, sp = c.yellow })
+-- call s:h("SpellCap", { "fg": s:dark_yellow }) " Word that should start with a capital. This will be combined with the highlighting used otherwise.
 hl("SpellLocal", { undercurl = true, sp = c.cobalt })
+-- call s:h("SpellLocal", { "fg": s:dark_yellow }) " Word that is recognized by the spellchecker as one that is used in another region. This will be combined with the highlighting used otherwise.
 hl("SpellRare", { undercurl = true, sp = c.purple })
+-- call s:h("SpellRare", { "fg": s:dark_yellow }) " Word that is recognized by the spellchecker as one that is hardly ever used. spell This will be combined with the highlighting used otherwise.
 
 hl("StatusLine", { fg = c.yellow, bg = c.yellow_darkest })
+-- call s:h("StatusLine", { "fg": s:white, "bg": s:cursor_grey }) " status line of current window
 hl("StatusLineNC", { fg = c.comment, bg = c.bg_dark })
+-- call s:h("StatusLineNC", { "fg": s:comment_grey }) " status lines of not-current windows Note: if this is equal to "StatusLine" Vim will use "^^^" in the status line of the current window.
 hl("StatusLineTerm", { link = "StatusLine" })
+-- call s:h("StatusLineTerm", { "fg": s:white, "bg": s:cursor_grey }) " status line of current :terminal window
 hl("StatusLineTermNC", { link = "StatusLineNC" })
+-- call s:h("StatusLineTermNC", { "fg": s:comment_grey }) " status line of non-current :terminal window
 
 hl("TabLine", { fg = c.fg_light, bg = c.gray_darker })
+-- call s:h("TabLine", { "fg": s:comment_grey }) " tab pages line, not active tab page label
 hl("TabLineSel", { fg = c.orange_darker, bg = c.yellow_darker, bold = true })
+-- call s:h("TabLineSel", { "fg": s:white }) " tab pages line, active tab page label
 hl("TabLineFill", { fg = c.yellow, bg = c.yellow_darkest })
+-- call s:h("TabLineFill", {}) " tab pages line, where there are no labels
 
 hl("Title", { fg = c.yellow, bg = c.cobalt_darkest, bold = true })
+-- call s:h("Title", { "fg": s:green }) " titles for output from ":set all", ":autocmd" etc.
 
-hl("Visual", { bg = c.mustard_darker }) -- selection
+hl("Visual", { bg = c.cobalt_darker }) -- selection
+-- call s:h("Visual", { "bg": s:visual_grey }) " Visual mode selection
 hl("VisualNOS", { link = "Visual" })
+-- call s:h("VisualNOS", { "bg": s:visual_grey }) " Visual mode selection when vim is "Not Owning the Selection". Only X11 Gui's gui-x11 and xterm-clipboard supports this.
 
 hl("WarningMsg", { fg = c.orange, bold = true })
+-- call s:h("WarningMsg", { "fg": s:yellow }) " warning messages
 hl("WildMenu", { fg = c.bg, bg = c.cobalt, bold = true })
+-- call s:h("WildMenu", { "fg": s:black, "bg": s:blue }) " current match in 'wildmenu' completion
 
 hl("WinBar", { fg = c.rust_darkest, bg = c.yellow })
 hl("WinBarNC", { fg = c.yellow, bg = c.bg })
@@ -296,32 +315,41 @@ hl("WinBarNC", { fg = c.yellow, bg = c.bg })
 -- Diagnostics ----------------------------------------------------------------
 hl("Error", { fg = c.error, bold = true })
 hl("ErrorMsg", { fg = c.error, bold = true })
+-- call s:h("ErrorMsg", { "fg": s:red }) " error messages on the command line
 
 hl("DiagnosticError", { fg = c.error })
+-- call s:h("DiagnosticError", { "fg": s:red })
 hl("DiagnosticVirtualTextError", { fg = c.error, bg = c.bg_dark })
 hl("DiagnosticVirtualLinesError", { fg = c.error, bg = c.bg_dark })
 hl("DiagnosticUnderlineError", { undercurl = true, sp = c.error })
+-- call s:h("DiagnosticUnderlineError", { "fg": s:red, "gui": "underline", "cterm": "underline" })
 hl("DiagnosticFloatingError", { link = "DiagnosticError" })
 hl("DiagnosticSignError", { link = "DiagnosticError" })
 
 hl("DiagnosticWarn", { fg = c.warn })
+-- call s:h("DiagnosticWarn", { "fg": s:yellow })
 hl("DiagnosticVirtualTextWarn", { fg = c.warn, bg = c.bg_dark })
 hl("DiagnosticVirtualLinesWarn", { fg = c.warn, bg = c.bg_dark })
 hl("DiagnosticUnderlineWarn", { undercurl = true, sp = c.warn })
+-- call s:h("DiagnosticUnderlineWarn", { "fg": s:yellow, "gui": "underline", "cterm": "underline" })
 hl("DiagnosticFloatingWarn", { link = "DiagnosticWarn" })
 hl("DiagnosticSignWarn", { link = "DiagnosticWarn" })
 
 hl("DiagnosticInfo", { fg = c.info })
+-- call s:h("DiagnosticInfo", { "fg": s:blue })
 hl("DiagnosticVirtualTextInfo", { fg = c.info, bg = c.bg_dark })
 hl("DiagnosticVirtualLinesInfo", { fg = c.info, bg = c.bg_dark })
 hl("DiagnosticUnderlineInfo", { undercurl = true, sp = c.info })
+-- call s:h("DiagnosticUnderlineInfo", { "fg": s:blue, "gui": "underline", "cterm": "underline" })
 hl("DiagnosticFloatingInfo", { link = "DiagnosticInfo" })
 hl("DiagnosticSignInfo", { link = "DiagnosticInfo" })
 
 hl("DiagnosticHint", { fg = c.hint })
+-- call s:h("DiagnosticHint", { "fg": s:cyan })
 hl("DiagnosticVirtualTextHint", { fg = c.hint, bg = c.bg_dark })
 hl("DiagnosticVirtualLinesHint", { fg = c.hint, bg = c.bg_dark })
 hl("DiagnosticUnderlineHint", { undercurl = true, sp = c.hint })
+-- call s:h("DiagnosticUnderlineHint", { "fg": s:cyan, "gui": "underline", "cterm": "underline" })
 hl("DiagnosticFloatingHint", { link = "DiagnosticHint" })
 hl("DiagnosticSignHint", { link = "DiagnosticHint" })
 
