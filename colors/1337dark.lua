@@ -12,6 +12,7 @@ local c    = {
     gray = "#5c5c5c",
     gray_light = "#a0a0a0",
     gray_lighter = "#d0d0d0",
+    gray_lightest = "#eeeeee",
     white = "#ffffff",
     -- reds (warm and toasty)
     red_lighter = "#ff7772",
@@ -124,14 +125,21 @@ c.special  = c.red_dark
 c.error    = c.red
 c.warn     = c.rust
 c.info     = c.cyan_dark -- used also for test
-c.hint     = c.cobalt
+c.hint     = c.cobalt_dark
 c.ok       = c.green
-c.perf     = c.yellow -- gold?
+c.perf     = c.yellow_darker -- gold?
 c.todo     = c.purple
+c.test     = c.blue
 
-c.add      = c.green
-c.changed  = c.orange
-c.delete   = c.red
+
+
+
+
+
+
+c.add     = c.green
+c.changed = c.orange
+c.delete  = c.red
 
 -- Reset highlights -----------------------------------------------------------
 vim.cmd("highlight clear")
@@ -151,15 +159,29 @@ end
 
 -- General code syntax --------------------------------------------------------------
 hl("Comment", { fg = c.comment, italic = true }) -- any comment
+hl("@string.documentation", { link = "Comment" }) -- string documentation e.g. Python docstrings
 
 hl("Constant", { fg = c.const }) -- any constant cyan
+hl("@constant", { link = "Constant" }) -- constant identifiers
+hl("@constant.builtin", { fg = c.const, italic = true }) -- built-int constant values
+hl("@constant.macro", { fg = c.const, bold = true }) -- constants defined by the preprocessor
+
 hl("Number", { fg = c.num }) -- numbers
 hl("Float", { fg = c.num }) -- floats
 hl("Boolean", { fg = c.num }) -- TRUE, false, etc.
 hl("String", { fg = c.string }) -- a string constant: "this is a string"
+hl("@string", { link = "String" }) -- string literals
+
 hl("Character", { fg = c.string }) -- a character constant: 'c', '\n'
+hl("@character", { link = "Character" }) -- character literals
 
 hl("Identifier", { fg = c.var }) -- variable names
+hl("@variable", { link = "Identifier" }) -- various variable names
+hl("@variable.builtin", { fg = c.var, italic = true }) -- e.g. this, self
+hl("@variable.parameter", { link = "Identifier" }) -- parameters of a function
+hl("@variable.parameter.builtin", { fg = c.var, italic = true }) -- e.g. _, it
+hl("@variable.member", { link = "Identifier" }) -- object / struct fields FIEELLDSSS
+
 hl("Function", { fg = c.fn }) -- function names (also: methods for classes)
 
 hl("Keyword", { fg = c.keyword }) -- keywords
@@ -167,6 +189,7 @@ hl("Statement", { fg = c.keyword }) -- any statement
 hl("Conditional", { fg = c.keyword }) -- if, then, else, endif, swtich, etc.
 hl("Repeat", { fg = c.keyword }) -- for, do, while, etc.
 hl("Label", { fg = c.keyword }) -- case, default, etc.
+hl("@label", { link = "Label" }) -- GOTO and other label:'s in C, including heredoc labels
 hl("Operator", { fg = c.keyword }) -- sizeof, +, *, etc.
 hl("Exception", { fg = c.keyword }) -- try, catch, throw
 
@@ -179,16 +202,25 @@ hl("PreCondit", { fg = c.type }) -- #if, #else, #endif, etc.
 hl("Type", { fg = c.type }) -- int, long, char, etc.
 hl("StorageClass", { fg = c.type }) -- static, register, volatile, etc.
 hl("Structure", { fg = c.type }) -- struct, union, enum, etc
+hl("@module", { link = "Structure" }) -- modules / namespaces
+hl("@module.builtin", { fg = c.type, italic = true }) -- built-in modules / namespaces
 hl("Typedef", { fg = c.type }) -- typedef
 
 hl("Special", { fg = c.fn }) -- special symbols - table {} in lua
 hl("SpecialChar", { fg = c.num }) -- special characters in a constant '\n'
+hl("@character.special", { link = "SpecialChar" }) -- special characters e.g. wildcards
+hl("@string.regexp", { link = "SpecialChar" }) -- regular expressions
+hl("@string.escape", { link = "SpecialChar" }) -- escape sequences
+hl("@string.special", { link = "SpecialChar" }) -- Other special string (dates and such)
+hl("@string.special.symbol", { link = "SpecialChar" }) -- symbols or atoms
+hl("@string.special.path", { link = "SpecialChar" }) -- filenames
 hl("Tag", {}) -- like html/xml tags
 hl("SpecialComment", { fg = c.comment }) -- special things inside comments
 hl("Debug", {}) -- debug statements
 hl("Delimiter", {}) -- character that needs attention
 
 hl("Underlined", { fg = c.cyan_light, underline = true }) -- like HTML links
+hl("@string.special.url", { link = "Underlined" }) -- URIs e.g. hyperlinks
 
 hl("Todo", { fg = c.todo, bg = c.white, bold = true }) -- TODO FIXME XXX
 
@@ -287,7 +319,6 @@ hl("SpellCap", { undercurl = true, sp = c.yellow })
 hl("SpellLocal", { undercurl = true, sp = c.cobalt })
 hl("SpellRare", { undercurl = true, sp = c.purple })
 
--- TODO: Last left off here
 hl("Visual", { bg = c.cobalt_darker }) -- selection
 hl("VisualNOS", { link = "Visual" })
 
@@ -336,13 +367,13 @@ hl("DiagnosticDeprecated", { strikethrough = true })
 hl("DiagnosticUnnecessary", { link = "Comment" })
 
 -- Personal comment tags ------------------------------------------------------
-hl("1337TagTODO", { fg = c.purple_dark, bg = c.white, bold = true })
-hl("1337TagTEST", { fg = c.cyan_dark, bg = c.white, bold = true })
-hl("1337TagPASS", { fg = c.green_dark, bg = c.white, bold = true })
-hl("1337TagPERF", { fg = c.green_dark, bg = c.white, bold = true })
-hl("1337TagFAIL", { fg = c.error, bg = c.white, bold = true })
-hl("1337TagWARN", { fg = c.warn, bg = c.white, bold = true })
-hl("1337TagNOTE", { fg = c.cobalt_dark, bg = c.white, bold = true })
+hl("1337TagTODO", { fg = c.todo, bg = c.white, bold = true }) -- TODO: purple
+hl("1337TagPASS", { fg = c.ok, bg = c.white, bold = true }) -- PASS: green
+hl("1337TagPERF", { fg = c.perf, bg = c.white, bold = true }) -- PERF: yellow
+hl("1337TagFAIL", { fg = c.error, bg = c.white, bold = true }) -- FAIL: red
+hl("1337TagWARN", { fg = c.warn, bg = c.white, bold = true }) -- WARNING: rust
+hl("1337TagNOTE", { fg = c.hint, bg = c.white, bold = true }) -- NOTE: cobalt
+hl("1337TagTEST", { fg = c.info, bg = c.white, bold = true }) -- TEST: cyan
 
 -- User1..7 (for your statusline mode segment) --------------------------------
 hl("User1", { fg = c.black, bg = c.blue, bold = true }) -- normal
@@ -359,133 +390,104 @@ hl("User7", { fg = c.black, bg = c.yellow, bold = true }) -- terminal
 -- Based on Neovim docs + your 1337dark palette
 ----------------------------------------------------------------------
 
--- Variables ---------------------------------------------------------
--- hl("@variable", { link = "Identifier" })
--- hl("@variable.builtin", { fg = c.red, italic = true }) -- e.g. this, self
--- hl("@variable.parameter", { fg = c.var, italic = true })
--- hl("@variable.parameter.builtin", { fg = c.red, italic = true })
--- hl("@variable.member", { fg = c.var }) -- object / struct fields
-
--- Constants ---------------------------------------------------------
--- hl("@constant", { link = "Constant" })
--- hl("@constant.builtin", { fg = c.const, bold = true })
--- hl("@constant.macro", { link = "Macro" })
-
--- Modules / namespaces ---------------------------------------------
--- hl("@module", { fg = c.type }) -- modules / namespaces
--- hl("@module.builtin", { fg = c.type, bold = true })
--- hl("@label", { link = "Label" })
-
--- Strings -----------------------------------------------------------
--- hl("@string", { link = "String" })
--- hl("@string.documentation", { fg = c.comment, italic = true }) -- docstrings
--- hl("@string.regexp", { fg = c.cyan_light })
--- hl("@string.escape", { fg = c.cyan_lighter, bold = true })
--- hl("@string.special", { fg = c.mustard_lighter })
--- hl("@string.special.symbol", { fg = c.mustard })
--- hl("@string.special.path", { fg = c.olive_lighter })
--- hl("@string.special.url", { fg = c.cyan, underline = true })
-
+-- TODO: Last left off here, need to move these to the top where they belong
 -- Characters / literals --------------------------------------------
--- hl("@character", { link = "Character" })
--- hl("@character.special", { fg = c.orange_lighter })
-
--- hl("@boolean", { link = "Boolean" })
--- hl("@number", { link = "Number" })
--- hl("@number.float", { link = "Float" })
+-- hl("@boolean", { link = "Boolean" }) -- boolean literals
+-- hl("@number", { link = "Number" }) -- numeric literals
+-- hl("@number.float", { link = "Float" }) -- floating-point numberl iterals
 
 -- Types -------------------------------------------------------------
--- hl("@type", { link = "Type" })
--- hl("@type.builtin", { fg = c.type, bold = true })
--- hl("@type.definition", { link = "Typedef" })
+-- hl("@type", { link = "Type" }) -- type or class definition and annotations
+-- hl("@type.builtin", { fg = c.type, bold = true }) -- built-in types
+-- hl("@type.definition", { link = "Typedef" }) -- Identifiers in type definitions typedef <type> <identifier> in C
 
--- hl("@attribute", { link = "PreProc" })
--- hl("@attribute.builtin", { fg = c.preproc, italic = true })
--- hl("@property", { fg = c.var }) -- keys in key/value pairs
+-- hl("@attribute", { link = "PreProc" }) -- attribute annotations (e.g. Python decorators, Rust lifetimes)
+-- hl("@attribute.builtin", { fg = c.preproc, italic = true }) -- builtin annotations (e.g. `@property` in Python)
+-- hl("@property", { fg = c.var }) -- keys in key/value pairs the key in key/value pairs
 
 -- Functions / methods / constructors -------------------------------
--- hl("@function", { link = "Function" })
--- hl("@function.builtin", { fg = c.fn, bold = true })
--- hl("@function.call", { link = "Function" })
--- hl("@function.macro", { link = "Macro" })
+-- hl("@function", { link = "Function" }) -- function definitions
+-- hl("@function.builtin", { fg = c.fn, bold = true }) -- built-in functions
+-- hl("@function.call", { link = "Function" }) -- function calls
+-- hl("@function.macro", { link = "Macro" }) -- preprocessor macros
 
--- hl("@function.method", { link = "Function" })
--- hl("@function.method.call", { link = "Function" })
+-- hl("@function.method", { link = "Function" }) -- method definitions
+-- hl("@function.method.call", { link = "Function" }) -- method calls
 
--- hl("@constructor", { fg = c.fn, bold = true })
--- hl("@operator", { link = "Operator" })
+-- hl("@constructor", { fg = c.fn, bold = true }) -- constructor calls and definitions
+-- hl("@operator", { link = "Operator" }) -- symbolic operators e.g. +, *
 
 -- Keywords ----------------------------------------------------------
--- hl("@keyword", { link = "Keyword" })
--- hl("@keyword.coroutine", { fg = c.keyword, italic = true })
--- hl("@keyword.function", { link = "Keyword" })
--- hl("@keyword.operator", { link = "Keyword" })
--- hl("@keyword.import", { link = "Include" })
--- hl("@keyword.type", { fg = c.type })
--- hl("@keyword.modifier", { fg = c.keyword, italic = true })
--- hl("@keyword.repeat", { link = "Repeat" })
--- hl("@keyword.return", { fg = c.keyword, bold = true })
--- hl("@keyword.debug", { fg = c.warn })
--- hl("@keyword.exception", { link = "Exception" })
+-- hl("@keyword", { link = "Keyword" }) -- keywords not fitting into specific categories
+-- hl("@keyword.coroutine", { fg = c.keyword, italic = true }) -- keywords related to coroutines e.g. go in GO, async/await in Python
+-- hl("@keyword.function", { link = "Keyword" }) -- keywords that define a function e.g. func in GO, def in Python
+-- hl("@keyword.operator", { link = "Keyword" }) -- Operators that are english words e.g. and, or
+-- hl("@keyword.import", { link = "Include" }) -- keywords for including or exporting modules e.g. import, from in Python
+-- hl("@keyword.type", { fg = c.type }) -- namespaces and composite types e.g. struct, enum
+-- hl("@keyword.modifier", { fg = c.keyword, italic = true }) -- const, static, public
+-- hl("@keyword.repeat", { link = "Repeat" }) -- for, while
+-- hl("@keyword.return", { fg = c.keyword, bold = true }) -- return, yield
+-- hl("@keyword.debug", { fg = c.warn }) -- keywords related to debugging
+-- hl("@keyword.exception", { link = "Exception" }) -- throw, catch
 
--- hl("@keyword.conditional", { link = "Conditional" })
--- hl("@keyword.conditional.ternary", { fg = c.keyword })
+-- hl("@keyword.conditional", { link = "Conditional" }) -- if, else
+-- hl("@keyword.conditional.ternary", { fg = c.keyword }) -- ?, :
 
--- hl("@keyword.directive", { link = "PreProc" })
--- hl("@keyword.directive.define", { link = "Define" })
+-- hl("@keyword.directive", { link = "PreProc" }) -- various preprocessor directives and shebang bang's
+-- hl("@keyword.directive.define", { link = "Define" }) -- preprocessor definition directives
 
 -- Punctuation -------------------------------------------------------
 -- hl("@punctuation.delimiter", { link = "Delimiter" }) -- ; . ,
--- hl("@punctuation.bracket", { fg = c.fg }) -- () {} []
--- hl("@punctuation.special", { fg = c.special }) -- interpolation, etc.
+-- hl("@punctuation.bracket", { fg = c.fg }) -- () {} [] -- (), {}, []
+-- hl("@punctuation.special", { fg = c.special }) -- special symbols e.g. {} in string interpolation
 
 -- Comments ----------------------------------------------------------
--- hl("@comment", { link = "Comment" })
--- hl("@comment.documentation", { fg = c.comment, italic = true })
+-- hl("@comment", { link = "Comment" }) -- line and block comments
+-- hl("@comment.documentation", { fg = c.comment, italic = true }) -- comments documenting code
 
--- hl("@comment.error", { fg = c.error, bold = true })
--- hl("@comment.warning", { fg = c.warn, bold = true })
--- hl("@comment.todo", { link = "1337TagTODO" })
--- hl("@comment.note", { fg = c.cobalt_dark, bold = true })
+-- hl("@comment.error", { fg = c.error, bold = true }) -- error-type comments e.g. ERROR, FIXME, DEPRECATED
+-- hl("@comment.warning", { fg = c.warn, bold = true }) -- warning-type comments e.g. WARNING, FIX, HACK
+-- hl("@comment.todo", { link = "1337TagTODO" }) -- todo-type comments e.g. TODO, WIP
+-- hl("@comment.note", { fg = c.cobalt_dark, bold = true }) -- note-type comments e.g. NOTE, INFO, XXX
 
 -- Markup (Markdown / help / etc.) ----------------------------------
--- hl("@markup.strong", { bold = true })
--- hl("@markup.italic", { italic = true })
--- hl("@markup.strikethrough", { strikethrough = true })
--- hl("@markup.underline", { underline = true })
+-- hl("@markup.strong", { bold = true }) -- md bold text
+-- hl("@markup.italic", { italic = true }) -- md italic text
+-- hl("@markup.strikethrough", { strikethrough = true }) -- md stricken text
+-- hl("@markup.underline", { underline = true }) -- md underlined text
 
--- hl("@markup.heading", { link = "Title" })
--- hl("@markup.heading.1", { fg = c.yellow, bold = true })
--- hl("@markup.heading.2", { fg = c.mustard_lighter, bold = true })
--- hl("@markup.heading.3", { fg = c.orange_lighter, bold = true })
--- hl("@markup.heading.4", { fg = c.cyan_light, bold = true })
--- hl("@markup.heading.5", { fg = c.cobalt_light, bold = true })
--- hl("@markup.heading.6", { fg = c.purple_lighter, bold = true })
+-- hl("@markup.heading", { link = "Title" }) -- md headings, titles (including markers)
+-- hl("@markup.heading.1", { fg = c.yellow, bold = true }) -- md heading 1
+-- hl("@markup.heading.2", { fg = c.mustard_lighter, bold = true }) -- md heading 2
+-- hl("@markup.heading.3", { fg = c.orange_lighter, bold = true }) -- md heading 3
+-- hl("@markup.heading.4", { fg = c.cyan_light, bold = true }) -- md heading 4
+-- hl("@markup.heading.5", { fg = c.cobalt_light, bold = true }) -- md heading 5
+-- hl("@markup.heading.6", { fg = c.purple_lighter, bold = true }) -- md heading 6
 
--- hl("@markup.quote", { fg = c.comment, italic = true })
--- hl("@markup.math", { fg = c.cyan_light })
+-- hl("@markup.quote", { fg = c.comment, italic = true }) -- md block quotes
+-- hl("@markup.math", { fg = c.cyan_light }) -- md math environments (e.g. $ ... $ in LaTeX)
 
--- hl("@markup.link", { fg = c.cyan })
--- hl("@markup.link.label", { fg = c.cyan_light, underline = true })
--- hl("@markup.link.url", { fg = c.cyan, underline = true })
+-- hl("@markup.link", { fg = c.cyan }) -- md text references, footnotes, citations, etc.
+-- hl("@markup.link.label", { fg = c.cyan_light, underline = true }) -- md link, reference descriptions
+-- hl("@markup.link.url", { fg = c.cyan, underline = true }) -- md URL-style links
 
--- hl("@markup.raw", { fg = c.mustard_lighter }) -- inline code
--- hl("@markup.raw.block", { fg = c.mustard_lighter, bg = c.bg_dark })
+-- hl("@markup.raw", { fg = c.mustard_lighter }) -- md inline code strings
+-- hl("@markup.raw.block", { fg = c.mustard_lighter, bg = c.bg_dark }) -- md code blocks
 
--- hl("@markup.list", { fg = c.yellow })
--- hl("@markup.list.checked", { fg = c.green })
--- hl("@markup.list.unchecked", { fg = c.fg_alt })
+-- hl("@markup.list", { fg = c.yellow }) -- md list markers
+-- hl("@markup.list.checked", { fg = c.green }) -- md checked todo-style list markers
+-- hl("@markup.list.unchecked", { fg = c.fg_alt }) -- md  unchecked todo-style list markers
 
 -- Diff --------------------------------------------------------------
--- hl("@diff.plus", { link = "DiffAdd" })
--- hl("@diff.minus", { link = "DiffDelete" })
--- hl("@diff.delta", { link = "DiffChange" })
+-- hl("@diff.plus", { link = "DiffAdd" }) -- added text for diff files
+-- hl("@diff.minus", { link = "DiffDelete" }) -- deleted text for diff files
+-- hl("@diff.delta", { link = "DiffChange" }) -- changed text for diff files
 
 -- Tags (HTML / XML etc.) -------------------------------------------
--- hl("@tag", { fg = c.cobalt_light })
--- hl("@tag.builtin", { fg = c.cobalt_lighter, bold = true })
--- hl("@tag.attribute", { fg = c.mustard_lighter })
--- hl("@tag.delimiter", { fg = c.fg_alt })
+-- hl("@tag", { fg = c.cobalt_light }) -- XML-style tag names e.g. XML, HTML, etc.
+-- hl("@tag.builtin", { fg = c.cobalt_lighter, bold = true }) -- builtin tag names (HTML5 tags)
+-- hl("@tag.attribute", { fg = c.mustard_lighter }) -- XML-style tag attributes
+-- hl("@tag.delimiter", { fg = c.fg_alt }) -- XML-style tag delimiters
 
 -- TODO: :help lsp-semantic-highlight
 ----------------------------------------------------------------------
