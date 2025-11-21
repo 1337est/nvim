@@ -115,3 +115,33 @@ function _G.StatuslineMode()
     -- Fallback if we somehow don't know the mode
     return " [?] "
 end
+
+local devicons_ok, devicons = pcall(require, "nvim-web-devicons")
+
+function _G.StatuslineIcon()
+    if not devicons_ok then
+        return ""
+    end
+
+    local bufname = vim.api.nvim_buf_get_name(0)
+    if bufname == "" then
+        return ""
+    end
+
+    local fname    = vim.fn.fnamemodify(bufname, ":t")
+    local ext      = vim.fn.fnamemodify(bufname, ":e")
+
+    -- default = true ensures we always get *something*
+    local icon, hl = devicons.get_icon(fname, ext, { default = true })
+    if not icon then
+        return ""
+    end
+
+    -- If devicons gives us a highlight group, use it
+    if hl and hl ~= "" then
+        -- %#Group# switches to that hl, %%* resets to previous
+        return string.format("%%#%s#%s%%*", hl, icon)
+    else
+        return icon .. " "
+    end
+end
