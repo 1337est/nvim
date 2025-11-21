@@ -76,37 +76,5 @@ autocmd({
                 fncmd = function() vim.lsp.buf.format({ bufnr = bufnr, id = client.id, timeout_ms = 1500 }) end,
             })
         end
-
-        -- Document highlight (if supported)
-        if client and client:supports_method(m.textDocument_documentHighlight) then
-            local lsp_hl_grp = augroup(lsp_owner, ('highlight_%d'):format(bufnr))
-            autocmd({
-                event = { 'CursorHold', 'CursorHoldI' },
-                owner = lsp_owner,
-                group = lsp_hl_grp,
-                desc = "LSP document highlight",
-                patbuf = bufnr,
-                fncmd = vim.lsp.buf.document_highlight,
-            })
-            autocmd({
-                event = { 'CursorMoved', 'CursorMovedI' },
-                owner = lsp_owner,
-                group = lsp_hl_grp,
-                desc = "Clear LSP references",
-                patbuf = bufnr,
-                fncmd = vim.lsp.buf.clear_references,
-            })
-            autocmd({
-                event  = 'LspDetach',
-                owner  = lsp_owner,
-                group  = lsp_detach_grp,
-                desc   = 'Clear LSP highlights on detach',
-                patbuf = "*",
-                fncmd  = function(e)
-                    pcall(vim.api.nvim_del_augroup_by_name, ('LSP.highlight_%d'):format(e.buf))
-                    pcall(vim.lsp.buf.clear_references)
-                end,
-            })
-        end
     end,
 })
