@@ -26,7 +26,7 @@ map({ mode = "v", keys = "<A-.>", owner = "1337", desc = "Indent right reselect"
 map({ mode = "v", keys = "<A-,>", owner = "1337", desc = "Indent left reselect", fn = "<gv" })
 
 -- File Explorering
-map({ mode = "n", keys = "<leader>e", owner = "1337", desc = "Explorer", fn = ":Explore<CR>" })
+map({ mode = "n", keys = "<leader>e", owner = "1337", desc = "Explorer", fn = ":Oil<CR>" })
 
 -- reloading config
 map({ mode = "n", keys = "<leader>r", owner = "1337", desc = "write and reload file", fn = ":w<CR>:so<CR>" })
