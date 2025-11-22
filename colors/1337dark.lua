@@ -270,11 +270,12 @@ hl("Added", { fg = c.add }) -- Added line in a diff
 hl("Changed", { fg = c.changed }) -- Changed line in a diff
 hl("Removed", { fg = c.delete }) -- Removed line in a diff
 hl("DiffAdd", { fg = c.black, bg = c.add }) -- Diff mode: Added line
-hl("DiffChange", { fg = c.changed, underline = true }) -- Diff mode: Changed line
+hl("DiffChange", { fg = c.black, bg = c.changed }) -- Diff mode: Changed line
 hl("DiffDelete", { fg = c.black, bg = c.delete }) -- Diff mode: deleted line
 hl("@diff.plus", { link = "DiffAdd" }) -- added text for diff files
 hl("@diff.delta", { link = "DiffChange" }) -- changed text for diff files
 hl("@diff.minus", { link = "DiffDelete" }) -- deleted text for diff files
+
 
 -- General Syntax --------------------------------------------------------------
 
@@ -282,11 +283,11 @@ hl("Normal", { fg = c.fg, bg = c.bg })
 hl("NormalNC", { fg = c.fg_alt, bg = c.bg_dark })
 hl("NormalFloat", { fg = c.fg, bg = c.bg })
 hl("EndOfBuffer", { fg = c.orange_light, bg = c.purple_darkest })
-hl("Title", { fg = c.yellow, bg = c.bg_dark, bold = true })
+hl("Title", { fg = c.bg_dark, bg = c.yellow, bold = true })
 
 hl("FloatBorder", { fg = c.cobalt, bg = c.bg_dark })
 hl("FloatTitle", { link = "Title" })
-hl("FloatFooter", { fg = c.orange_light, bg = c.bg_dark, italic = true })
+hl("FloatFooter", { fg = c.bg_dark, bg = c.orange_light, italic = true })
 
 hl("ColorColumn", { bg = c.bulba_darkest })
 
