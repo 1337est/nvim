@@ -51,14 +51,6 @@ vim.opt.showmode       = false -- Don't show mode, since it's already in status 
 vim.opt.laststatus     = 3
 vim.opt.showtabline    = 2
 vim.opt.ruler          = true
-vim.o.statusline       = table.concat({
-    "%{%v:lua.StatuslineMode()%}", -- leftmost: mode block
-    "%{%v:lua.StatuslineIcon()%}", -- devicon icon
-    " ",
-    "%Y", -- filetype
-    "%=", -- right alignment starts
-    "[%l/%L],%c %3p%%", -- right: line/LINES,col, percent
-})
 vim.o.winbar           = "%f"
 vim.o.tabline          = ""
 
