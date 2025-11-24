@@ -11,17 +11,21 @@ vim.lsp.config('*', {
     root_markers = { '.git' },
 })
 
--- Helper: collect LSP names from lua/nvim/lsp/*.lua on runtimepath
+-- Helper: collect LSP names from lua/nvim/lsp/<name>.lua on runtimepath
 local function get_lsp_file_names()
-    -- This searches every directory on 'runtimepath' for lua/nvim/lsp/*.lua
+    -- This searches every directory on 'runtimepath' for lua/nvim/lsp/<name>.lua
     local files = vim.api.nvim_get_runtime_file('lsp/*.lua', true)
 
     local names_seen = {}
     local names = {}
 
     for _, path in ipairs(files) do
-        -- extract the part between nvim/lsp/ and .lua
-        local name = path:match("nvim/lsp/([^/]+)%.lua$")
+        -- Normalize Windows slashes
+        local normalized = path:gsub("\\", "/")
+
+        -- extract "<name>.lua" from "nvim/lsp/<name>.lua
+        local name = normalized:match("nvim/lsp/([^/]+)%.lua$")
+
         -- skip helper files if you have any, e.g. init.lua, utils.lua, etc.
         if name and name ~= "init" and not names_seen[name] then
             names_seen[name] = true
