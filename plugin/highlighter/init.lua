@@ -1,17 +1,9 @@
--- plugin/1337_word_highlights.lua
--- Comment tag + hex color highlighter (auto-loaded plugin)
-
 if vim.g.loaded_1337_word_highlights then
     return
 end
 vim.g.loaded_1337_word_highlights = true
 
 local api = vim.api
-
---------------------------------------------------------------------------------
--- Config: tags + namespace
---------------------------------------------------------------------------------
-
 local ns = api.nvim_create_namespace("1337.comment_tags")
 
 local TAGS = {
