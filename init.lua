@@ -112,32 +112,6 @@ vim.opt.completeopt = "menuone,noinsert,noselect"
 vim.opt.pumheight = 10
 vim.opt.pumblend = 10
 
--- =============== LSP ===============
-
--- Optional: default settings applied to *all* configs (wildcard "*")
--- You can keep this minimal; root_markers helps autostart at project roots.
-vim.lsp.config('*', {
-    capabilities = {
-        textDocument = {
-            semanticTokens = {
-                multilineTokenSupport = true,
-            },
-        },
-    },
-    root_markers = { '.git' },
-})
-
--- ---------- Enable by name ----------
--- Once enabled, Neovim auto-starts the server on buffers matching filetypes
--- and rooted by root_markers/root_dir.
-vim.lsp.enable({
-    'lua_ls',
-    'clangd',
-    'gopls',
-    'rust_analyzer',
-    'zls',
-})
-
 -- Tip: you can enable/disable later too:
 --   vim.lsp.enable('clangd', false)  -- stop/disable
 --   vim.lsp.enable('clangd', true)   -- re-enable
