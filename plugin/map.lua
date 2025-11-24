@@ -7,7 +7,7 @@ local map = utils.map
 map({ mode = "x", keys = "<leader>p", owner = "1337", desc = "paste over without yanking", fn = [["_dP]] })
 map({ mode = { "n", "v" }, keys = "<leader>d", owner = "1337", desc = "delete without yanking", fn = [["_d]] })
 
-map({ mode = "n", keys = "<leader>c", owner = "1337", desc = "Clears search highlights", fn = ":nohlsearch<CR>" })
+map({ mode = "n", keys = "<Esc><Esc>", owner = "1337", desc = "Clears search highlights", fn = ":nohlsearch<CR>" })
 -- keep search results centered
 map({ mode = "n", keys = "n", owner = "1337", desc = "next search centered", fn = "nzz" })
 map({ mode = "n", keys = "N", owner = "1337", desc = "previoius search centered", fn = "Nzz" })
