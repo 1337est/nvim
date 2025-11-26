@@ -25,6 +25,7 @@ local default_icon = {
   name = "Default",
 }
 
+-- Remove if working without
 local global_opts = {
   strict = false,
   default = false,
@@ -37,9 +38,7 @@ local global_opts = {
 ---Remove entry when lowercase entry already exists
 ---@param t table
 local function lowercase_keys(t)
-  if not t then
-    return
-  end
+  if not t then return end
 
   for k, v in pairs(t) do
     if type(k) == "string" then
@@ -57,16 +56,10 @@ end
 -- Set the current icons tables, depending on variant option, then &background
 local function refresh_icons()
   local theme
-  if global_opts.variant == "light" then
+  if vim.o.background == "light" then
     theme = require "nvim-web-devicons.icons-light"
-  elseif global_opts.variant == "dark" then
-    theme = require "nvim-web-devicons.icons-default"
   else
-    if vim.o.background == "light" then
-      theme = require "nvim-web-devicons.icons-light"
-    else
-      theme = require "nvim-web-devicons.icons-default"
-    end
+    theme = require "nvim-web-devicons.icons-default"
   end
 
   icons_by_filename = theme.icons_by_filename
@@ -87,63 +80,31 @@ local function refresh_icons()
     icons_by_desktop_environment,
     icons_by_window_manager
   )
+  -- stash the default under numeric key for easy access in iterations
   icons[1] = default_icon
 end
 
-local function get_highlight_name(data)
-  if not global_opts.color_icons then
-    data = default_icon
-  end
-
-  return data.name and "DevIcon" .. data.name
+local function get_highlight_name(icon_data)
+  return icon_data.name and ("DevIcon" .. icon_data.name) or nil
 end
 
-local nvim_set_hl = vim.api.nvim_set_hl
 local function set_up_highlight(icon_data)
-  if not global_opts.color_icons then
-    icon_data = default_icon
-  end
-
   local hl_group = get_highlight_name(icon_data)
-  if hl_group and (icon_data.color or icon_data.cterm_color) then
-    local hl_def = {
+  if not hl_group then return end
+
+  if icon_data.color or icon_data.cterm_color then
+    vim.api.nvim_set_hl(0, hl_group, {
       fg = icon_data.color,
       ctermfg = tonumber(icon_data.cterm_color),
-    }
-
-    if global_opts.blend then
-      hl_def.blend = global_opts.blend
-    end
-
-    nvim_set_hl(0, get_highlight_name(icon_data), hl_def)
-  end
-end
-
-local function highlight_exists(group)
-  if not group then
-    return
-  end
-
-  if vim.fn.has "nvim-0.9" == 1 then
-    local hl = vim.api.nvim_get_hl(0, { name = group, link = false })
-    return not vim.tbl_isempty(hl)
-  else
-    local ok, hl = pcall(vim.api.nvim_get_hl_by_name, group, true) ---@diagnostic disable-line: deprecated
-    return ok and not (hl or {})[true]
+    })
   end
 end
 
 function M.set_up_highlights(allow_override)
-  if not global_opts.color_icons then
-    set_up_highlight(default_icon)
-    return
-  end
+  set_up_highlight(default_icon)
 
   for _, icon_data in pairs(icons) do
-    local has_color = icon_data.color or icon_data.cterm_color
-    local name_valid = icon_data.name
-    local defined_before = highlight_exists(get_highlight_name(icon_data))
-    if has_color and name_valid and (allow_override or not defined_before) then
+    if icon_data ~= default_icon then
       set_up_highlight(icon_data)
     end
   end
