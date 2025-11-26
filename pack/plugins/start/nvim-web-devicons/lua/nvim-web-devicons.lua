@@ -1,18 +1,21 @@
 local M = {}
 
----@alias iconName string Name of the icon
+-- filetype -> icon name
+local filetypes = require "nvim-web-devicons.filetypes"
+
+-- master tables
+local icons
+local icons_by_filename
+local icons_by_file_extension
+local icons_by_operating_system
+local icons_by_desktop_environment
+local icons_by_window_manager
 
 ---@class Icon
 ---@field icon string Nerd-font glyph
 ---@field color string Hex color code
 ---@field cterm_color string cterm color code
----@field name iconName
-
--- NOTE: When adding new icons, remember to add an entry to the `filetypes` table, if applicable.
-local icons, icons_by_filename, icons_by_file_extension, icons_by_operating_system
-local icons_by_desktop_environment, icons_by_window_manager
-
-local filetypes = require "nvim-web-devicons.filetypes"
+---@field name string Name of the icon
 
 ---@type Icon
 local default_icon = {
@@ -22,29 +25,17 @@ local default_icon = {
   name = "Default",
 }
 
-function M.get_icons()
-  return icons
-end
+function M.get_icons() return icons end
 
-function M.get_icons_by_filename()
-  return icons_by_filename
-end
+function M.get_icons_by_filename() return icons_by_filename end
 
-function M.get_icons_by_extension()
-  return icons_by_file_extension
-end
+function M.get_icons_by_extension() return icons_by_file_extension end
 
-function M.get_icons_by_operating_system()
-  return icons_by_operating_system
-end
+function M.get_icons_by_operating_system() return icons_by_operating_system end
 
-function M.get_icons_by_desktop_environment()
-  return icons_by_desktop_environment
-end
+function M.get_icons_by_desktop_environment() return icons_by_desktop_environment end
 
-function M.get_icons_by_window_manager()
-  return icons_by_window_manager
-end
+function M.get_icons_by_window_manager() return icons_by_window_manager end
 
 local global_opts = {
   strict = false,
