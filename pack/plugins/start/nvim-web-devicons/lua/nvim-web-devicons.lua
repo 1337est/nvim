@@ -100,7 +100,7 @@ local function set_up_highlight(icon_data)
   end
 end
 
-function M.set_up_highlights(allow_override)
+function M.set_up_highlights()
   set_up_highlight(default_icon)
 
   for _, icon_data in pairs(icons) do
