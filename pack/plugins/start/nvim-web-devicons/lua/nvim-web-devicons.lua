@@ -25,18 +25,6 @@ local default_icon = {
   name = "Default",
 }
 
-function M.get_icons() return icons end
-
-function M.get_icons_by_filename() return icons_by_filename end
-
-function M.get_icons_by_extension() return icons_by_file_extension end
-
-function M.get_icons_by_operating_system() return icons_by_operating_system end
-
-function M.get_icons_by_desktop_environment() return icons_by_desktop_environment end
-
-function M.get_icons_by_window_manager() return icons_by_window_manager end
-
 local global_opts = {
   strict = false,
   default = false,
