@@ -168,7 +168,6 @@ vim.api.nvim_create_autocmd("OptionSet", {
 vim.api.nvim_create_user_command("NvimWebDeviconsHiTest", function()
   require("nvim-web-devicons.hi-test")(
     default_icon,
-    {}, -- no overrides in my setup
     icons_by_filename,
     icons_by_file_extension,
     icons_by_operating_system,
