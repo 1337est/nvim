@@ -42,9 +42,16 @@ return {
                 lualine_b = { 'branch', 'diff', 'diagnostics' },
                 lualine_c = { {
                     'filename',
-                    path = 1, -- 0: Just the filename
+                    path = 1, -- 0 -> 4
                 } },
-                lualine_x = { 'filetype' },
+                lualine_x = {
+                    {
+                        'filetype',
+                        colored = false, -- Displays filetype icon in color if set to true
+                        icon_only = false, -- Display only an icon for filetype
+                        icon = { align = 'right' }, -- Display filetype icon on the right hand side
+                    },
+                },
                 lualine_y = { 'hostname' },
                 lualine_z = {
                     function()
