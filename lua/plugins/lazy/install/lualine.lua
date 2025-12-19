@@ -65,7 +65,7 @@ return {
                         end
 
                         -- "[%l/%L],%c %3p%%"
-                        return string.format("[%d/%d],%d%3d%%%%", l, L, c, p)
+                        return string.format("[%d/%d],%d %3d%%%%", l, L, c, p)
                     end,
                 }
             },
