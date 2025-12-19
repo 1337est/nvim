@@ -20,9 +20,47 @@ require("lazy").setup({
             import = "plugins.lazy.install",
         },
     },
-    -- Configure any other settings here. See the documentation for more details.
-    -- colorscheme that will be used when installing plugins.
-    install = { colorscheme = { "habamax" } },
-    -- automatically check for plugin updates
-    checker = { enabled = true },
+    -- try to load one of these colorschemes
+    install = { colorscheme = { "monokai-pro", "habamax" } },
+
+    -- lockfile is where all other lazy stuff is
+    lockfile = vim.fn.stdpath("config") .. "/lua/plugins/lazy/lazy-lock.json",
+
+    ui = {
+        -- The border to use for the UI window. Accepts same border values as |nvim_open_win()|.
+        border = "bold",
+        title = "lazy.nvim",
+        title_pos = "left",
+        custom_keys = { -- To disable one of the defaults, set it to false
+            ["<localleader>l"] = {
+                function(plugin)
+                    require("lazy.util").float_term({ "lazygit", "log" }, {
+                        cwd = plugin.dir,
+                    })
+                end,
+                desc = "Open lazygit log",
+            },
+
+            ["<localleader>i"] = {
+                function(plugin)
+                    Util.notify(vim.inspect(plugin), {
+                        title = "Inspect " .. plugin.name,
+                        lang = "lua",
+                    })
+                end,
+                desc = "Inspect Plugin",
+            },
+
+            ["<localleader>t"] = {
+                function(plugin)
+                    require("lazy.util").float_term(nil, {
+                        cwd = plugin.dir,
+                    })
+                end,
+                desc = "Open terminal in plugin dir",
+            },
+        },
+    },
+    -- stop annoying "this file has been updated notifications"
+    change_detection = { enabled = true, notify = false },
 })
