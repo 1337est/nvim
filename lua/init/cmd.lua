@@ -1,5 +1,4 @@
-local utils   = require("utils")
-local autocmd = utils.autocmd
+local autocmd = require("utils").autocmd
 
 -- Automatic mkview and loadview behavior
 autocmd({

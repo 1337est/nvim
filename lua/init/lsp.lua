@@ -45,10 +45,9 @@ vim.lsp.enable(get_lsp_file_names())
 --   vim.lsp.enable('clangd', false)  -- stop/disable
 --   vim.lsp.enable('clangd', true)   -- re-enable
 
-local utils = require("utils")
-local map = utils.map
-local augroup = utils.augroup
-local autocmd = utils.autocmd
+local map = require("utils").map
+local augroup = require("utils").augroup
+local autocmd = require("utils").autocmd
 
 local lsp_owner = "LSP"
 local m = vim.lsp.protocol.Methods

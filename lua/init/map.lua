@@ -1,5 +1,4 @@
-local utils = require("utils")
-local map   = utils.map
+local map = require("utils").map
 
 -- paste over without yanking / delete without yanking
 map({ mode = "x", keys = "<leader>p", owner = "1337", desc = "paste over without yanking", fn = [["_dP]] })
@@ -7,8 +6,6 @@ map({ mode = { "n", "v" }, keys = "<leader>d", owner = "1337", desc = "delete wi
 
 map({ mode = "n", keys = "<leader><C-l>", owner = "1337", desc = "Clears search highlights", fn = ":nohlsearch<CR>" })
 -- keep search results centered
-map({ mode = "n", keys = "n", owner = "1337", desc = "next search centered", fn = "nzz" })
-map({ mode = "n", keys = "N", owner = "1337", desc = "previoius search centered", fn = "Nzz" })
 map({ mode = "n", keys = "<C-u>", owner = "1337", desc = "Half page up centered", fn = "<C-u>zz" })
 map({ mode = "n", keys = "<C-d>", owner = "1337", desc = "Half page down centered", fn = "<C-d>zz" })
 map({ mode = "n", keys = "<C-f>", owner = "1337", desc = "Full page up centered", fn = "<C-f>zz" })
