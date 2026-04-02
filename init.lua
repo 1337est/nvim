@@ -76,6 +76,18 @@ vim.opt.writebackup = false
 vim.opt.swapfile = false
 
 -- clipboard
+vim.g.clipboard = {
+    name = "lemonade",
+    copy = {
+        ["+"] = "lemonade copy",
+        ["*"] = "lemonade copy",
+    },
+    paste = {
+        ["+"] = "lemonade paste",
+        ["*"] = "lemonade paste",
+    },
+    cache_enabled = 0,
+}
 vim.schedule(function()
     vim.opt.clipboard = "unnamedplus"
 end)
