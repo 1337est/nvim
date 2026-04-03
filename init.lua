@@ -1,166 +1,87 @@
--- ###############
--- # My settings #
--- ###############
+-- settings
 
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 vim.g.have_nerd_font = true
 
--- gutter
 vim.opt.number = true
 vim.opt.relativenumber = true
-vim.opt.signcolumn = "yes"
-vim.opt.foldcolumn = "1"
-vim.opt.foldmethod = "indent"
--- vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
+
 vim.opt.foldlevel = 99
 
--- row/column indicators
 vim.opt.cursorline = true
 vim.opt.colorcolumn = "100"
 
--- gui
-vim.opt.termguicolors = true
-vim.opt.guicursor = ""
-
--- render
-vim.opt.lazyredraw = true
-
--- whitespace
 vim.opt.expandtab = true
-vim.opt.shiftwidth = 4
 vim.opt.tabstop = 4
+vim.opt.shiftwidth = 4
 vim.opt.smartindent = true
 
--- conceal
-vim.opt.conceallevel = 0
-vim.opt.concealcursor = ""
 vim.opt.list = true
 vim.opt.listchars = { tab = "<->", trail = ".", nbsp = "-" }
 
--- statusline / windows / tabs
 vim.opt.showmode = false
-vim.opt.laststatus = 3
 vim.opt.showtabline = 2
-vim.opt.ruler = true
 vim.o.winbar = "%f"
-vim.o.tabline = ""
-
-vim.opt.autoread = true
-vim.opt.autowrite = false
-vim.opt.autochdir = false
-vim.opt.confirm = true
 
 vim.opt.splitright = true
 vim.opt.splitbelow = true
+
 vim.opt.winblend = 10
 
 vim.opt.wrap = false
-vim.opt.spell = false
 vim.opt.linebreak = true
 vim.opt.scrolloff = 1
 vim.opt.sidescrolloff = 1
 
--- undo state
-vim.opt.undodir = vim.fn.stdpath("state") .. "/undodir//"
 vim.opt.undofile = true
-
--- view state
-vim.opt.viewdir = vim.fn.stdpath("state") .. "/viewdir//"
-
--- backup state
-vim.opt.backup = false
-vim.opt.writebackup = false
-
--- swap state
 vim.opt.swapfile = false
 
--- clipboard
-vim.g.clipboard = {
-    name = "lemonade",
-    copy = {
-        ["+"] = "lemonade copy",
-        ["*"] = "lemonade copy",
-    },
-    paste = {
-        ["+"] = "lemonade paste",
-        ["*"] = "lemonade paste",
-    },
-    cache_enabled = 0,
-}
-vim.schedule(function()
-    vim.opt.clipboard = "unnamedplus"
-end)
+-- vim.g.clipboard = {
+--     name = "lemonade",
+--     copy = { ["+"] = "lemonade copy", ["*"] = "lemonade copy", },
+--     paste = { ["+"] = "lemonade paste", ["*"] = "lemonade paste", },
+--     cache_enabled = 0,
+-- }
+vim.schedule(function() vim.opt.clipboard = "unnamedplus" end)
 
--- searching
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
-vim.opt.incsearch = true
 vim.opt.inccommand = "split"
-vim.opt.hlsearch = true
 vim.opt.iskeyword:append("-")
 
--- mouse
-vim.opt.mouse = "a"
-vim.opt.mousescroll = "ver:1,hor:1"
-
--- completions
-vim.opt.updatetime = 250
+vim.opt.updatetime = 300
 vim.opt.timeoutlen = 300
+
 vim.opt.completeopt = "menuone,noinsert,noselect"
 vim.opt.pumheight = 10
-vim.opt.pumblend = 10
+vim.opt.pumblend = 15
 
--- ###########
--- # Keymaps #
--- ###########
+-- keymaps
 
--- paste over without yanking / delete without yanking
 vim.keymap.set("x", "<leader>p", [["_dP]], { silent = true, desc = "1337: paste over without yanking" })
 vim.keymap.set({ "n", "v" }, "<leader>d", [["_d]], { silent = true, desc = "1337: delete without yanking" })
-
 vim.keymap.set("n", "<leader><C-l>", "<cmd>nohlsearch<cr>", { silent = true, desc = "1337: Clears search highlights" })
-
--- keep search results centered
-vim.keymap.set("n", "<C-u>", "<C-u>zz", { silent = true, desc = "1337: Half page up centered" })
-vim.keymap.set("n", "<C-d>", "<C-d>zz", { silent = true, desc = "1337: Half page down centered" })
-vim.keymap.set("n", "<C-f>", "<C-f>zz", { silent = true, desc = "1337: Full page up centered" })
-vim.keymap.set("n", "<C-b>", "<C-b>zz", { silent = true, desc = "1337: Full page down centered" })
 vim.keymap.set("n", "J", "mzJ`z", { silent = true, desc = "1337: Join lines, keep cursor position" })
 
--- Moving blocks of text with active selection via alt keys
-vim.keymap.set("n", "<A-j>", ":m .+1<CR>==", { silent = true, desc = "1337: Move line down" })
-vim.keymap.set("n", "<A-k>", ":m .-2<CR>==", { silent = true, desc = "1337: Move line up" })
-vim.keymap.set("v", "<A-j>", ":m '>+1<CR>gv=gv", { silent = true, desc = "1337: Move selection down" })
-vim.keymap.set("v", "<A-k>", ":m '<-2<CR>gv=gv", { silent = true, desc = "1337: Move selection up" })
-vim.keymap.set("v", "<A-.>", ">gv", { silent = true, desc = "1337: Indent right reselect" })
-vim.keymap.set("v", "<A-,>", "<gv", { silent = true, desc = "1337: Indent left reselect" })
+-- autocommands
 
--- File explorer
-vim.keymap.set("n", "<leader>e", "<cmd>Oil<cr>", { silent = true, desc = "OIL: Explorer" })
-
--- ################
--- # Autocommands #
--- ################
-
--- Automatic mkview and loadview behavior
-local fold_remember_on_leave = vim.api.nvim_create_augroup("1337.fold_remember_on_leave", { clear = true })
+local mkview_on_leave = vim.api.nvim_create_augroup("1337.mkview_on_leave", { clear = true })
 vim.api.nvim_create_autocmd("BufWinLeave", {
-    group = fold_remember_on_leave,
+    group = mkview_on_leave,
     pattern = "*.*",
     command = "mkview",
-    desc = "1337: Remembers folds on window leave",
+    desc = "1337: mkview on window leave",
 })
 
-local fold_remember_on_enter = vim.api.nvim_create_augroup("1337.fold_remember_on_enter", { clear = true })
+local loadview_on_enter = vim.api.nvim_create_augroup("1337.loadview_on_enter", { clear = true })
 vim.api.nvim_create_autocmd("BufWinEnter", {
-    group = fold_remember_on_enter,
+    group = loadview_on_enter,
     pattern = "*.*",
     command = "silent! loadview",
-    desc = "1337: Remembers folds on window enter",
+    desc = "1337: loadview on window enter",
 })
 
--- Highlights on yank
 local hl_on_yank = vim.api.nvim_create_augroup("1337.hl_on_yank", { clear = true })
 vim.api.nvim_create_autocmd("TextYankPost", {
     group = hl_on_yank,
@@ -171,7 +92,6 @@ vim.api.nvim_create_autocmd("TextYankPost", {
     desc = "1337: Brief highlight on yank",
 })
 
--- formatting
 local format_opts_remove_cro = vim.api.nvim_create_augroup("1337.format_opts_remove_cro", { clear = true })
 vim.api.nvim_create_autocmd("BufEnter", {
     group = format_opts_remove_cro,
@@ -179,13 +99,12 @@ vim.api.nvim_create_autocmd("BufEnter", {
     callback = function()
         vim.opt.formatoptions:remove({ "c", "r", "o" })
     end,
-    desc = "1337: Removes automatic continuation comments when entering a buffer",
+    desc = "1337: Removes automatic continuation comments",
 })
 
--- Spell check and word wrap on these filetypes
-local ft_wrap_spell = vim.api.nvim_create_augroup("1337.ft_wrap_spell", { clear = true })
+local wrap_spell_on_ft = vim.api.nvim_create_augroup("1337.wrap_spell_on_ft", { clear = true })
 vim.api.nvim_create_autocmd("FileType", {
-    group = ft_wrap_spell,
+    group = wrap_spell_on_ft,
     pattern = "*",
     callback = function()
         local ft = vim.bo.filetype
@@ -197,9 +116,7 @@ vim.api.nvim_create_autocmd("FileType", {
     desc = "1337: Enables wrap+spell for prose-like filetypes",
 })
 
--- ###############
--- # Diagnostics #
--- ###############
+-- diagnostics
 
 vim.diagnostic.config({
     severity_sort = true,
@@ -228,9 +145,7 @@ vim.diagnostic.config({
     },
 })
 
--- #######
--- # LSP #
--- #######
+-- lsp
 
 vim.lsp.config("*", {
     capabilities = {
@@ -340,86 +255,72 @@ vim.api.nvim_create_autocmd("LspDetach", {
     end,
 })
 
--- #####################
--- # Builtin vim.pack  #
--- #####################
+-- vim.pack
 
--- Ensure vim.pack has a valid cwd for git
 local cwd = vim.uv.cwd()
 if not cwd or vim.fn.isdirectory(cwd) == 0 then
     vim.cmd.cd(vim.fn.expand("~"))
 end
 
--- Ensure vim.pack can use stdpath("data")/site
 local site_dir = vim.fn.stdpath("data") .. "/site"
 if not vim.o.packpath:find(site_dir, 1, true) then
     vim.opt.packpath:prepend(site_dir)
 end
 
--- autopairs
 vim.pack.add({
     { src = "https://github.com/windwp/nvim-autopairs" },
+    { src = "https://github.com/Saghen/blink.cmp", version = vim.version.range("1"), },
+    { src = "https://github.com/lewis6991/gitsigns.nvim" },
+    { src = "https://github.com/nvim-tree/nvim-web-devicons" },
+    { src = "https://github.com/nvim-lualine/lualine.nvim" },
+    { src = "https://github.com/OXY2DEV/markview.nvim" },
+    { src = "https://github.com/loctvl842/monokai-pro.nvim" },
+    { src = "https://github.com/stevearc/oil.nvim" },
+    { src = "https://github.com/nvim-lua/plenary.nvim" },
+    { src = "https://github.com/nvim-telescope/telescope.nvim", version = "v0.2.0", },
+    { src = "https://github.com/nvim-treesitter/nvim-treesitter" },
+    { src = "https://github.com/folke/which-key.nvim" },
 }, {
     load = true,
 })
+
 require("nvim-autopairs").setup()
 
--- blink.cmp
-vim.pack.add({
-    {
-        src = "https://github.com/Saghen/blink.cmp",
-        version = vim.version.range("1"),
-    },
-}, {
-    load = true,
-})
 require("blink.cmp").setup({
     keymap = { preset = "default" },
-    appearance = {
-        nerd_font_variant = "mono",
-    },
-    completion = {
-        documentation = { auto_show = false },
-    },
-    sources = {
-        default = { "lsp", "path", "snippets", "buffer" },
-    },
-    fuzzy = {
-        implementation = "prefer_rust_with_warning",
-    },
+    appearance = { nerd_font_variant = "mono", },
+    completion = { documentation = { auto_show = false }, },
+    sources = { default = { "lsp", "path", "snippets", "buffer" }, },
+    fuzzy = { implementation = "prefer_rust_with_warning", },
 })
 
--- gitsigns
-vim.pack.add({
-    { src = "https://github.com/lewis6991/gitsigns.nvim" },
-}, {
-    load = true,
-})
 require("gitsigns").setup({})
 
--- devicons
-vim.pack.add({
-    { src = "https://github.com/nvim-tree/nvim-web-devicons" },
-}, {
-    load = true,
-})
+local lualine_pos = function()
+    local l = vim.fn.line(".")
+    local L = vim.fn.line("$")
+    local c = vim.fn.col(".")
+    local p = (L > 0) and math.floor((l / L) * 100) or 0
+    return string.format("[%d/%d],%d %3d%%%%", l, L, c, p)
+end
 
--- lualine
-vim.pack.add({
-    { src = "https://github.com/nvim-lualine/lualine.nvim" },
-}, {
-    load = true,
-})
+local lualine_abcxyz = function(a, b, c, x, y, z)
+    return {
+        lualine_a = a or {},
+        lualine_b = b or {},
+        lualine_c = c or {},
+        lualine_x = x or {},
+        lualine_y = y or {},
+        lualine_z = z or {},
+    }
+end
 require("lualine").setup({
     options = {
         icons_enabled = true,
         theme = "monokai-pro",
         component_separators = { left = "│", right = "│" },
         section_separators = { left = "", right = "" },
-        disabled_filetypes = {
-            statusline = {},
-            winbar = {},
-        },
+        disabled_filetypes = { statusline = {}, winbar = {}, },
         ignore_focus = {},
         always_divide_middle = true,
         always_show_tabline = true,
@@ -443,194 +344,57 @@ require("lualine").setup({
             },
         },
     },
-
-    sections = {
-        lualine_a = { "mode" },
-        lualine_b = { "branch", "diff", "diagnostics" },
-        lualine_c = {
-            {
-                "filename",
-                path = 1,
-            },
-        },
-        lualine_x = {
-            {
-                "filetype",
-                colored = false,
-                icon_only = false,
-                icon = { align = "right" },
-            },
-        },
-        lualine_y = { "hostname" },
-        lualine_z = {
-            function()
-                local l = vim.fn.line(".")
-                local L = vim.fn.line("$")
-                local c = vim.fn.col(".")
-                local p = 0
-
-                if L > 0 then
-                    p = math.floor((l / L) * 100)
-                end
-
-                return string.format("[%d/%d],%d %3d%%%%", l, L, c, p)
-            end,
-        },
-    },
-
-    inactive_sections = {
-        lualine_a = {},
-        lualine_b = {},
-        lualine_c = {},
-        lualine_x = {},
-        lualine_y = {},
-        lualine_z = {},
-    },
-
-    winbar = {
-        lualine_a = {
-            {
-                "filename",
-                path = 4,
-            },
-        },
-        lualine_b = {},
-        lualine_c = {},
-        lualine_x = {},
-        lualine_y = {},
-        lualine_z = { "branch" },
-    },
-
-    inactive_winbar = {
-        lualine_a = {},
-        lualine_b = {},
-        lualine_c = {
-            {
-                "filename",
-                path = 4,
-            },
-        },
-        lualine_x = { "branch" },
-        lualine_y = {},
-        lualine_z = {},
-    },
-
-    tabline = {
-        lualine_a = { "branch" },
-        lualine_b = { "datetime" },
-        lualine_c = { "lsp_status" },
-        lualine_x = {},
-        lualine_y = {},
-        lualine_z = { "tabs" },
-    },
-
+    sections = lualine_abcxyz(
+        { "mode" },
+        { "branch", "diff", "diagnostics" },
+        { { "filename", path = 1 } },
+        { { "filetype", colored = false, icon_only = false, icon = { align = "right" } } },
+        { "hostname" },
+        { lualine_pos }
+    ),
+    inactive_sections = lualine_abcxyz(),
+    winbar = lualine_abcxyz({ { "filename", path = 4 } }, {}, {}, {}, {}, { "branch" }),
+    inactive_winbar = lualine_abcxyz({}, {}, { { "filename", path = 4 } }, { "branch" }),
+    tabline = lualine_abcxyz({ "branch" }, { "datetime" }, { "lsp_status" }, {}, {}, { "tabs" }),
     extensions = { "oil" },
 })
 
--- markview
-vim.pack.add({
-    { src = "https://github.com/OXY2DEV/markview.nvim" },
-}, {
-    load = true,
-})
-
--- monokai-pro
-vim.pack.add({
-    { src = "https://github.com/loctvl842/monokai-pro.nvim" },
-}, {
-    load = true,
-})
 require("monokai-pro").setup({})
 vim.cmd.colorscheme("monokai-pro-octagon")
 
--- oil
-vim.pack.add({
-    { src = "https://github.com/stevearc/oil.nvim" },
-}, {
-    load = true,
-})
 require("oil").setup({})
+vim.keymap.set("n", "<leader>e", "<cmd>Oil<cr>", { silent = true, desc = "OIL: Explorer" })
 
--- plenary
-vim.pack.add({
-    { src = "https://github.com/nvim-lua/plenary.nvim" },
-}, {
-    load = true,
-})
+local treesitter_filetypes = {
+    "bash",
+    "c",
+    "diff",
+    "html",
+    "lua",
+    "luadoc",
+    "markdown",
+    "markdown_inline",
+    "query",
+    "vim",
+    "vimdoc"
+}
+local treesitter_ft_grp = vim.api.nvim_create_augroup("1337.treesitter.filetypes", { clear = true })
 
--- telescope
-vim.pack.add({
-    {
-        src = "https://github.com/nvim-telescope/telescope.nvim",
-        version = "v0.2.0",
-    },
-}, {
-    load = true,
-})
-
--- treesitter
-vim.pack.add({
-    { src = "https://github.com/nvim-treesitter/nvim-treesitter" },
-}, {
-    load = true,
-})
-
-require("nvim-treesitter").setup({
+require("nvim-treesitter").setup {
     install_dir = vim.fn.stdpath("data") .. "/site",
-    ensure_installed = {
-        "bash",
-        "c",
-        "diff",
-        "html",
-        "lua",
-        "luadoc",
-        "markdown",
-        "markdown_inline",
-        "query",
-        "vim",
-        "vimdoc",
-    },
-})
+}
+require("nvim-treesitter").install(treesitter_filetypes)
 
 vim.api.nvim_create_autocmd("FileType", {
-    pattern = {
-        "bash",
-        "c",
-        "diff",
-        "html",
-        "lua",
-        "luadoc",
-        "markdown",
-        "markdown_inline",
-        "query",
-        "vim",
-        "vimdoc",
-    },
+    group = treesitter_ft_grp,
+    pattern = treesitter_filetypes,
     callback = function()
         vim.treesitter.start()
-    end,
-})
-
-vim.api.nvim_create_autocmd("FileType", {
-    pattern = {
-        "bash",
-        "c",
-        "diff",
-        "html",
-        "lua",
-        "luadoc",
-        "markdown",
-        "markdown_inline",
-        "query",
-        "vim",
-        "vimdoc",
-    },
-    callback = function()
         vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
     end,
 })
 
-local treesitter_pack_grp = vim.api.nvim_create_augroup("1337.treesitter_pack", { clear = true })
+local treesitter_pack_grp = vim.api.nvim_create_augroup("1337.treesitter.pack", { clear = true })
 vim.api.nvim_create_autocmd("PackChanged", {
     group = treesitter_pack_grp,
     callback = function(ev)
@@ -643,21 +407,314 @@ vim.api.nvim_create_autocmd("PackChanged", {
     end,
 })
 
--- which-key
-vim.pack.add({
-    { src = "https://github.com/folke/which-key.nvim" },
-}, {
-    load = true,
-})
 require("which-key").setup({})
 vim.keymap.set("n", "<leader>?", function()
     require("which-key").show({ global = false })
 end, { desc = "Buffer Local Keymaps (which-key)" })
 
--- #######################
--- # Personal Lua things #
--- #######################
+-- floaterminal
 
-require("plugins.leet.floaterminal")
-require("plugins.leet.highlighter")
-require("plugins.utils")
+local state = {
+    floating = {
+        buf = -1,
+        win = -1,
+    }
+}
+local function create_floating_window(opts)
+    opts = opts or {}
+    local width = opts.width or math.floor(vim.o.columns * 0.8)
+    local height = opts.height or math.floor(vim.o.lines * 0.8)
+
+    local col = math.floor((vim.o.columns - width) / 2)
+    local row = math.floor((vim.o.lines - height) / 2)
+
+    local buf = nil
+    if vim.api.nvim_buf_is_valid(opts.buf) then
+        buf = opts.buf
+    else
+        buf = vim.api.nvim_create_buf(false, true)
+    end
+
+    local win = vim.api.nvim_open_win(buf, true, {
+        relative = "editor",
+        width = width,
+        height = height,
+        col = col,
+        row = row,
+        style = "minimal",
+        border = "bold",
+        title = "floaterminal",
+        title_pos = "left",
+        footer = "1337est",
+        footer_pos = "right",
+    })
+
+    return { buf = buf, win = win }
+end
+
+local toggle_terminal = function()
+    if not vim.api.nvim_win_is_valid(state.floating.win) then
+        state.floating = create_floating_window { buf = state.floating.buf }
+        if vim.bo[state.floating.buf].buftype ~= "terminal" then
+            vim.cmd.term()
+        end
+    else
+        vim.api.nvim_win_hide(state.floating.win)
+    end
+end
+vim.api.nvim_create_user_command("Floaterminal", toggle_terminal, {})
+
+vim.keymap.set({ "n", "t" }, "<leader>tt", toggle_terminal, { desc = "1337: toggle terminal" })
+vim.keymap.set("t", "<esc><esc>", "<c-\\><c-n>")
+
+-- highlighter
+
+if vim.g.loaded_1337_word_highlights then
+    return
+end
+vim.g.loaded_1337_word_highlights = true
+
+local api                         = vim.api
+local ns                          = api.nvim_create_namespace("1337.comment_tags")
+
+local c                           = {
+    none          = "none",
+
+    black         = "#000000",
+    white         = "#ffffff",
+
+    gray          = "#5c5c5c",
+    gray_light    = "#a0a0a0",
+    gray_lighter  = "#d0d0d0",
+
+    red_lighter   = "#ff7772",
+    red           = "#f63b34",
+
+    orange        = "#ff8800",
+
+    yellow_darker = "#ffd76d",
+
+    green         = "#6fae47",
+
+    cyan          = "#46b6c2",
+    cyan_dark     = "#3f8f9b",
+
+    cobalt_dark   = "#38728a",
+    cobalt_light  = "#61afdf",
+
+    blue          = "#3b6bb5",
+    purple        = "#a761c4",
+}
+
+c.fg                              = c.gray_lighter
+c.fg_dark                         = c.gray
+c.fg_alt                          = c.gray_light
+
+c.error                           = c.red
+c.warn                            = c.orange
+c.info                            = c.cyan_dark -- used also for test
+c.hint                            = c.cobalt_dark
+c.ok                              = c.green
+c.perf                            = c.yellow_darker
+c.todo                            = c.purple
+c.test                            = c.blue
+
+local function hl(name, val)
+    val.force = true
+    val.cterm = val.cterm or {}
+    api.nvim_set_hl(0, name, val)
+end
+
+hl("1337TagTODO", { fg = c.todo, bg = c.white, bold = true }) -- TODO: purple-ish
+hl("1337TagPASS", { fg = c.ok, bg = c.white, bold = true }) -- PASS: green
+hl("1337TagPERF", { fg = c.perf, bg = c.white, bold = true }) -- PERF: yellow
+hl("1337TagFAIL", { fg = c.error, bg = c.white, bold = true }) -- FAIL: red
+hl("1337TagWARN", { fg = c.warn, bg = c.white, bold = true }) -- WARNING: rust/orange
+hl("1337TagNOTE", { fg = c.hint, bg = c.white, bold = true }) -- NOTE: cobalt
+hl("1337TagTEST", { fg = c.info, bg = c.white, bold = true }) -- TEST: cyan
+
+local TAGS = {
+    {
+        hl = "1337TagTODO",
+        icon = " ",
+        words = { " TODO:", " LLO:", " START:", " END:", " HERE:" },
+    },
+    {
+        hl = "1337TagTEST",
+        icon = " ",
+        words = { " TEST:", " EXP:", " TEMP:" },
+    },
+    {
+        hl = "1337TagPASS",
+        icon = " ",
+        words = { " PASS:" },
+    },
+    {
+        hl = "1337TagPERF",
+        icon = "󱐋 ",
+        words = { " PERF:", " OPTIM:" },
+    },
+    {
+        hl = "1337TagFAIL",
+        icon = " ",
+        words = { " FAIL:", " ERROR:", " FIXME:", " BUG:" },
+    },
+    {
+        hl = "1337TagWARN",
+        icon = " ",
+        words = { " WARNING:", " HACK:", " CAUTION:" },
+    },
+    {
+        hl = "1337TagNOTE",
+        icon = " ",
+        words = { " NOTE:", " INFO:", " NEW:", " OLD:" },
+    },
+}
+
+local function define_signs()
+    for _, tag in ipairs(TAGS) do
+        local sign_name = tag.hl .. "Sign"
+
+        local icon = tag.icon or "●"
+
+        vim.fn.sign_define(sign_name, {
+            text = icon,
+            texthl = tag.hl,
+            numhl = "",
+        })
+
+        tag.sign_name = sign_name -- store for later
+    end
+end
+
+define_signs()
+
+
+local function in_comment(bufnr, row, col)
+    if vim.treesitter and vim.treesitter.get_captures_at_pos then
+        local ok, caps = pcall(vim.treesitter.get_captures_at_pos, bufnr, row, col)
+        if ok and caps then
+            for _, cap in ipairs(caps) do
+                local name = (type(cap) == "table") and cap.capture or cap
+                if type(name) == "string" and name:lower():find("comment", 1, true) then
+                    return true
+                end
+            end
+        end
+    end
+
+    local id  = vim.fn.synID(row + 1, col + 1, 1)
+    local tid = vim.fn.synIDtrans(id)
+    local nm  = vim.fn.synIDattr(tid, "name")
+    return type(nm) == "string" and nm:lower():find("comment", 1, true) ~= nil
+end
+
+local function highlight_hex_colors(bufnr, row, line)
+    local init = 1
+
+    while true do
+        local s, e = line:find("#%x%x%x%x%x%x", init)
+        if not s then
+            break
+        end
+
+        local col0      = s - 1
+        local color     = line:sub(s, e) -- "#rrggbb"
+        local group     = "1337Hex_" .. color:sub(2)
+
+        local r         = tonumber(color:sub(2, 3), 16) or 0
+        local g         = tonumber(color:sub(4, 5), 16) or 0
+        local b         = tonumber(color:sub(6, 7), 16) or 0
+
+        local luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        local fg        = (luminance > 186) and "#000000" or "#ffffff"
+
+        api.nvim_set_hl(0, group, { bg = color, fg = fg })
+        api.nvim_buf_add_highlight(bufnr, ns, group, row, col0, col0 + #color)
+
+        init = e + 1
+    end
+end
+
+local function highlight_range(bufnr, srow, erow)
+    bufnr = bufnr or 0
+    if not api.nvim_buf_is_loaded(bufnr) then
+        return
+    end
+
+    for l = srow, erow do
+        vim.fn.sign_unplace("1337CommentTagSigns", { buffer = bufnr, id = l + 1 })
+    end
+
+    local last = math.max(0, api.nvim_buf_line_count(bufnr) - 1)
+    srow = math.max(0, tonumber(srow) or 0)
+    erow = (erow == nil or erow < 0) and last
+        or math.min(tonumber(erow) or last, last)
+
+    api.nvim_buf_clear_namespace(bufnr, ns, srow, erow + 1)
+    local lines = api.nvim_buf_get_lines(bufnr, srow, erow + 1, false)
+
+    for i, line in ipairs(lines) do
+        local row = srow + i - 1
+
+        for _, tag in ipairs(TAGS) do
+            for _, word in ipairs(tag.words) do
+                local init = 1
+                while true do
+                    local s, e = line:find(word, init, true) -- plain search
+                    if not s then
+                        break
+                    end
+                    local col0 = s - 1
+                    if in_comment(bufnr, row, col0) then
+                        api.nvim_buf_add_highlight(bufnr, ns, tag.hl, row, col0, col0 + #word)
+
+                        vim.fn.sign_place(
+                            row + 1, -- ID tied to the line
+                            "1337CommentTagSigns", -- sign group
+                            tag.sign_name, -- pre-defined sign
+                            bufnr,
+                            { lnum = row + 1, priority = 80 }
+                        )
+                    end
+                    init = e + 1
+                end
+            end
+        end
+
+        highlight_hex_colors(bufnr, row, line)
+    end
+end
+
+local function refresh(bufnr)
+    highlight_range(bufnr or 0, 0, -1)
+end
+
+local grp = api.nvim_create_augroup("1337CommentTagsSimple", { clear = true })
+
+api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "TextChanged", "TextChangedI" }, {
+    group = grp,
+    pattern = "*",
+    desc = "Highlight 1337 comment tags & hex colors",
+    callback = function(args)
+        refresh(args.buf)
+    end,
+})
+
+api.nvim_create_autocmd("ColorScheme", {
+    group = grp,
+    pattern = "*",
+    desc = "Reapply 1337 comment tags & hex colors on colorscheme change",
+    callback = function()
+        refresh(0)
+    end,
+})
+
+pcall(refresh, 0)
+
+-- utils
+
+P = function(v)
+    print(vim.inspect(v))
+    return v
+end
