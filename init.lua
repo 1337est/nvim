@@ -169,9 +169,7 @@ vim.lsp.config("*", {
 vim.lsp.enable({
     "clangd",
     "gopls",
-    "hyprls",
     "lua_ls",
-    "nushell",
     "rust_analyzer",
     "zls",
 })
