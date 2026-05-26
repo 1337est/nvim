@@ -11,12 +11,6 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 vim.g.have_nerd_font = true
 vim.g.loaded_1337_word_highlights = true
--- vim.g.clipboard = {
---     name = "lemonade",
---     copy = { ["+"] = "lemonade copy", ["*"] = "lemonade copy", },
---     paste = { ["+"] = "lemonade paste", ["*"] = "lemonade paste", },
---     cache_enabled = 0,
--- }
 
 vim.schedule(function() vim.opt.clipboard = "unnamedplus" end)
 
@@ -274,7 +268,6 @@ vim.pack.add({
     { src = "https://github.com/stevearc/oil.nvim" },
     { src = "https://github.com/nvim-lua/plenary.nvim" },
     { src = "https://github.com/nvim-telescope/telescope.nvim", version = "v0.2.0", },
-    { src = "https://github.com/nvim-treesitter/nvim-treesitter" },
     { src = "https://github.com/folke/which-key.nvim" },
 }, {
     load = true,
@@ -361,7 +354,7 @@ end, { desc = "Buffer Local Keymaps (which-key)" })
 require("monokai-pro").setup({})
 vim.cmd.colorscheme("monokai-pro-octagon")
 
--- treesitter
+-- treesitter rtp layout: rtp/parser/{lang}.so & rtp/queries/{lang}/*.scm
 
 local treesitter_filetypes = {
     "bash",
@@ -378,30 +371,11 @@ local treesitter_filetypes = {
 }
 local treesitter_ft_grp = vim.api.nvim_create_augroup("1337.treesitter.filetypes", { clear = true })
 
-require("nvim-treesitter").setup {
-    install_dir = vim.fn.stdpath("data") .. "/site",
-}
-require("nvim-treesitter").install(treesitter_filetypes)
-
 vim.api.nvim_create_autocmd("FileType", {
     group = treesitter_ft_grp,
     pattern = treesitter_filetypes,
-    callback = function()
-        vim.treesitter.start()
-        vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
-    end,
-})
-
-local treesitter_pack_grp = vim.api.nvim_create_augroup("1337.treesitter.pack", { clear = true })
-vim.api.nvim_create_autocmd("PackChanged", {
-    group = treesitter_pack_grp,
-    callback = function(ev)
-        if ev.data.spec.name == "nvim-treesitter" and (ev.data.kind == "install" or ev.data.kind == "update") then
-            if not ev.data.active then
-                vim.cmd.packadd("nvim-treesitter")
-            end
-            pcall(vim.cmd, "TSUpdate")
-        end
+    callback = function(args)
+        pcall(vim.treesitter.start, args.buf)
     end,
 })
 
