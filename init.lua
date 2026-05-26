@@ -357,6 +357,7 @@ vim.cmd.colorscheme("monokai-pro-octagon")
 -- treesitter rtp layout: rtp/parser/{lang}.so & rtp/queries/{lang}/*.scm
 
 local treesitter_filetypes = {
+    -- baseline
     "bash",
     "c",
     "diff",
@@ -367,7 +368,14 @@ local treesitter_filetypes = {
     "markdown_inline",
     "query",
     "vim",
-    "vimdoc"
+    "vimdoc",
+    -- -- other: TODO: Later
+    -- "zig",
+    -- "cpp",
+    -- "go",
+    -- "rust",
+    -- "php",
+    -- "python",
 }
 local treesitter_ft_grp = vim.api.nvim_create_augroup("1337.treesitter.filetypes", { clear = true })
 
