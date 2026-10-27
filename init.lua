@@ -5,12 +5,84 @@ P = function(v)
     return v
 end
 
+local mode_labels = {
+    n = "[N]",
+    no = "[NP]",
+    nov = "[NP-V]",
+    noV = "[NP-VL]",
+    ["no\22"] = "[NP-VB]",
+    nt = "[NT]",
+    niI = "[N->I]",
+    niR = "[N->R]",
+    niV = "[N->Rv]",
+    ntT = "[NT->T]",
+    v = "[V]",
+    vs = "[V-S]",
+    V = "[VL]",
+    Vs = "[VL-S]",
+    ["\22"] = "[VB]",
+    ["\22s"] = "[VB-S]",
+    s = "[S]",
+    S = "[SL]",
+    ["\19"] = "[SB]",
+    i = "[I]",
+    ic = "[I-c]",
+    ix = "[I-cx]",
+    R = "[R]",
+    Rc = "[R-c]",
+    Rx = "[R-cx]",
+    Rv = "[Rv]",
+    Rvc = "[Rv-c]",
+    Rvx = "[Rv-cx]",
+    c = "[C]",
+    cr = "[C-r]",
+    cv = "[Ex]",
+    cvr = "[Ex-r]",
+    t = "[T]",
+    r = "[Hit]",
+    rm = "[More]",
+    ["r?"] = "[Conf]",
+    ["!"] = "[!]",
+}
+
+local function mode_info(raw)
+    raw = raw or vim.fn.mode(1)
+    local first = raw:sub(1, 1)
+    local map, user = "n", 1
+
+    if raw:sub(1, 2) == "no" then
+        map = "o"
+    elseif first == "v" or first == "V" or first == "\22" then
+        map, user = "x", 2
+    elseif first == "s" or first == "S" or first == "\19" then
+        map, user = "s", 3
+    elseif first == "i" then
+        map, user = "i", 4
+    elseif first == "R" then
+        map, user = "i", 5
+    elseif first == "c" then
+        map, user = "c", 6
+    elseif first == "t" then
+        map, user = "t", 7
+    end
+
+    return {
+        raw = raw,
+        map = map,
+        label = mode_labels[raw] or "[?]",
+        user = user,
+    }
+end
+
+-- colorscheme, from colors/ dir
+
+vim.cmd.colorscheme("1337dark")
+
 -- settings
 
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 vim.g.have_nerd_font = true
-vim.g.loaded_1337_word_highlights = true
 
 vim.schedule(function() vim.opt.clipboard = "unnamedplus" end)
 
@@ -20,7 +92,7 @@ vim.opt.relativenumber = true
 vim.opt.foldlevel = 99
 
 vim.opt.cursorline = true
-vim.opt.colorcolumn = "100"
+vim.opt.colorcolumn = "80"
 
 vim.opt.expandtab = true
 vim.opt.tabstop = 4
@@ -32,7 +104,6 @@ vim.opt.listchars = { tab = "<->", trail = ".", nbsp = "-" }
 
 vim.opt.showmode = false
 vim.opt.showtabline = 2
-vim.o.winbar = "%f"
 
 vim.opt.splitright = true
 vim.opt.splitbelow = true
@@ -55,6 +126,7 @@ vim.opt.iskeyword:append("-")
 vim.opt.updatetime = 300
 vim.opt.timeoutlen = 300
 
+vim.opt.autocomplete = true
 vim.opt.completeopt = "menuone,noinsert,noselect"
 vim.opt.pumheight = 10
 vim.opt.pumblend = 15
@@ -89,6 +161,11 @@ vim.keymap.set("x", "<leader>p", [["_dP]], { silent = true, desc = "1337: paste 
 vim.keymap.set({ "n", "v" }, "<leader>d", [["_d]], { silent = true, desc = "1337: delete without yanking" })
 vim.keymap.set("n", "<leader><C-l>", "<cmd>nohlsearch<cr>", { silent = true, desc = "1337: Clears search highlights" })
 vim.keymap.set("n", "J", "mzJ`z", { silent = true, desc = "1337: Join lines, keep cursor position" })
+
+-- Explorer TODO: Replace netrw with Neovim's native directory explorer in 0.13.x.
+
+vim.cmd.packadd("netrw")
+vim.keymap.set("n", "<leader>e", "<cmd>Explore<CR>", { silent = true, desc = "Explorer" })
 
 -- autocommands
 
@@ -135,15 +212,6 @@ vim.diagnostic.config({
     virtual_text = {
         source = "if_many",
         spacing = 2,
-        format = function(diagnostic)
-            local diagnostic_message = {
-                [vim.diagnostic.severity.ERROR] = diagnostic.message,
-                [vim.diagnostic.severity.WARN] = diagnostic.message,
-                [vim.diagnostic.severity.INFO] = diagnostic.message,
-                [vim.diagnostic.severity.HINT] = diagnostic.message,
-            }
-            return diagnostic_message[diagnostic.severity]
-        end,
     },
 })
 
@@ -255,107 +323,6 @@ vim.api.nvim_create_autocmd("LspDetach", {
     end,
 })
 
--- vim.pack
-
-vim.pack.add({
-    { src = "https://github.com/windwp/nvim-autopairs" },
-    { src = "https://github.com/Saghen/blink.cmp", version = vim.version.range("1"), },
-    { src = "https://github.com/lewis6991/gitsigns.nvim" },
-    { src = "https://github.com/nvim-tree/nvim-web-devicons" },
-    { src = "https://github.com/nvim-lualine/lualine.nvim" },
-    { src = "https://github.com/OXY2DEV/markview.nvim" },
-    { src = "https://github.com/loctvl842/monokai-pro.nvim" },
-    { src = "https://github.com/stevearc/oil.nvim" },
-    { src = "https://github.com/nvim-lua/plenary.nvim" },
-    { src = "https://github.com/nvim-telescope/telescope.nvim", version = "v0.2.0", },
-    { src = "https://github.com/folke/which-key.nvim" },
-}, {
-    load = true,
-})
-
-require("nvim-autopairs").setup()
-
-require("blink.cmp").setup({
-    keymap = { preset = "default" },
-    appearance = { nerd_font_variant = "mono", },
-    completion = { documentation = { auto_show = false }, },
-    sources = { default = { "lsp", "path", "snippets", "buffer" }, },
-    fuzzy = { implementation = "prefer_rust_with_warning", },
-})
-
-require("gitsigns").setup({})
-
-local lualine_pos = function()
-    local l = vim.fn.line(".")
-    local L = vim.fn.line("$")
-    local c = vim.fn.col(".")
-    local p = (L > 0) and math.floor((l / L) * 100) or 0
-    return string.format("[%d/%d],%d %3d%%%%", l, L, c, p)
-end
-
-local lualine_abcxyz = function(a, b, c, x, y, z)
-    return {
-        lualine_a = a or {},
-        lualine_b = b or {},
-        lualine_c = c or {},
-        lualine_x = x or {},
-        lualine_y = y or {},
-        lualine_z = z or {},
-    }
-end
-
-require("lualine").setup({
-    options = {
-        icons_enabled = true,
-        theme = "monokai-pro",
-        component_separators = { left = "│", right = "│" },
-        section_separators = { left = "", right = "" },
-        disabled_filetypes = { statusline = {}, winbar = {}, },
-        ignore_focus = {},
-        always_divide_middle = true,
-        always_show_tabline = true,
-        globalstatus = true,
-        refresh = {
-            statusline = 1000,
-            tabline = 1000,
-            winbar = 1000,
-            refresh_time = 16,
-            events = {
-                "WinEnter", "BufEnter", "BufWritePost", "SessionLoadPost", "FileChangedShellPost",
-                "VimResized", "Filetype", "CursorMoved", "CursorMovedI", "ModeChanged"
-            },
-        },
-    },
-    sections = lualine_abcxyz(
-        { "mode" },
-        { "branch", "diff", "diagnostics" },
-        { { "filename", path = 1 } },
-        { { "filetype", colored = false, icon_only = false, icon = { align = "right" } } },
-        { "hostname" },
-        { lualine_pos }
-    ),
-    inactive_sections = lualine_abcxyz(),
-    winbar = lualine_abcxyz({ { "filename", path = 4 } }, {}, {}, {}, {}, { "branch" }),
-    inactive_winbar = lualine_abcxyz({}, {}, { { "filename", path = 4 } }, { "branch" }),
-    tabline = lualine_abcxyz({ "branch" }, { "datetime" }, { "lsp_status" }, {}, {}, { "tabs" }),
-    extensions = { "oil" },
-})
-
-require("oil").setup({})
-vim.keymap.set("n", "<leader>e", "<cmd>Oil<cr>", { silent = true, desc = "OIL: Explorer" })
-
-require("which-key").setup({})
-vim.keymap.set("n", "<leader>?", function()
-    require("which-key").show({ global = false })
-end, { desc = "Buffer Local Keymaps (which-key)" })
-
--- colorscheme
-
-require("monokai-pro").setup({})
-vim.cmd.colorscheme("monokai-pro-octagon")
-
--- treesitter rtp layout: rtp/parser/{lang}.so & rtp/queries/{lang}/*.scm
-
 local treesitter_filetypes = {
     -- baseline
     "bash",
@@ -369,13 +336,6 @@ local treesitter_filetypes = {
     "query",
     "vim",
     "vimdoc",
-    -- -- other: TODO: Later
-    -- "zig",
-    -- "cpp",
-    -- "go",
-    -- "rust",
-    -- "php",
-    -- "python",
 }
 local treesitter_ft_grp = vim.api.nvim_create_augroup("1337.treesitter.filetypes", { clear = true })
 
@@ -386,9 +346,6 @@ vim.api.nvim_create_autocmd("FileType", {
         pcall(vim.treesitter.start, args.buf)
     end,
 })
-
--- utils_highlighter && tag_highlighter && hex_highlighter
--- TODO: Add gutter symbols
 
 -- utils_highlighter
 
@@ -442,11 +399,16 @@ function hi_util.in_string(bufnr, row, col)
 end
 
 function hi_util.schedule_buf(fn, bufnr)
+    bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+
     vim.schedule(function()
-        bufnr = (bufnr == nil or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
-        if vim.api.nvim_buf_is_valid(bufnr) then
-            fn(bufnr)
+        if not vim.api.nvim_buf_is_loaded(bufnr) or vim.bo[bufnr].buftype ~= "" then
+            return
         end
+
+        vim.api.nvim_buf_call(bufnr, function()
+            fn(bufnr)
+        end)
     end)
 end
 
@@ -455,32 +417,17 @@ end
 local tag_hi_ns = vim.api.nvim_create_namespace("1337.tag_highlighter")
 
 local hi_tags = {
-    { hl = "1337TagTODO", bg = "#a761c4", words = { "TODO:", "LLO:", "START:", "END:", "HERE:" } },
-    { hl = "1337TagTEST", bg = "#3b6bb5", words = { "TEST:", "EXP:", "TEMP:" } },
-    { hl = "1337TagPASS", bg = "#6fae47", words = { "PASS:" } },
-    { hl = "1337TagPERF", bg = "#ffd76d", words = { "PERF:", "OPTIM:" } },
-    { hl = "1337TagFAIL", bg = "#f63b34", words = { "FAIL:", "ERROR:", "FIXME:", "BUG:" } },
-    { hl = "1337TagWARN", bg = "#ff8800", words = { "WARNING:", "HACK:", "CAUTION:" } },
-    { hl = "1337TagNOTE", bg = "#38728a", words = { "NOTE:", "INFO:", "NEW:", "OLD:" } },
+    { hl = "1337TagTODO", words = { "TODO:", "LLO:", "START:", "END:", "HERE:" } },
+    { hl = "1337TagTEST", words = { "TEST:", "EXP:", "TEMP:" } },
+    { hl = "1337TagPASS", words = { "PASS:" } },
+    { hl = "1337TagPERF", words = { "PERF:", "OPTIM:" } },
+    { hl = "1337TagFAIL", words = { "FAIL:", "ERROR:", "FIXME:", "BUG:" } },
+    { hl = "1337TagWARN", words = { "WARNING:", "HACK:", "CAUTION:" } },
+    { hl = "1337TagNOTE", words = { "NOTE:", "INFO:", "NEW:", "OLD:" } },
 }
-
-local function define_tag_highlights()
-    for _, tag in ipairs(hi_tags) do
-        vim.api.nvim_set_hl(0, tag.hl, {
-            fg = hi_util.fg_for(tag.bg),
-            bg = tag.bg,
-            bold = true,
-            force = true,
-        })
-    end
-end
 
 local function refresh_tag_highlights(bufnr)
     local api = vim.api
-    bufnr = (bufnr == nil or bufnr == 0) and api.nvim_get_current_buf() or bufnr
-    if not api.nvim_buf_is_loaded(bufnr) then
-        return
-    end
 
     hi_util.parse_treesitter(bufnr)
     api.nvim_buf_clear_namespace(bufnr, tag_hi_ns, 0, -1)
@@ -524,16 +471,6 @@ vim.api.nvim_create_autocmd(hi_refresh_events, {
     desc = "1337: highlight comment tags",
 })
 
-vim.api.nvim_create_autocmd("ColorScheme", {
-    group = tag_hi_grp,
-    callback = function()
-        define_tag_highlights()
-        hi_util.schedule_buf(refresh_tag_highlights, 0)
-    end,
-    desc = "1337: reapply comment tag highlights",
-})
-
-define_tag_highlights()
 hi_util.schedule_buf(refresh_tag_highlights, 0)
 
 -- hex_highlighter
@@ -559,10 +496,6 @@ end
 
 local function refresh_hex_highlights(bufnr)
     local api = vim.api
-    bufnr = (bufnr == nil or bufnr == 0) and api.nvim_get_current_buf() or bufnr
-    if not api.nvim_buf_is_loaded(bufnr) then
-        return
-    end
 
     hi_util.parse_treesitter(bufnr)
     api.nvim_buf_clear_namespace(bufnr, hex_hi_ns, 0, -1)
@@ -607,13 +540,143 @@ vim.api.nvim_create_autocmd(hi_refresh_events, {
 vim.api.nvim_create_autocmd("ColorScheme", {
     group = hex_hi_grp,
     callback = function()
+        local previous = hex_hi_groups
         hex_hi_groups = {}
-        hi_util.schedule_buf(refresh_hex_highlights, 0)
+
+        for hex in pairs(previous) do
+            hex_hi_group(hex)
+        end
     end,
     desc = "1337: reapply hex color highlights",
 })
 
 hi_util.schedule_buf(refresh_hex_highlights, 0)
+
+-- git gutter
+
+local git_ns = vim.api.nvim_create_namespace("1337.git")
+local git_buffers = {}
+local git_group = vim.api.nvim_create_augroup("1337.git", { clear = true })
+
+local function git_draw(buf)
+    if not vim.api.nvim_buf_is_loaded(buf) then return end
+    local state = git_buffers[buf]
+    if not state then return end
+
+    vim.api.nvim_buf_clear_namespace(buf, git_ns, 0, -1)
+
+    local added, changed, removed = 0, 0, 0
+    if state.base and not state.base:find("\0", 1, true) then
+        local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        local text = table.concat(lines, "\n")
+        if vim.bo[buf].endofline then text = text .. "\n" end
+
+        local function mark(line, symbol, highlight)
+            if line < 1 or line > #lines then return end
+            vim.api.nvim_buf_set_extmark(buf, git_ns, line - 1, 0, {
+                sign_text = symbol,
+                sign_hl_group = highlight,
+                priority = 6,
+            })
+        end
+
+        for _, hunk in ipairs(vim.text.diff(state.base, text, { result_type = "indices" })) do
+            local old_count, new_start, new_count = hunk[2], hunk[3], hunk[4]
+            local both = math.min(old_count, new_count)
+
+            added = added + new_count - both
+            changed = changed + both
+            removed = removed + old_count - both
+
+            for i = 0, both - 1 do
+                local symbol = old_count > new_count and i == both - 1 and "~_" or "~"
+                mark(new_start + i, symbol, "DiffChange")
+            end
+            for i = both, new_count - 1 do
+                mark(new_start + i, "+", "DiffAdd")
+            end
+            if new_count == 0 then
+                mark(math.max(1, new_start), "_", "DiffDelete")
+            end
+        end
+    end
+
+    vim.b[buf].git_status_dict = state.branch and {
+        head = state.branch,
+        added = added,
+        changed = changed,
+        removed = removed,
+    } or nil
+
+    vim.cmd.redrawstatus()
+end
+
+local function git_refresh(buf)
+    if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "" then return end
+    if vim.fn.executable("git") ~= 1 then return end
+
+    local path = vim.api.nvim_buf_get_name(buf)
+    if path == "" then return end
+
+    local state = git_buffers[buf] or {}
+    git_buffers[buf] = state
+    state.version = (state.version or 0) + 1
+    local version = state.version
+    local dir = vim.fs.dirname(path)
+
+    local function receive(field, transform)
+        return function(result)
+            vim.schedule(function()
+                if not vim.api.nvim_buf_is_valid(buf) or git_buffers[buf] ~= state
+                    or state.version ~= version or vim.api.nvim_buf_get_name(buf) ~= path then
+                    return
+                end
+                state[field] = transform(result)
+                git_draw(buf)
+            end)
+        end
+    end
+
+    vim.system({ "git", "-C", dir, "show", ":./" .. vim.fs.basename(path) }, { text = true },
+        receive("base", function(result)
+            return result.code == 0 and result.stdout or nil
+        end))
+
+    vim.system({ "git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD" }, { text = true },
+        receive("branch", function(result)
+            return result.code == 0 and (result.stdout or ""):match("[^\r\n]+") or nil
+        end))
+end
+
+local function git_schedule(buf)
+    local state = git_buffers[buf]
+    if not state then return end
+    state.update = (state.update or 0) + 1
+    local update = state.update
+
+    vim.defer_fn(function()
+        if git_buffers[buf] == state and state.update == update then
+            git_draw(buf)
+        end
+    end, 200)
+end
+
+vim.api.nvim_create_autocmd({ "BufEnter", "BufReadPost", "BufWritePost", "FocusGained" }, {
+    group = git_group,
+    callback = function(args) git_refresh(args.buf) end,
+})
+
+vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    group = git_group,
+    callback = function(args) git_schedule(args.buf) end,
+})
+
+vim.api.nvim_create_autocmd("BufWipeout", {
+    group = git_group,
+    callback = function(args) git_buffers[args.buf] = nil end,
+})
+
+vim.schedule(function() git_refresh(vim.api.nvim_get_current_buf()) end)
 
 -- floaterminal
 
@@ -660,6 +723,7 @@ local toggle_terminal = function()
         state.floating = create_floating_window { buf = state.floating.buf }
         if vim.bo[state.floating.buf].buftype ~= "terminal" then
             vim.cmd.term()
+            state.floating.buf = vim.api.nvim_get_current_buf()
         end
     else
         vim.api.nvim_win_hide(state.floating.win)
@@ -669,3 +733,337 @@ vim.api.nvim_create_user_command("Floaterminal", toggle_terminal, {})
 
 vim.keymap.set({ "n", "t" }, "<leader>tt", toggle_terminal, { desc = "1337: toggle terminal" })
 vim.keymap.set("t", "<esc><esc>", "<c-\\><c-n>", { desc = "1337: normal mode" })
+
+-- autopairs
+
+local autopairs = {
+    ["("] = ")",
+    ["["] = "]",
+    ["{"] = "}",
+    ['"'] = '"',
+    ["'"] = "'",
+    ["`"] = "`",
+}
+
+local function next_char()
+    local line = vim.api.nvim_get_current_line()
+    local col = vim.api.nvim_win_get_cursor(0)[2]
+    return line:sub(col + 1, col + 1)
+end
+
+for open, close in pairs(autopairs) do
+    vim.keymap.set("i", open, function()
+        if open == close and next_char() == close then
+            return "<Right>"
+        end
+        return open .. close .. "<Left>"
+    end, { expr = true })
+
+    if open ~= close then
+        vim.keymap.set("i", close, function()
+            return next_char() == close and "<Right>" or close
+        end, { expr = true })
+    end
+end
+
+vim.keymap.set("i", "<BS>", function()
+    local line = vim.api.nvim_get_current_line()
+    local col = vim.api.nvim_win_get_cursor(0)[2]
+    return autopairs[line:sub(col, col)] == line:sub(col + 1, col + 1)
+        and "<Del><BS>" or "<BS>"
+end, { expr = true })
+
+-- statusline
+
+
+
+local function stl_escape(value)
+    return value:gsub("%%", "%%%%")
+end
+
+function _G.StatuslineMode()
+    local mode = mode_info()
+    return string.format("%%%d* %s %%*", mode.user, mode.label)
+end
+
+function _G.StatuslineGit()
+    local dict = vim.b.git_status_dict
+
+    if not dict or not dict.head or dict.head == "" then
+        return ""
+    end
+
+    local branch = "| %#Title#" .. stl_escape(dict.head) .. "%* "
+    local diff = {}
+
+    if (dict.added or 0) > 0 then
+        table.insert(diff, string.format("%%#DiffAdd#+%d%%*", dict.added))
+    end
+
+    if (dict.changed or 0) > 0 then
+        table.insert(diff, string.format("%%#DiffChange#~%d%%*", dict.changed))
+    end
+
+    if (dict.removed or 0) > 0 then
+        table.insert(diff, string.format("%%#DiffDelete#-%d%%*", dict.removed))
+    end
+
+    if #diff > 0 then
+        branch = branch .. "| " .. table.concat(diff, " ") .. " "
+    end
+
+    return branch
+end
+
+function _G.StatuslineDiagnostics()
+    local counts = vim.diagnostic.count(0)
+    local severities = {
+        { vim.diagnostic.severity.ERROR, "E", "DiagnosticError" },
+        { vim.diagnostic.severity.WARN, "W", "DiagnosticWarn" },
+        { vim.diagnostic.severity.INFO, "I", "DiagnosticInfo" },
+        { vim.diagnostic.severity.HINT, "H", "DiagnosticHint" },
+    }
+
+    local parts = {}
+
+    for _, item in ipairs(severities) do
+        local count = counts[item[1]] or 0
+        if count > 0 then
+            table.insert(parts, string.format("%%#%s#%s:%d%%*", item[3], item[2], count))
+        end
+    end
+
+    if #parts == 0 then
+        return ""
+    end
+
+    return "| " .. table.concat(parts, " ") .. " "
+end
+
+function _G.StatuslineFile()
+    local filename = vim.fn.expand("%:t")
+    local filetype = vim.bo.filetype
+
+    if filename == "" then filename = "[No Name]" end
+    if filetype == "" then filetype = "noft" end
+
+    return "| " .. stl_escape(filename) .. " (" .. stl_escape(filetype) .. ") "
+end
+
+vim.opt.laststatus = 3
+vim.o.statusline = table.concat({
+    "%{%v:lua.StatuslineMode()%}",
+    "%{%v:lua.StatuslineGit()%}",
+    "%{%v:lua.StatuslineDiagnostics()%}",
+    "%{%v:lua.StatuslineFile()%}",
+    "%=",
+    "[%l / %L],%c %3p%% ",
+})
+
+-- tabline
+
+function _G.Tabline()
+    local now = os.date("*t")
+    local date = string.format(
+        "%s, %s %d | %02d:%02d",
+        os.date("%A"),
+        os.date("%B"),
+        now.day,
+        now.hour,
+        now.min
+    )
+
+    local clients = vim.lsp.get_clients({ bufnr = 0 })
+
+    if #clients > 0 then
+        local names = {}
+
+        for _, client in ipairs(clients) do
+            table.insert(names, client.name)
+        end
+
+        table.sort(names)
+        date = date .. " | LSP: " .. table.concat(names, ", ")
+    end
+
+    local tabs = {}
+    local current = vim.fn.tabpagenr()
+
+    for i = 1, vim.fn.tabpagenr("$") do
+        local buffers = vim.fn.tabpagebuflist(i)
+        local bufnr = buffers[vim.fn.tabpagewinnr(i)]
+        local name = bufnr and vim.api.nvim_buf_get_name(bufnr) or ""
+        local filename = vim.fn.fnamemodify(name, ":t")
+
+        if filename == "" then filename = "[No Name]" end
+
+        local label = string.format("%d:%s", i, filename)
+
+        if i == current then
+            label = "[" .. label .. "]"
+        end
+
+        local hl = i == current and "%#TabLineSel#" or "%#TabLine#"
+
+        table.insert(tabs, string.format(
+            "%s%%%dT %s %%T",
+            hl,
+            i,
+            stl_escape(label)
+        ))
+    end
+
+    return "%#TabLineFill# " .. stl_escape(date) .. "%=" ..
+        table.concat(tabs) .. "%#TabLineFill#%T"
+end
+
+vim.o.tabline = "%!v:lua.Tabline()"
+
+-- winbar
+
+vim.o.winbar = " %f%=%{get(w:, 'remote_host', hostname())} "
+
+-- ui refresh
+
+local ui_grp = vim.api.nvim_create_augroup("1337.ui", { clear = true })
+
+vim.api.nvim_create_autocmd({ "ModeChanged", "DiagnosticChanged" }, {
+    group = ui_grp,
+    callback = function()
+        vim.cmd.redrawstatus()
+    end,
+})
+
+vim.api.nvim_create_autocmd({ "BufEnter", "TabEnter", "LspAttach", "LspDetach" }, {
+    group = ui_grp,
+    callback = function()
+        vim.schedule(function()
+            vim.cmd.redrawtabline()
+        end)
+    end,
+})
+
+if vim.g.custom_ui_clock then
+    vim.fn.timer_stop(vim.g.custom_ui_clock)
+end
+
+vim.g.custom_ui_clock = vim.fn.timer_start(30000, function()
+    vim.cmd.redrawtabline()
+end, { ["repeat"] = -1 })
+
+-- mode to map commands
+
+local function show_mappings(requested_mode)
+    local mode = mode_info(requested_mode).map
+
+    local mappings = {}
+
+    for _, map in ipairs(vim.api.nvim_get_keymap(mode)) do
+        mappings[map.lhs:gsub(" ", "<Space>")] = map
+    end
+
+    for _, map in ipairs(vim.api.nvim_buf_get_keymap(0, mode)) do
+        mappings[map.lhs:gsub(" ", "<Space>")] = map
+    end
+
+    local keys = vim.tbl_keys(mappings)
+    table.sort(keys)
+
+    local width_key = 0
+    for _, key in ipairs(keys) do
+        width_key = math.max(width_key, #key)
+    end
+
+    local lines = {}
+
+    for _, key in ipairs(keys) do
+        local map = mappings[key]
+        local description = map.desc
+
+        if not description or description == "" then
+            description = (map.rhs and map.rhs ~= "") and map.rhs or "[Lua callback]"
+        end
+
+        description = description:gsub("[\r\n]", " ")
+
+        lines[#lines + 1] = string.format(
+            " %-" .. width_key .. "s  %s",
+            key,
+            description
+        )
+    end
+
+    if #lines == 0 then
+        lines = { " No mappings" }
+    end
+
+    vim.schedule(function()
+        local buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+        vim.bo[buf].modifiable = false
+        vim.bo[buf].bufhidden = "wipe"
+
+        local width = math.min(100, math.max(1, vim.o.columns - 4))
+        local height = math.min(#lines, math.max(1, vim.o.lines - 6))
+
+        local win = vim.api.nvim_open_win(buf, true, {
+            relative = "editor",
+            width = width,
+            height = height,
+            row = math.floor((vim.o.lines - height) / 2),
+            col = math.floor((vim.o.columns - width) / 2),
+            style = "minimal",
+            border = "rounded",
+            title = " " .. mode .. " mappings ",
+            title_pos = "center",
+        })
+
+        vim.wo[win].wrap = false
+        vim.wo[win].cursorline = true
+
+        for _, key in ipairs({ "q", "<Esc>" }) do
+            vim.keymap.set("n", key, function()
+                if vim.api.nvim_win_is_valid(win) then
+                    vim.api.nvim_win_close(win, true)
+                end
+            end, { buffer = buf, silent = true })
+        end
+    end)
+end
+
+vim.keymap.set({ "n", "x", "s", "o" }, "<leader>m", show_mappings, {
+    silent = true,
+    desc = "Show current mode mappings",
+})
+
+for mode, escape in pairs({
+    i = "<Esc>",
+    c = "<C-c>",
+    t = "<C-\\><C-n>",
+}) do
+    vim.keymap.set(mode, "<F6>", function()
+        show_mappings(mode)
+        return escape
+    end, {
+        expr = true,
+        silent = true,
+        desc = "Show current mode mappings",
+    })
+end
+
+-- zspd
+
+require("zspd").setup({
+    cmd = "zspd",
+    zig = "zig",
+    build_graph = true,
+
+    mappings = {
+        definition = "gd",
+        completion = false,
+        symbols = "<leader>zs",
+    },
+
+    diagnostics = false,
+})

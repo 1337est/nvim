@@ -1,0 +1,755 @@
+-- ZSPD 0.1.1 Neovim client. Requires Neovim 0.12.6+; no third-party Lua modules.
+local M = {}
+local uv, api = vim.uv, vim.api
+local MAX_U32, MAX_BODY, MAX_SOURCE = 4294967295, 33554432, 16777216
+local OP = {
+  hello = 1, open = 2, replace = 3, close = 4, definition = 5,
+  completion = 6, symbols = 7, diagnostics = 8, resync = 9,
+  error = 10, status = 11, shutdown = 12, refresh = 13,
+}
+local defaults = {
+  cmd = 'zspd', zig = 'zig', build_options = {}, build_graph = true,
+  connect_timeout_ms = 5000, request_timeout_ms = 5000,
+  graph_timeout_ms = 150000,
+  diagnostic_delay_ms = 150, diagnostics = { virtual_text = false },
+  mappings = { definition = 'gd', completion = '<C-Space>' },
+  overwrite_mappings = false,
+}
+local opts, projects, documents = {}, {}, {}
+local namespace = api.nvim_create_namespace('zspd')
+local configured, exiting = false, false
+local start_project, stop_project, fail_project, snapshot, queue_diagnostics
+
+local function notify(message, level)
+  if exiting then return end
+  vim.schedule(function()
+    if not exiting then vim.notify(message, level or vim.log.levels.INFO, { title = 'ZSPD' }) end
+  end)
+end
+
+local function u32(n)
+  assert(n >= 0 and n <= MAX_U32 and n == math.floor(n), 'integer outside u32')
+  return string.char(n % 256, math.floor(n / 256) % 256,
+    math.floor(n / 65536) % 256, math.floor(n / 16777216) % 256)
+end
+
+local function u16(n)
+  return string.char(n % 256, math.floor(n / 256) % 256)
+end
+
+local function read32(s, at)
+  local a, b, c, d = s:byte(at, at + 3)
+  if not d then error('truncated u32') end
+  return a + b * 256 + c * 65536 + d * 16777216
+end
+
+local Reader = {}
+Reader.__index = Reader
+function Reader:u32()
+  local value = read32(self.body, self.at)
+  self.at = self.at + 4
+  return value
+end
+function Reader:bytes(n)
+  if n > #self.body - self.at + 1 then error('truncated response payload') end
+  local value = self.body:sub(self.at, self.at + n - 1)
+  self.at = self.at + n
+  return value
+end
+function Reader:rest() return self:bytes(#self.body - self.at + 1) end
+function Reader:count(minimum)
+  local n = self:u32()
+  if n > math.floor((#self.body - self.at + 1) / minimum) then error('invalid item count') end
+  return n
+end
+
+local function close_handle(handle)
+  if handle and not handle:is_closing() then
+    if handle.stop then pcall(handle.stop, handle) end
+    handle:close()
+  end
+end
+
+local function live(d)
+  return documents[d.buf] == d and api.nvim_buf_is_valid(d.buf) and api.nvim_buf_is_loaded(d.buf)
+end
+
+local function capable(p, flag)
+  return math.floor((p.capabilities or 0) / flag) % 2 == 1
+end
+
+local function root_for(buf)
+  local root = opts.root
+  if type(root) == 'function' then root = root(buf) end
+  if not root then root = vim.fs.root(buf, { 'build.zig', 'build.zig.zon', '.git' }) end
+  root = vim.fs.normalize(vim.fn.fnamemodify(root or uv.cwd(), ':p'))
+  return uv.fs_realpath(root) or root
+end
+
+local function path_for(buf, root)
+  local path = api.nvim_buf_get_name(buf)
+  if path == '' then return root .. '/__zspd_unsaved_' .. buf .. '.zig' end
+  return vim.fs.normalize(vim.fn.fnamemodify(path, ':p'))
+end
+
+local function source(buf)
+  return table.concat(api.nvim_buf_get_lines(buf, 0, -1, true), '\n') .. '\n'
+end
+
+local function send(p, opcode, id, docid, body)
+  if not p.pipe or p.pipe:is_closing() then return false end
+  if #body > MAX_BODY then
+    notify('Message exceeds the 32 MiB protocol limit.', vim.log.levels.ERROR)
+    return false
+  end
+  if uv.stream_get_write_queue_size(p.pipe) > MAX_BODY * 2 then
+    vim.schedule(function() fail_project(p, 'Outgoing queue exceeded 64 MiB; use :ZspdRestart to resynchronize.') end)
+    return false
+  end
+  local header = u32(#body) .. u32(id) .. u32(docid) .. u16(opcode) .. u16(0)
+  local generation = p.generation
+  local ok, result, err = pcall(p.pipe.write, p.pipe, { header, body }, function(write_error)
+    if write_error then
+      vim.schedule(function()
+        if p.generation == generation then fail_project(p, 'Socket write: ' .. write_error) end
+      end)
+    end
+  end)
+  if not ok or not result then
+    vim.schedule(function()
+      if p.generation == generation then fail_project(p, 'Socket write: ' .. tostring(err or result)) end
+    end)
+    return false
+  end
+  return true
+end
+
+local function request(p, opcode, d, body, callback, timeout)
+  if not p.pipe or (opcode ~= OP.hello and not p.ready) then return nil end
+  repeat p.next_id = p.next_id % MAX_U32 + 1 until not p.pending[p.next_id]
+  local id = p.next_id
+  local item = { opcode = opcode, docid = d and d.buf or 0,
+    document = d, revision = d and d.revision, callback = callback }
+  p.pending[id] = item
+  if not send(p, opcode, id, item.docid, body) then p.pending[id] = nil; return nil end
+  vim.defer_fn(function()
+    if p.pending[id] ~= item then return end
+    p.pending[id] = nil
+    if opcode == OP.hello then
+      fail_project(p, 'Protocol handshake timed out.')
+    elseif opcode == OP.refresh then
+      p.graph_configuring = false
+      p.graph_status = 'Build graph request timed out.'
+      notify(p.graph_status .. '\n' .. p.root, vim.log.levels.WARN)
+    elseif opcode ~= OP.diagnostics and (not d or (live(d) and d.revision == item.revision)) then
+      notify('Request timed out; ' .. p.root, vim.log.levels.WARN)
+    end
+  end, timeout or opts.request_timeout_ms)
+  return id
+end
+
+local function next_revision(d)
+  d.revision = d.revision % MAX_U32 + 1
+end
+
+snapshot = function(d, bump)
+  if not live(d) or d.blocked then return false end
+  if bump then next_revision(d) end
+  d.length = api.nvim_buf_get_offset(d.buf, api.nvim_buf_line_count(d.buf))
+  d.path = path_for(d.buf, d.project.root)
+  if d.length > MAX_SOURCE or d.length + #d.path + 8 > MAX_BODY then
+    d.too_large = true
+    if d.sent_revision and d.project.ready then send(d.project, OP.close, 0, d.buf, '') end
+    d.sent_revision = nil
+    close_handle(d.diagnostic_timer); d.diagnostic_timer = nil
+    if not d.warned_large then
+      d.warned_large = true
+      notify('Buffer exceeds ZSPD\'s 16 MiB source limit: ' .. d.path, vim.log.levels.WARN)
+    end
+    return false
+  end
+  d.too_large = false
+  if not d.project.ready then return false end
+  local text = source(d.buf)
+  d.length = #text
+  local sent = send(d.project, OP.open, 0, d.buf, u32(d.revision) .. u32(#d.path) .. d.path .. text)
+  if sent then d.sent_revision = d.revision; queue_diagnostics(d) end
+  return sent
+end
+
+local function positions(buf)
+  local lines = api.nvim_buf_get_lines(buf, 0, -1, true)
+  local starts, total = {}, 0
+  for i, line in ipairs(lines) do starts[i] = total; total = total + #line + 1 end
+  return function(offset)
+    if offset > total then error('destination offset outside buffer') end
+    local lo, hi = 1, #starts
+    while lo < hi do
+      local mid = math.floor((lo + hi + 1) / 2)
+      if starts[mid] <= offset then lo = mid else hi = mid - 1 end
+    end
+    return lo - 1, math.min(offset - starts[lo], #lines[lo])
+  end
+end
+
+local function current_offset(buf)
+  local cursor = api.nvim_win_get_cursor(0)
+  return api.nvim_buf_get_offset(buf, cursor[1] - 1) + cursor[2], cursor
+end
+
+local function origin_for(d)
+  local offset, cursor = current_offset(d.buf)
+  return { window = api.nvim_get_current_win(), buffer = d.buf,
+    cursor = cursor, offset = offset, revision = d.revision }
+end
+
+local function origin_current(origin)
+  if api.nvim_get_current_win() ~= origin.window or api.nvim_get_current_buf() ~= origin.buffer then return false end
+  local cursor = api.nvim_win_get_cursor(0)
+  return cursor[1] == origin.cursor[1] and cursor[2] == origin.cursor[2]
+end
+
+local function jump(buf, offset)
+  local row, col = positions(buf)(offset)
+  vim.cmd("normal! m'")
+  api.nvim_set_current_buf(buf)
+  api.nvim_win_set_cursor(0, { row + 1, col })
+  vim.cmd('normal! zv')
+end
+
+local function query_result(reader, status, d, quiet)
+  local revision = reader:u32()
+  if revision ~= d.revision then return false end
+  if status ~= 0 then
+    local message = reader:rest()
+    if status == 3 then snapshot(d, false)
+    elseif not quiet then notify(message ~= '' and message or 'No result.', vim.log.levels.INFO) end
+    return false
+  end
+  return true
+end
+
+queue_diagnostics = function(d)
+  if opts.diagnostics == false or not live(d) or d.blocked then return end
+  close_handle(d.diagnostic_timer)
+  d.diagnostic_timer = nil
+  if not d.project.ready or not capable(d.project, 8) or d.too_large then return end
+  local timer = uv.new_timer()
+  d.diagnostic_timer = timer
+  timer:start(opts.diagnostic_delay_ms, 0, vim.schedule_wrap(function()
+    if d.diagnostic_timer ~= timer then return end
+    close_handle(timer); d.diagnostic_timer = nil
+    if not live(d) or not d.project.ready or d.sent_revision ~= d.revision then return end
+    request(d.project, OP.diagnostics, d, u32(d.revision), function(r, status)
+      if not query_result(r, status, d, true) then return end
+      local count, result, position = r:count(16), {}, positions(d.buf)
+      for _ = 1, count do
+        local first, last, severity, size = r:u32(), r:u32(), r:u32(), r:u32()
+        local message = r:bytes(size)
+        if last < first then error('reversed diagnostic range') end
+        local row, col = position(first)
+        local end_row, end_col = position(last)
+        result[#result + 1] = { lnum = row, col = col, end_lnum = end_row, end_col = end_col,
+          severity = severity >= 1 and severity <= 4 and severity or 1,
+          message = message, source = 'zspd' }
+      end
+      vim.diagnostic.set(namespace, d.buf, result)
+    end, d.project.graph_configuring and math.max(opts.request_timeout_ms, opts.graph_timeout_ms)
+      or opts.request_timeout_ms)
+  end))
+end
+
+local function remove_maps(d)
+  if not api.nvim_buf_is_valid(d.buf) then return end
+  for _, map in ipairs(d.maps or {}) do
+    api.nvim_buf_call(d.buf, function()
+      local existing = vim.fn.maparg(map.lhs, map.mode, false, true)
+      if existing.desc == map.desc and existing.buffer == 1 then
+        pcall(vim.keymap.del, map.mode, map.lhs, { buffer = d.buf })
+      end
+    end)
+  end
+end
+
+local function detach(d)
+  if documents[d.buf] ~= d then return end
+  documents[d.buf], d.project.documents[d.buf] = nil, nil
+  close_handle(d.diagnostic_timer)
+  if d.project.ready then send(d.project, OP.close, 0, d.buf, '') end
+  vim.schedule(function()
+    if not documents[d.buf] then
+      remove_maps(d)
+      if api.nvim_buf_is_valid(d.buf) then vim.diagnostic.reset(namespace, d.buf) end
+    end
+  end)
+end
+
+local function handle_response(p, opcode, id, docid, body)
+  local r = setmetatable({ body = body, at = 1 }, Reader)
+  local status = r:u32()
+  if opcode == OP.error and id == 0 then
+    local message, d = r:rest(), documents[docid]
+    if d and d.project == p then
+      if not d.blocked then notify(message .. '\nBuffer paused; use :ZspdRestart to retry.', vim.log.levels.WARN) end
+      d.blocked, d.sent_revision = message, nil
+      close_handle(d.diagnostic_timer); d.diagnostic_timer = nil
+      vim.diagnostic.reset(namespace, d.buf)
+      for pending_id, pending in pairs(p.pending) do
+        if pending.document == d then p.pending[pending_id] = nil end
+      end
+    elseif docid == 0 then
+      fail_project(p, message ~= '' and message or 'Daemon rejected the workspace.')
+    end
+    return
+  end
+  if opcode == OP.resync and id == 0 then
+    local d = documents[docid]
+    if status ~= 3 and status ~= 4 then error('invalid resynchronization status') end
+    if d and d.project == p and not d.blocked then snapshot(d, false) end
+    return
+  end
+  local item = p.pending[id]
+  if not item then return end
+  p.pending[id] = nil
+  if item.docid ~= docid then error('response document does not match request') end
+  local d = item.document
+  if d and (not live(d) or d.blocked or d.revision ~= item.revision) then return end
+  if opcode == OP.error then
+    notify(r:rest(), vim.log.levels.ERROR)
+  elseif item.opcode ~= opcode then
+    error('response opcode does not match request')
+  else
+    item.callback(r, status, item)
+  end
+end
+
+local function receive(p, generation, err, chunk)
+  if p.generation ~= generation then return end
+  if err or chunk == nil then
+    vim.schedule(function()
+      if p.generation == generation then fail_project(p, err and ('Socket read: ' .. err) or 'Daemon disconnected.') end
+    end)
+    return
+  end
+  p.input = p.input .. chunk
+  while #p.input >= 16 do
+    local length = read32(p.input, 1)
+    if length > MAX_BODY then
+      vim.schedule(function()
+        if p.generation == generation then fail_project(p, 'Daemon sent an oversized frame.') end
+      end)
+      return
+    end
+    if #p.input < length + 16 then return end
+    local id, docid = read32(p.input, 5), read32(p.input, 9)
+    local a, b, c, e = p.input:byte(13, 16)
+    local opcode, flags = a + b * 256, c + e * 256
+    local body = p.input:sub(17, 16 + length)
+    p.input = p.input:sub(17 + length)
+    vim.schedule(function()
+      if p.generation ~= generation then return end
+      if flags ~= 1 then fail_project(p, 'Invalid daemon response flags.'); return end
+      local ok, message = pcall(handle_response, p, opcode, id, docid, body)
+      if not ok then fail_project(p, 'Invalid response: ' .. tostring(message)) end
+    end)
+  end
+end
+
+local function cleanup(p)
+  p.ready = false
+  p.graph_configuring = false
+  p.generation = p.generation + 1
+  close_handle(p.connect_timer); p.connect_timer = nil
+  close_handle(p.candidate); p.candidate = nil
+  close_handle(p.pipe); p.pipe = nil
+  local job, directory, socket = p.job, p.directory, p.socket
+  p.job, p.directory, p.socket = nil, nil, nil
+  p.pending, p.input = {}, ''
+  if job then pcall(vim.fn.jobstop, job) end
+  local function remove_socket()
+    if socket then pcall(uv.fs_unlink, socket) end
+    if directory then pcall(uv.fs_rmdir, directory) end
+  end
+  remove_socket()
+  if not exiting then vim.defer_fn(remove_socket, 150) end
+  for _, d in pairs(p.documents) do
+    d.sent_revision = nil
+    close_handle(d.diagnostic_timer); d.diagnostic_timer = nil
+    if api.nvim_buf_is_valid(d.buf) then vim.diagnostic.reset(namespace, d.buf) end
+  end
+end
+
+fail_project = function(p, reason)
+  if p.state == 'failed' or p.state == 'stopped' or exiting then return end
+  local stderr = p.stderr
+  p.state, p.failure = 'failed', reason
+  cleanup(p)
+  notify(reason .. (stderr ~= '' and ('\n' .. stderr) or '') .. '\nUse :ZspdRestart to reconnect.', vim.log.levels.ERROR)
+end
+
+stop_project = function(p)
+  p.state = 'stopped'
+  if p.ready then send(p, OP.shutdown, 0, 0, '') end
+  cleanup(p)
+end
+
+local function refresh_project(p, silent)
+  if not p.ready then if not silent then notify('Daemon is not ready.', vim.log.levels.WARN) end; return end
+  if not capable(p, 16) then if not silent then notify('Daemon does not support a build graph.') end; return end
+  if p.graph_configuring then if not silent then notify('Build graph is already configuring.'); end; return end
+  p.graph_configuring, p.graph_status = true, 'Configuring build graph...'
+  request(p, OP.refresh, nil, '', function(r, status)
+    local message = r:rest()
+    p.graph_configuring = false
+    p.graph_status = message
+    for _, d in pairs(p.documents) do queue_diagnostics(d) end
+    if not silent or status ~= 0 then notify(message, status == 0 and vim.log.levels.INFO or vim.log.levels.WARN) end
+  end, math.max(opts.request_timeout_ms, opts.graph_timeout_ms))
+end
+
+start_project = function(p)
+  if p.state == 'connecting' or p.ready then return end
+  p.generation = p.generation + 1
+  p.state, p.failure, p.stderr, p.input, p.pending = 'connecting', nil, '', '', {}
+  for _, d in pairs(p.documents) do d.blocked, d.warned_large = nil, nil end
+  if vim.fn.executable(opts.cmd) ~= 1 then
+    fail_project(p, 'Executable not found: ' .. opts.cmd); return
+  end
+  local directory, make_error = uv.fs_mkdtemp(uv.os_tmpdir() .. '/zspd-XXXXXX')
+  if not directory then fail_project(p, 'Cannot create socket directory: ' .. tostring(make_error)); return end
+  p.directory, p.socket = directory, directory .. '/s'
+  local chmod_ok, chmod_error = uv.fs_chmod(directory, 448) -- 0700
+  if not chmod_ok then fail_project(p, 'Cannot secure socket directory: ' .. tostring(chmod_error)); return end
+  if #p.socket > 100 then fail_project(p, 'Temporary directory path is too long for a Unix socket.'); return end
+  local argv = { opts.cmd, 'serve', '--socket', p.socket, '--root', p.root, '--zig', opts.zig }
+  for _, option in ipairs(opts.build_options) do
+    argv[#argv + 1] = '--build-option'; argv[#argv + 1] = option
+  end
+  local generation = p.generation
+  local spawned, job = pcall(vim.fn.jobstart, argv, {
+    cwd = p.root, stdin = 'null',
+    on_stderr = function(_, data)
+      if p.generation == generation then p.stderr = (p.stderr .. table.concat(data, '\n')):sub(-8192) end
+    end,
+    on_exit = function(_, code)
+      vim.schedule(function()
+        if p.generation == generation then fail_project(p, 'Daemon exited (' .. code .. ').') end
+      end)
+    end,
+  })
+  if not spawned or job <= 0 then fail_project(p, 'Could not launch daemon (' .. tostring(job) .. ').'); return end
+  p.job = job
+  local started, timer = nil, uv.new_timer()
+  p.connect_timer = timer
+  timer:start(0, 25, vim.schedule_wrap(function()
+    -- A stopped timer may already have callbacks queued by schedule_wrap.
+    if p.generation ~= generation or p.connect_timer ~= timer or p.pipe then return end
+    -- Measure connection time once Neovim can service the first attempt.
+    local now = uv.hrtime()
+    started = started or now
+    if (now - started) / 1000000 > opts.connect_timeout_ms then
+      fail_project(p, 'Timed out waiting for daemon socket.'); return
+    end
+    if p.candidate then return end
+    local pipe = uv.new_pipe(false)
+    p.candidate = pipe
+    pipe:connect(p.socket, function(connect_error)
+      vim.schedule(function()
+        if p.generation ~= generation or p.connect_timer ~= timer or p.candidate ~= pipe or p.pipe then
+          close_handle(pipe); return
+        end
+        p.candidate = nil
+        if connect_error then close_handle(pipe); return end
+        close_handle(timer); p.connect_timer = nil
+        p.pipe = pipe
+        pipe:read_start(function(err, chunk) receive(p, generation, err, chunk) end)
+        request(p, OP.hello, nil, u32(1), function(r, status)
+          if status ~= 0 then fail_project(p, 'Handshake rejected: ' .. r:rest()); return end
+          local version, capabilities = r:u32(), r:u32()
+          if version ~= 1 then fail_project(p, 'Unsupported protocol version: ' .. version); return end
+          p.capabilities, p.server_message, p.ready, p.state = capabilities, r:rest(), true, 'ready'
+          for _, d in pairs(p.documents) do if live(d) then snapshot(d, false) end end
+          if opts.build_graph then refresh_project(p, true) end
+        end)
+      end)
+    end)
+  end))
+end
+
+local function changed(d, _, buf, _, row, col, first, _, _, old_size, new_rows, new_col, new_size)
+  if not live(d) then return true end
+  local previous = d.revision
+  next_revision(d)
+  if d.recovering then return end
+  d.bytes_since_lines = true
+  local expected = d.length - old_size + new_size
+  if d.blocked then d.length = expected; return end
+  if expected > MAX_SOURCE then snapshot(d, false); return end
+  if not d.project.ready or d.too_large then
+    d.length = expected
+    if d.too_large and expected <= MAX_SOURCE then snapshot(d, false) end
+    return
+  end
+  local ok, inserted = pcall(function()
+    if first + old_size > d.length or expected < 1 or d.revision == 1 then error('snapshot required') end
+    local end_row, end_col = row + new_rows, new_col
+    if new_rows == 0 then end_col = col + new_col end
+    local count = api.nvim_buf_line_count(buf)
+    local final_newline = end_row == count and end_col == 0
+    if final_newline then
+      end_row = count - 1
+      end_col = #api.nvim_buf_get_lines(buf, end_row, end_row + 1, true)[1]
+    end
+    local text = ''
+    if new_size > 0 then
+      text = table.concat(api.nvim_buf_get_text(buf, row, col, end_row, end_col, {}), '\n')
+      if final_newline then text = text .. '\n' end
+    end
+    if #text ~= new_size then error('replacement extent requires snapshot') end
+    return text
+  end)
+  if not ok or d.sent_revision ~= previous or #inserted + 16 > MAX_BODY then snapshot(d, false); return end
+  d.length = expected
+  if send(d.project, OP.replace, 0, d.buf,
+    u32(previous) .. u32(d.revision) .. u32(first) .. u32(old_size) .. inserted) then
+    d.sent_revision = d.revision
+    queue_diagnostics(d)
+  end
+end
+
+-- Undo/redo can emit on_lines first and replay on_bytes only after the entire
+-- undo block has changed the buffer. Those replayed ranges do not describe the
+-- text currently readable through nvim_buf_get_text. Reconcile once after the
+-- callback burst instead of interpreting the replay against its final state.
+local function lines_changed(d)
+  if not live(d) then return true end
+  local bytes = api.nvim_buf_get_offset(d.buf, api.nvim_buf_line_count(d.buf))
+  if d.bytes_since_lines and not d.recovering and bytes == d.length then
+    d.bytes_since_lines = false
+    return
+  end
+  d.bytes_since_lines, d.recovering = false, true
+  next_revision(d)
+  if d.recovery_pending then return end
+  d.recovery_pending = true
+  vim.schedule(function()
+    if not live(d) then return end
+    d.recovery_pending, d.recovering, d.bytes_since_lines = false, false, false
+    snapshot(d, false)
+  end)
+end
+
+local function install_maps(d)
+  if not opts.mappings then return end
+  local candidates = {
+    { 'definition', 'n', M.definition }, { 'completion', 'i', M.complete }, { 'symbols', 'n', M.symbols },
+  }
+  api.nvim_buf_call(d.buf, function()
+    for _, candidate in ipairs(candidates) do
+      local name, mode, callback = unpack(candidate)
+      local lhs = opts.mappings[name]
+      if type(lhs) == 'string' and lhs ~= '' then
+        local existing = vim.fn.maparg(lhs, mode, false, true)
+        if opts.overwrite_mappings or next(existing) == nil then
+          local desc = 'ZSPD: ' .. name
+          vim.keymap.set(mode, lhs, callback, { buffer = d.buf, silent = true, desc = desc })
+          d.maps[#d.maps + 1] = { lhs = lhs, mode = mode, desc = desc }
+        end
+      end
+    end
+  end)
+end
+
+function M.attach(buf)
+  if not configured or exiting then return end
+  buf = buf or api.nvim_get_current_buf()
+  if buf == 0 then buf = api.nvim_get_current_buf() end
+  if documents[buf] then return documents[buf] end
+  if not api.nvim_buf_is_valid(buf) or not api.nvim_buf_is_loaded(buf) then return end
+  if vim.bo[buf].buftype ~= '' or (vim.bo[buf].filetype ~= 'zig' and not api.nvim_buf_get_name(buf):match('%.zig$')) then return end
+  if buf < 1 or buf > MAX_U32 then notify('Buffer ID exceeds the protocol limit.', vim.log.levels.ERROR); return end
+  local root = root_for(buf)
+  local p = projects[root]
+  if not p then
+    p = { root = root, documents = {}, state = 'new', generation = 0, next_id = 0,
+      pending = {}, input = '', stderr = '', ready = false }
+    projects[root] = p
+  end
+  local d = { buf = buf, project = p, revision = 1,
+    length = api.nvim_buf_get_offset(buf, api.nvim_buf_line_count(buf)), maps = {}, path = path_for(buf, root) }
+  documents[buf], p.documents[buf] = d, d
+  local attached = api.nvim_buf_attach(buf, false, {
+    on_bytes = function(...) return changed(d, ...) end,
+    on_lines = function() return lines_changed(d) end,
+    on_reload = function()
+      if not live(d) then return true end
+      snapshot(d, true)
+    end,
+    on_detach = function() detach(d) end,
+  })
+  if not attached then documents[buf], p.documents[buf] = nil, nil; return end
+  install_maps(d)
+  if p.ready then snapshot(d, false) elseif p.state == 'new' then start_project(p) end
+  return d
+end
+
+local function current_document(flag)
+  if not configured then notify('Call require("zspd").setup() first.', vim.log.levels.WARN); return end
+  local d = documents[api.nvim_get_current_buf()] or M.attach()
+  if not d then notify('The current buffer is not a Zig source file.', vim.log.levels.WARN); return end
+  if not d.project.ready then
+    notify('Daemon is ' .. d.project.state .. '; use :ZspdRestart if needed.', vim.log.levels.WARN); return
+  end
+  if d.blocked then notify('Buffer paused: ' .. d.blocked .. '\nUse :ZspdRestart to retry.', vim.log.levels.WARN); return end
+  if d.too_large then notify('Buffer exceeds the protocol size limit.', vim.log.levels.WARN); return end
+  if flag and not capable(d.project, flag) then notify('This daemon does not support that request.'); return end
+  if d.sent_revision ~= d.revision and not snapshot(d, false) then return end
+  return d
+end
+
+function M.definition()
+  local d = current_document(1)
+  if not d then return end
+  local origin = origin_for(d)
+  request(d.project, OP.definition, d, u32(d.revision) .. u32(origin.offset), function(r, status)
+    if not query_result(r, status, d, false) or not origin_current(origin) then return end
+    local target, revision, first, last, path_size = r:u32(), r:u32(), r:u32(), r:u32(), r:u32()
+    local path = r:bytes(path_size)
+    if last < first or path == '' then error('invalid definition destination') end
+    local destination
+    if target ~= 0 then
+      local td = documents[target]
+      if not td or not live(td) or td.project ~= d.project or td.revision ~= revision then return end
+      destination = target
+    else
+      destination = vim.fn.bufadd(path)
+      if api.nvim_buf_is_loaded(destination) and vim.bo[destination].modified then
+        notify('Definition target has unsaved changes; refresh and retry.', vim.log.levels.WARN); return
+      end
+      vim.fn.bufload(destination)
+    end
+    jump(destination, first)
+  end)
+end
+
+local completion_kinds = { 'f', 'v', 'v', 'm', 'M', 'k', 'v', 't' }
+function M.complete()
+  if api.nvim_get_mode().mode:sub(1, 1) ~= 'i' then
+    notify('Enter Insert mode to request completion.'); return
+  end
+  local d = current_document(2)
+  if not d then return end
+  local origin = origin_for(d)
+  request(d.project, OP.completion, d, u32(d.revision) .. u32(origin.offset), function(r, status)
+    if not query_result(r, status, d, true) or not origin_current(origin) then return end
+    if api.nvim_get_mode().mode:sub(1, 1) ~= 'i' then return end
+    local first, last, count = r:u32(), r:u32(), r:count(16)
+    local row, col = positions(d.buf)(first)
+    if row ~= origin.cursor[1] - 1 or last ~= origin.offset or first > last then
+      notify('Unsupported completion replacement range.', vim.log.levels.WARN); return
+    end
+    local items = {}
+    for _ = 1, count do
+      local kind, label_size, detail_size, insert_size = r:u32(), r:u32(), r:u32(), r:u32()
+      local label, detail, insert = r:bytes(label_size), r:bytes(detail_size), r:bytes(insert_size)
+      if not insert:find('\n', 1, true) then
+        items[#items + 1] = { word = insert, abbr = label, menu = detail, kind = completion_kinds[kind] or '', dup = 0 }
+      end
+    end
+    if #items > 0 then vim.fn.complete(col + 1, items) end
+  end)
+end
+
+function M.symbols()
+  local d = current_document(4)
+  if not d then return end
+  local revision = d.revision
+  request(d.project, OP.symbols, d, u32(revision), function(r, status)
+    if not query_result(r, status, d, false) then return end
+    local count, items = r:count(16), {}
+    for _ = 1, count do
+      local first, last, kind, length = r:u32(), r:u32(), r:u32(), r:u32()
+      items[#items + 1] = { first = first, last = last, kind = kind, name = r:bytes(length) }
+    end
+    if #items == 0 then notify('No symbols in this buffer.'); return end
+    vim.ui.select(items, { prompt = 'ZSPD symbols', format_item = function(item) return item.name end }, function(item)
+      if item and live(d) and d.revision == revision then jump(d.buf, item.first) end
+    end)
+  end)
+end
+
+local function selected_project()
+  local d = documents[api.nvim_get_current_buf()]
+  return d and d.project or projects[root_for(api.nvim_get_current_buf())]
+end
+
+function M.status()
+  if not configured then notify('ZSPD has not been configured.'); return end
+  local p = selected_project()
+  if not p then notify('No daemon for the current project.'); return end
+  if not p.ready then notify(p.root .. '\n' .. p.state .. (p.failure and (': ' .. p.failure) or '')); return end
+  if p.graph_configuring then notify(p.root .. '\nReady; configuring build graph.'); return end
+  request(p, OP.status, nil, '', function(r, status)
+    notify(p.root .. '\n' .. r:rest(), status == 0 and vim.log.levels.INFO or vim.log.levels.WARN)
+  end)
+end
+
+function M.refresh()
+  local d = current_document()
+  if d then refresh_project(d.project, false) end
+end
+
+function M.stop(all)
+  if not configured then return end
+  if all then for _, p in pairs(projects) do stop_project(p) end
+  else local p = selected_project(); if p then stop_project(p) end end
+end
+
+function M.restart(all)
+  if not configured then return end
+  if all then
+    for _, p in pairs(projects) do stop_project(p); start_project(p) end
+  else
+    local p = selected_project()
+    if p then stop_project(p); start_project(p) else M.attach() end
+  end
+end
+
+function M.setup(config)
+  if configured then
+    for _, p in pairs(projects) do stop_project(p) end
+    for _, d in pairs(documents) do remove_maps(d) end
+  end
+  documents, projects = {}, {}
+  opts = vim.tbl_deep_extend('force', vim.deepcopy(defaults), config or {})
+  assert(type(opts.cmd) == 'string' and type(opts.zig) == 'string', 'ZSPD cmd and zig must be executable names or paths')
+  configured, exiting = true, false
+  if type(opts.diagnostics) == 'table' then vim.diagnostic.config(opts.diagnostics, namespace) end
+  local group = api.nvim_create_augroup('ZspdClient', { clear = true })
+  api.nvim_create_autocmd('FileType', { group = group, pattern = 'zig', callback = function(event) M.attach(event.buf) end })
+  api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
+    group = group, pattern = '*.zig', callback = function(event) M.attach(event.buf) end,
+  })
+  api.nvim_create_autocmd('BufFilePost', { group = group, callback = function(event)
+    local d = documents[event.buf]
+    if d then
+      if root_for(event.buf) ~= d.project.root then
+        remove_maps(d); detach(d); M.attach(event.buf)
+      else snapshot(d, true) end
+    else M.attach(event.buf) end
+  end })
+  api.nvim_create_autocmd('VimLeavePre', { group = group, callback = function()
+    exiting = true
+    for _, p in pairs(projects) do stop_project(p) end
+  end })
+  for name, callback in pairs({ ZspdDefinition = M.definition, ZspdComplete = M.complete,
+    ZspdSymbols = M.symbols, ZspdStatus = M.status, ZspdRefresh = M.refresh }) do
+    api.nvim_create_user_command(name, callback, { force = true })
+  end
+  api.nvim_create_user_command('ZspdStop', function(command) M.stop(command.bang) end, { bang = true, force = true })
+  api.nvim_create_user_command('ZspdRestart', function(command) M.restart(command.bang) end, { bang = true, force = true })
+  for _, buf in ipairs(api.nvim_list_bufs()) do M.attach(buf) end
+  return M
+end
+
+return M
