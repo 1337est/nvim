@@ -163,6 +163,8 @@ vim.keymap.set("n", "<leader><C-l>", "<cmd>nohlsearch<cr>", { silent = true, des
 vim.keymap.set("n", "J", "mzJ`z", { silent = true, desc = "1337: Join lines, keep cursor position" })
 
 -- Explorer TODO: Replace netrw with Neovim's native directory explorer in 0.13.x.
+-- Remove directory `after/ftplugin/netrw.lua` when done as well, since netrw
+-- itself is a plugin, and `after/` directory is for overrides.
 
 vim.cmd.packadd("netrw")
 vim.keymap.set("n", "<leader>e", "<cmd>Explore<CR>", { silent = true, desc = "Explorer" })
@@ -951,19 +953,405 @@ vim.g.custom_ui_clock = vim.fn.timer_start(30000, function()
     vim.cmd.redrawtabline()
 end, { ["repeat"] = -1 })
 
--- mode to map commands
+-- Zig: asynchronous CLI, output buffer, and quickfix
+
+local zig = {}
+
+local function zig_project()
+    local cwd = vim.fs.normalize(vim.fn.getcwd())
+    local build = vim.fs.find("build.zig", { path = cwd, upward = true })[1]
+    local root = build and vim.fs.dirname(build) or cwd
+    return vim.uv.fs_realpath(root) or root
+end
+
+local function zig_elapsed(started)
+    local us = math.floor((vim.uv.hrtime() - started) / 1000)
+
+    return string.format(
+        "%02d:%02d:%06d",
+        math.floor(us / 60000000),
+        math.floor(us / 1000000) % 60,
+        us % 1000000
+    )
+end
+
+local function zig_append(buf, lines)
+    if not vim.api.nvim_buf_is_loaded(buf) or #lines == 0 then return end
+
+    vim.bo[buf].modifiable = true
+    vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].modified = false
+end
+
+local function zig_output()
+    local state = zig[zig_project()]
+    local buf = state and state.buf
+    if not buf or not vim.api.nvim_buf_is_loaded(buf) then
+        vim.notify("No Zig output yet", vim.log.levels.INFO)
+        return
+    end
+
+    if state.qfid then
+        local qf = vim.fn.getqflist({ id = state.qfid, nr = 0 })
+        if qf.id == state.qfid and qf.nr > 0 then
+            vim.cmd(("silent %dchistory"):format(qf.nr))
+        end
+    end
+
+    local win = vim.fn.bufwinid(buf)
+
+    if win ~= -1 then
+        vim.api.nvim_set_current_win(win)
+    else
+        vim.cmd("botright 12split")
+        vim.api.nvim_win_set_buf(0, buf)
+    end
+end
+
+vim.api.nvim_create_user_command("Zig", function(command)
+    local cwd = vim.fn.getcwd()
+    local project = zig_project()
+    local state = zig[project]
+
+    if state and state.job then
+        vim.notify("Zig is running in " .. project .. ". Use :ZigOutput or :ZigStop", vim.log.levels.WARN)
+        return
+    end
+
+    if not state then
+        state = {}
+        zig[project] = state
+    end
+
+    local argv = { "zig" }
+
+    for _, arg in ipairs(command.fargs) do
+        argv[#argv + 1] = arg:sub(1, 2) == "~/"
+            and (vim.env.HOME .. arg:sub(2)) or arg
+    end
+
+    local title = "zig " .. command.args
+
+    if not state.buf or not vim.api.nvim_buf_is_loaded(state.buf) then
+        state.buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_name(state.buf, "zig://output/" .. state.buf)
+
+        vim.bo[state.buf].bufhidden = "hide"
+        vim.bo[state.buf].filetype = "zigoutput"
+    end
+
+    local buf = state.buf
+    local started = vim.uv.hrtime()
+
+    vim.bo[buf].modifiable = true
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        "cwd: " .. cwd,
+        "cmd: " .. title,
+        "out:",
+        "err:",
+        "[running] [00:00:000000]",
+    })
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].modified = false
+
+    vim.fn.setqflist({}, " ", { nr = "$", title = title, items = {} })
+    local qfid = vim.fn.getqflist({ id = 0 }).id
+    state.qfid = qfid
+
+    local win = vim.api.nvim_get_current_win()
+    zig_output()
+    vim.api.nvim_set_current_win(win)
+
+    local timer = vim.fn.timer_start(100, function()
+        if not vim.api.nvim_buf_is_loaded(buf) then return end
+        vim.bo[buf].modifiable = true
+        vim.api.nvim_buf_set_lines(buf, -2, -1, false, {
+            "[running] [" .. zig_elapsed(started) .. "]",
+        })
+        vim.bo[buf].modifiable = false
+        vim.bo[buf].modified = false
+    end, { ["repeat"] = -1 })
+
+    local output = { "__zig_cwd__" .. cwd }
+    local counts = { stdout = 0, stderr = 0 }
+
+    local function stream(channel)
+        local pending = ""
+
+        return function(err, data)
+            if err then
+                vim.schedule(function()
+                    vim.notify("Zig " .. channel .. ": " .. tostring(err), vim.log.levels.WARN)
+                end)
+            end
+
+            pending = pending .. (data or "")
+
+            local lines = vim.split(pending, "\n", { plain = true })
+            pending = table.remove(lines)
+
+            if data == nil and pending ~= "" then
+                lines[#lines + 1] = pending
+                pending = ""
+            end
+
+            if #lines == 0 then return end
+
+            for i, line in ipairs(lines) do
+                lines[i] = line:gsub("\27%[[0-?]*[ -/]*[@-~]", ""):gsub("\r", "")
+            end
+
+            vim.schedule(function()
+                vim.list_extend(output, lines)
+
+                if not vim.api.nvim_buf_is_loaded(buf) then return end
+
+                vim.bo[buf].modifiable = true
+
+                if counts[channel] == 0 then
+                    local index = channel == "stdout"
+                        and 2
+                        or (3 + math.max(counts.stdout - 1, 0))
+
+                    local prefix = channel == "stdout" and "out: " or "err: "
+
+                    vim.api.nvim_buf_set_lines(buf, index, index + 1, false, {
+                        prefix .. table.remove(lines, 1),
+                    })
+
+                    counts[channel] = 1
+                end
+
+                if #lines > 0 then
+                    local index = channel == "stdout"
+                        and (2 + counts.stdout)
+                        or (3 + math.max(counts.stdout - 1, 0) + counts.stderr)
+
+                    vim.api.nvim_buf_set_lines(buf, index, index, false, lines)
+                    counts[channel] = counts[channel] + #lines
+                end
+
+                vim.bo[buf].modifiable = false
+                vim.bo[buf].modified = false
+            end)
+        end
+    end
+
+    local ok, job = pcall(vim.system, argv, {
+        cwd = cwd,
+        text = true,
+        env = { NO_COLOR = "1", CLICOLOR_FORCE = "0" },
+        stdout = stream("stdout"),
+        stderr = stream("stderr"),
+    }, function(result)
+        local duration = zig_elapsed(started)
+
+        vim.schedule(function()
+            vim.fn.timer_stop(timer)
+            state.job = nil
+
+            local status = string.format(
+                "[exit %d, signal %d]",
+                result.code,
+                result.signal
+            )
+            if vim.api.nvim_buf_is_loaded(buf) then
+                vim.bo[buf].modifiable = true
+                vim.api.nvim_buf_set_lines(buf, -2, -1, false, {
+                    status .. " [" .. duration .. "]",
+                })
+                vim.bo[buf].modifiable = false
+                vim.bo[buf].modified = false
+            end
+
+            local parsed = vim.fn.getqflist({
+                lines = output,
+                efm = table.concat({
+                    "%D__zig_cwd__%f",
+                    "%f:%l:%c: %t%*[^:]: %m",
+                    "%f:%l:%c: %m",
+                    "%f:%l: %m",
+                    "%-G%.%#",
+                }, ","),
+            }).items
+
+            local items = vim.tbl_filter(function(item)
+                return item.valid == 1
+            end, parsed)
+
+            if vim.fn.getqflist({ id = qfid }).id == qfid then
+                vim.fn.setqflist({}, "r", {
+                    id = qfid,
+                    title = title .. " " .. status,
+                    items = items,
+                })
+            end
+
+            vim.notify(
+                "Zig: exit " .. result.code .. "; " .. #items .. " quickfix entries",
+                result.code == 0 and vim.log.levels.INFO or vim.log.levels.WARN
+            )
+        end)
+    end)
+
+    if ok then
+        state.job = job
+    else
+        vim.fn.timer_stop(timer)
+        zig_append(buf, { "[start failed] " .. tostring(job) })
+        vim.notify("Could not start Zig; see :ZigOutput", vim.log.levels.ERROR)
+    end
+end, {
+    nargs = "+",
+    complete = "file",
+    desc = "Run Zig asynchronously",
+})
+
+vim.api.nvim_create_user_command("ZigOutput", zig_output, {
+    desc = "Show Zig output",
+})
+
+vim.api.nvim_create_user_command("ZigStop", function()
+    local state = zig[zig_project()]
+    if state and state.job then state.job:kill(2) end
+end, {
+    desc = "Interrupt the running Zig process",
+})
+
+-- mode to map commands, requires custom zig parser
+-- TODO: Update helpful_message to suggest to use the :Zig plugin
+
+local zig_index_parser_file = vim.fn.stdpath("config") .. "/assets/parse_nvim_runtime_doc_index.zig"
+local runtime_doc_index_file = vim.env.VIMRUNTIME .. "/doc/index.txt"
+local zig_parser_output_file = vim.fn.stdpath("config") .. "/assets/output_nvim_runtime_doc_index.txt"
+
+local helpful_message = string.format(
+    "Native mapping index is missing.\nRun:\nzig run %s -- %s > %s",
+    vim.fn.shellescape(zig_index_parser_file),
+    vim.fn.shellescape(runtime_doc_index_file),
+    vim.fn.shellescape(zig_parser_output_file)
+)
 
 local function show_mappings(requested_mode)
     local mode = mode_info(requested_mode).map
-
     local mappings = {}
+    local priorities = {}
+
+    local ok, records = pcall(vim.fn.readfile, zig_parser_output_file)
+
+    if not ok then
+        vim.notify(helpful_message, vim.log.levels.WARN, {
+            title = "Mappings",
+        })
+    end
+
+    if ok then
+        for _, line in ipairs(records) do
+            local section, syntax, tag, note, description =
+                line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t(.*)$")
+
+            if section then
+                local normal =
+                    section == "Normal mode"
+                    or section == "Window commands"
+                    or section == "Square bracket commands"
+                    or section == "Commands starting with 'g'"
+                    or section == "Commands starting with 'z'"
+
+                local include =
+                    ((mode == "n" or mode == "x" or mode == "s") and normal)
+                    or (mode == "o" and normal and (note == "1" or note == "1,2"))
+                    or ((mode == "x" or mode == "s" or mode == "o") and section == "Text objects")
+                    or ((mode == "x" or mode == "s") and section == "Visual mode")
+                    or (mode == "o" and section == "Operator-pending mode")
+                    or (mode == "i" and section:match("^Insert mode"))
+                    or (mode == "c" and section:match("^Command%-line editing"))
+                    or (mode == "t" and section == "Terminal mode")
+
+                local valid =
+                    include
+                    and tag ~= "count"
+                    and syntax ~= ""
+                    and syntax ~= "<Space>"
+                    and syntax ~= "other"
+                    and not syntax:find(" to ", 1, true)
+                    and not syntax:find(" - ", 1, true)
+                    and not syntax:find(" others", 1, true)
+                    and not syntax:match("^Meta characters")
+                    and not syntax:match("^{[^}]+}")
+                    and syntax ~= "CTRL-[ <Esc>"
+
+                if valid then
+                    local arguments = {}
+
+                    for argument in syntax:gmatch("%b{}") do
+                        arguments[#arguments + 1] = argument
+                    end
+
+                    local key = syntax
+                    key = key:gsub('^%["x%]', "")
+                    key = key:gsub("%b{}", "")
+                    key = key:gsub('^"(`+)"$', "%1")
+                    key = key:gsub("CTRL%-SHIFT%-([^%s]+)", "<C-S-%1>")
+                    key = key:gsub("CTRL%-<([^>]+)>", "<C-%1>")
+                    key = key:gsub("CTRL%-([^%s]+)", "<C-%1>")
+                    key = key:gsub("%s+", "")
+
+                    if key ~= "" then
+                        if section == "Normal mode" and (
+                                key == "g"
+                                or key == "z"
+                                or key == "["
+                                or key == "]"
+                                or key == "<C-W>"
+                            ) then
+                            description = "Command prefix: " .. description
+                        end
+
+                        if #arguments > 0 then
+                            description = description
+                                .. " (requires "
+                                .. table.concat(arguments, ", ")
+                                .. ")"
+                        end
+
+                        local priority = 1
+
+                        if section:find(" / ", 1, true) then
+                            priority = 0
+                        elseif section == "Text objects" then
+                            priority = 2
+                        elseif section == "Visual mode"
+                            or section == "Operator-pending mode" then
+                            priority = 3
+                        end
+
+                        if not priorities[key] or priority > priorities[key] then
+                            mappings[key] = {
+                                desc = description,
+                                help = tag,
+                            }
+                            priorities[key] = priority
+                        elseif priority == priorities[key]
+                            and section == "Normal mode"
+                            and description ~= mappings[key].desc then
+                            mappings[key].desc = mappings[key].desc .. "; " .. description
+                        end
+                    end
+                end
+            end
+        end
+    end
 
     for _, map in ipairs(vim.api.nvim_get_keymap(mode)) do
-        mappings[map.lhs:gsub(" ", "<Space>")] = map
+        local key = map.lhs:gsub(" ", "<Space>"):gsub("^<Space>", "<leader>")
+        mappings[key] = map
     end
 
     for _, map in ipairs(vim.api.nvim_buf_get_keymap(0, mode)) do
-        mappings[map.lhs:gsub(" ", "<Space>")] = map
+        local key = map.lhs:gsub(" ", "<Space>"):gsub("^<Space>", "<leader>")
+        mappings[key] = map
     end
 
     local keys = vim.tbl_keys(mappings)
@@ -981,7 +1369,10 @@ local function show_mappings(requested_mode)
         local description = map.desc
 
         if not description or description == "" then
-            description = (map.rhs and map.rhs ~= "") and map.rhs or "[Lua callback]"
+            description = (map.rhs and map.rhs ~= "")
+                and map.rhs
+                or (map.help and ("See :help " .. map.help))
+                or "[Lua callback]"
         end
 
         description = description:gsub("[\r\n]", " ")
