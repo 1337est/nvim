@@ -169,6 +169,16 @@ vim.keymap.set("n", "J", "mzJ`z", { silent = true, desc = "1337: Join lines, kee
 vim.cmd.packadd("netrw")
 vim.keymap.set("n", "<leader>e", "<cmd>Explore<CR>", { silent = true, desc = "Explorer" })
 
+-- debugging neovim native plugin
+vim.cmd.packadd("termdebug")
+vim.keymap.set("n", "<leader>db", "<cmd>Break<cr>")
+vim.keymap.set("n", "<leader>dc", "<cmd>Continue<cr>")
+vim.keymap.set("n", "<leader>ds", "<cmd>Step<cr>")
+vim.keymap.set("n", "<leader>dn", "<cmd>Over<cr>")
+vim.keymap.set("n", "<leader>df", "<cmd>Finish<cr>")
+vim.keymap.set("n", "<leader>dv", "<cmd>Var<cr>")
+vim.keymap.set("n", "<leader>da", "<cmd>Asm<cr>")
+
 -- autocommands
 
 local mkview_on_leave = vim.api.nvim_create_augroup("1337.mkview_on_leave", { clear = true })
@@ -957,9 +967,9 @@ end, { ["repeat"] = -1 })
 
 local zig = {}
 
-local function zig_project()
-    local cwd = vim.fs.normalize(vim.fn.getcwd())
-    local build = vim.fs.find("build.zig", { path = cwd, upward = true })[1]
+local function zig_project(cwd)
+    cwd = vim.fs.normalize(cwd or vim.fn.getcwd())
+    local build = vim.fs.find({ "build.zig", "build.zig.zon" }, { path = cwd, upward = true })[1]
     local root = build and vim.fs.dirname(build) or cwd
     return vim.uv.fs_realpath(root) or root
 end
@@ -984,8 +994,8 @@ local function zig_append(buf, lines)
     vim.bo[buf].modified = false
 end
 
-local function zig_output()
-    local state = zig[zig_project()]
+local function zig_output(project)
+    local state = zig[project or zig_project()]
     local buf = state and state.buf
     if not buf or not vim.api.nvim_buf_is_loaded(buf) then
         vim.notify("No Zig output yet", vim.log.levels.INFO)
@@ -1009,14 +1019,15 @@ local function zig_output()
     end
 end
 
-vim.api.nvim_create_user_command("Zig", function(command)
-    local cwd = vim.fn.getcwd()
-    local project = zig_project()
+local function zig_run(argv, cwd, opts)
+    opts = opts or {}
+    local project = zig_project(cwd)
     local state = zig[project]
 
     if state and state.job then
-        vim.notify("Zig is running in " .. project .. ". Use :ZigOutput or :ZigStop", vim.log.levels.WARN)
-        return
+        local message = "Zig is running in " .. project .. ". Use :ZigOutput or :ZigStop"
+        if opts.notify ~= false then vim.notify(message, vim.log.levels.WARN) end
+        return nil, message
     end
 
     if not state then
@@ -1024,14 +1035,7 @@ vim.api.nvim_create_user_command("Zig", function(command)
         zig[project] = state
     end
 
-    local argv = { "zig" }
-
-    for _, arg in ipairs(command.fargs) do
-        argv[#argv + 1] = arg:sub(1, 2) == "~/"
-            and (vim.env.HOME .. arg:sub(2)) or arg
-    end
-
-    local title = "zig " .. command.args
+    local title = opts.title or table.concat(vim.tbl_map(vim.fn.shellescape, argv), " ")
 
     if not state.buf or not vim.api.nvim_buf_is_loaded(state.buf) then
         state.buf = vim.api.nvim_create_buf(false, true)
@@ -1059,9 +1063,11 @@ vim.api.nvim_create_user_command("Zig", function(command)
     local qfid = vim.fn.getqflist({ id = 0 }).id
     state.qfid = qfid
 
-    local win = vim.api.nvim_get_current_win()
-    zig_output()
-    vim.api.nvim_set_current_win(win)
+    if opts.show ~= false then
+        local win = vim.api.nvim_get_current_win()
+        zig_output(project)
+        vim.api.nvim_set_current_win(win)
+    end
 
     local timer = vim.fn.timer_start(100, function()
         if not vim.api.nvim_buf_is_loaded(buf) then return end
@@ -1188,27 +1194,48 @@ vim.api.nvim_create_user_command("Zig", function(command)
                 })
             end
 
-            vim.notify(
-                "Zig: exit " .. result.code .. "; " .. #items .. " quickfix entries",
-                result.code == 0 and vim.log.levels.INFO or vim.log.levels.WARN
-            )
+            if opts.notify ~= false then
+                vim.notify(
+                    "Zig: exit " .. result.code .. "; " .. #items .. " quickfix entries",
+                    result.code == 0 and vim.log.levels.INFO or vim.log.levels.WARN
+                )
+            end
+            if opts.on_exit then opts.on_exit(result, items, state) end
         end)
     end)
 
     if ok then
         state.job = job
+        return job
     else
         vim.fn.timer_stop(timer)
-        zig_append(buf, { "[start failed] " .. tostring(job) })
-        vim.notify("Could not start Zig; see :ZigOutput", vim.log.levels.ERROR)
+        if vim.api.nvim_buf_is_loaded(buf) then
+            vim.bo[buf].modifiable = true
+            vim.api.nvim_buf_set_lines(buf, -2, -1, false, { "[start failed]" })
+            vim.bo[buf].modifiable = false
+            zig_append(buf, { tostring(job) })
+        end
+        if opts.notify ~= false then
+            vim.notify("Could not start Zig; see :ZigOutput", vim.log.levels.ERROR)
+        end
+        return nil, tostring(job)
     end
+end
+
+vim.api.nvim_create_user_command("Zig", function(command)
+    local argv = { "zig" }
+    for _, arg in ipairs(command.fargs) do
+        argv[#argv + 1] = arg:sub(1, 2) == "~/"
+            and (vim.env.HOME .. arg:sub(2)) or arg
+    end
+    zig_run(argv, vim.fn.getcwd(), { title = "zig " .. command.args })
 end, {
     nargs = "+",
     complete = "file",
     desc = "Run Zig asynchronously",
 })
 
-vim.api.nvim_create_user_command("ZigOutput", zig_output, {
+vim.api.nvim_create_user_command("ZigOutput", function() zig_output() end, {
     desc = "Show Zig output",
 })
 
@@ -1217,6 +1244,15 @@ vim.api.nvim_create_user_command("ZigStop", function()
     if state and state.job then state.job:kill(2) end
 end, {
     desc = "Interrupt the running Zig process",
+})
+
+require("zig_batch").setup({
+    run = zig_run,
+    output = function(cwd) zig_output(zig_project(cwd)) end,
+    busy = function(cwd)
+        local state = zig[zig_project(cwd)]
+        return state ~= nil and state.job ~= nil
+    end,
 })
 
 -- mode to map commands, requires custom zig parser
