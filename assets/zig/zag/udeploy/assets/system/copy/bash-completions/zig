@@ -1,0 +1,1318 @@
+# Bash completion for Zig, including the current build.zig.
+# Baseline: 0.17.0-dev.1460+9a9d8adda; live help takes precedence.
+# Install as ~/.local/share/bash-completion/completions/zig and source it.
+# Requires Bash 4.3+, awk, sort, and GNU stat/timeout (standard on Ubuntu).
+# Target triples, CPU models/features, and compile-input filtering are retained
+# from the original completion, with JSON/ZON target discovery.
+# No Python, jq, external completion helper, eval, or disk cache is used.
+#
+# IMPORTANT: discovery invokes `zig build -l` for steps and `zig build --help`
+# for options. Both evaluate build
+# configuration code, so use it only in trusted projects. No build step names
+# or action flags (deploy, --fetch, --watch, etc.) are forwarded by this script.
+# Configuration code itself can nevertheless have side effects.
+#
+# Settings (set before or after sourcing):
+#   ZIG_COMPLETION_BUILD=0       Disable project queries (default: 1).
+#   ZIG_COMPLETION_TTL=5         Project metadata cache lifetime, seconds.
+#   ZIG_COMPLETION_TIMEOUT=5     Timeout per help query, seconds; 0 = unlimited.
+#   ZIG_COMPLETION_DESCRIPTIONS=0  Disable categorized listings (default: 1).
+#   ZIG_COMPLETION_QUERY_ITEMS=0   No confirmation; a positive value is a threshold.
+#                                Unset: use Readline completion-query-items.
+# Lists are grouped on list-only requests (normal successive Tab / Meta-?).
+# Values and paths retain ordinary Readline completion. No key bindings change.
+# Commands:
+#   zig_completion_refresh      Clear this shell's completion caches.
+#   zig_completion_last_error   Print the last query failure since refresh.
+
+[[ -n ${BASH_VERSION-} ]] || return 0
+(( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 3) )) || return 0
+
+declare -gA _zigc_data=() _zigc_stamp=() _zigc_time=()
+declare -g _zigc_result='' _zigc_error=''
+
+zig_completion_refresh() {
+    _zigc_data=(); _zigc_stamp=(); _zigc_time=()
+    _zigc_result=''; _zigc_error=''
+}
+
+zig_completion_last_error() {
+    [[ -z $_zigc_error ]] || printf '%s\n' "$_zigc_error"
+    return 0
+}
+
+# Read shell words through the cursor without executing or expanding their
+# contents. Keep = and : in logical words, and remember the prefix Readline
+# will leave in place. Quoted/escaped spaces and quoted values are supported.
+# Deliberately do not evaluate $variables, $(commands), or backticks.
+_zigc_words() {
+    local line=${COMP_LINE:0:COMP_POINT} ch next token='' quote='' active=0 i
+    words=(); trim_prefix=''; completion_quote=''
+    for ((i=0; i<${#line}; i++)); do
+        ch=${line:i:1}
+        if [[ $quote == "'" ]]; then
+            if [[ $ch == "'" ]]; then quote=''; else token+=$ch; fi
+            continue
+        fi
+        if [[ $ch == '\' && $quote != "'" ]]; then
+            next=${line:i+1:1}
+            if [[ -z $quote || $next == [\$\`\"\\] ]]; then
+                token+=$next; ((i+=1)); active=1; continue
+            fi
+        fi
+        if [[ $quote == '"' ]]; then
+            if [[ $ch == '"' ]]; then quote=''; else token+=$ch; fi
+            continue
+        fi
+        case $ch in
+            "'"|'"') quote=$ch; active=1 ;;
+            ' '|$'\t'|$'\n')
+                ((active)) && words+=("$token")
+                token=''; active=0; trim_prefix=''
+                ;;
+            ';'|'|'|'&') words=(); token=''; active=0; trim_prefix='' ;;
+            '<'|'>')
+                ((active)) && words+=("$token")
+                token=$ch
+                [[ ${line:i+1:1} == "$ch" ]] && { token+=$ch; ((i+=1)); }
+                words+=("$token"); token=''; active=0; trim_prefix=''
+                ;;
+            *)
+                token+=$ch; active=1
+                if [[ $ch == [=:] && ${COMP_WORDBREAKS-} == *"$ch"* ]]; then
+                    trim_prefix=$token
+                fi
+                ;;
+        esac
+    done
+    words+=("$token")
+    completion_quote=$quote
+    cword=$((${#words[@]}-1)); cur=$token; prev=''
+    ((cword)) && prev=${words[cword-1]}
+    return 0
+}
+
+# Add literal prefix matches. Data from help never goes through compgen -W,
+# eval, source, or any other shell-code evaluation.
+_zigc_offer() {
+    local candidate
+    while IFS= read -r candidate; do
+        [[ -n $candidate && $candidate == "$1"* ]] && COMPREPLY+=("$2$candidate")
+    done <<< "$3"
+    return 0
+}
+
+_zigc_paths() {
+    _zigc_describe_mode=''
+    local typed=$1 prefix=$2 mode=${3:-file} path query=$1 candidate
+    case $query in
+        '~') query=${HOME-}/ ;;
+        '~/'*) query=${HOME-}/${query:2} ;;
+    esac
+    # Quoting the prefix makes spaces, brackets and glob characters literal.
+    for path in "$query"*; do
+        [[ -e $path || -L $path ]] || continue
+        [[ $mode != dir || -d $path ]] || continue
+        if [[ ! -d $path ]]; then
+            case $mode in
+                zig) [[ $path == *.zig || $path == *.zon ]] || continue ;;
+                compile)
+                    case $path in
+                        *.zig|*.o|*.obj|*.lib|*.a|*.so|*.dll|*.dylib|*.tbd|*.s|*.S|*.c|*.cxx|*.cc|*.C|*.cpp|*.c++|*.m|*.mm|*.bc) ;;
+                        *) continue ;;
+                    esac ;;
+                c)
+                    case $path in
+                        *.c|*.h|*.cc|*.cpp|*.cxx|*.c++|*.C|*.hpp|*.hh|*.hxx|*.m|*.mm) ;;
+                        *) continue ;;
+                    esac ;;
+            esac
+        fi
+        candidate=$path
+        # Readline owns the slash when the returned match is a real path.
+        # Adding it here as well displays directories as "name//". Only add
+        # it ourselves when an attached prefix (e.g. -I) remains in the match,
+        # preventing Readline from recognizing it as a directory.
+        if [[ -d $path && $prefix != '' && $prefix != "$trim_prefix" ]]; then
+            candidate+=/
+            compopt -o nospace 2>/dev/null || :
+        fi
+        COMPREPLY+=("$prefix$candidate")
+    done
+    compopt -o filenames 2>/dev/null || :
+}
+
+_zigc_value() {
+    _zigc_describe_mode=''
+    local key=$1 typed=$2 prefix=$3 kind=${types[$1]:-text}
+    local choices=${vals[$1]-} alias_key
+    if [[ $subcmd == rc && $key == -* ]]; then
+        alias_key=${key#-}; alias_key=/${alias_key#-}
+        choices=${vals[$alias_key]-}
+    fi
+    # Context-sensitive target completion also applies to standard build options.
+    case "$subcmd:$key" in
+        build:-Dtarget|build-exe:-target|build-lib:-target|build-obj:-target|test:-target|test-obj:-target|run:-target|translate-c:-target|libc:-target)
+            _zigc_target "$typed" "$prefix"; return 0 ;;
+        build:-Dcpu|build-exe:-mcpu|build-lib:-mcpu|build-obj:-mcpu|test:-mcpu|test-obj:-mcpu|run:-mcpu|translate-c:-mcpu)
+            _zigc_cpu "$typed" "$prefix"; return 0 ;;
+    esac
+    # These documented inline lists do not occupy enum rows in help output.
+    if [[ -z $choices ]]; then
+        case "$subcmd:$key" in
+            build:--release) choices=$'fast\nsafe\nsmall' ;;
+            build:--webui) return 0 ;;
+            *:--sort-section) choices=$'name\nalignment' ;;
+            *:-mexec-model) choices=$'command\nreactor' ;;
+            *:--debug-rt)
+                local record option entry
+                _zigc_metadata "$exe" build-exe ''
+                while IFS=$'\t' read -r record option entry; do
+                    [[ $record != V || $option != -O ]] || choices+="$entry"$'\n'
+                done <<< "$_zigc_result"
+                ;;
+            build:-Dofmt)
+                local record option entry
+                _zigc_metadata "$exe" build-exe ''
+                while IFS=$'\t' read -r record option entry; do
+                    [[ $record != V || $option != -ofmt ]] || choices+="$entry"$'\n'
+                done <<< "$_zigc_result"
+                ;;
+        esac
+    fi
+    if [[ -n $choices ]]; then
+        _zigc_offer "$typed" "$prefix" "$choices"
+    else
+        case $kind in
+            bool) _zigc_offer "$typed" "$prefix" $'true\nfalse' ;;
+            file|dir) _zigc_paths "$typed" "$prefix" "$kind" ;;
+            text)
+                # Unconstrained strings are not enumerable. Explicit path
+                # prefixes remain useful even when the help just says string.
+                case $typed in /*|./*|../*|'~'*) _zigc_paths "$typed" "$prefix" ;; esac
+                ;;
+        esac
+    fi
+    return 0
+}
+
+# Determine the project and retain only completed configuration arguments.
+# `words`, `cword`, `command_index`, `context`, and `build_file` are locals in
+# the caller. Exclude the option currently being edited from the help query.
+_zigc_project() {
+    local i arg next dir=$PWD edited=''
+    [[ $cur != -D*=* ]] || edited=${cur%%=*}
+    context=(); build_file=''
+    for ((i=command_index+2; i<cword; i++)); do
+        arg=${words[i]}
+        case $arg in
+            --) break ;;
+            -D?*)
+                [[ ${arg%%=*} == "$edited" ]] || context+=("$arg")
+                ;;
+            --build-file|--cache-dir|--global-cache-dir|--zig-lib-dir|--zig-lib|--prefix|-p|--prefix-lib-dir|--prefix-exe-dir|--prefix-include-dir|--sysroot|--search-prefix|--libc|--libc-runtimes|--system|--fork)
+                if ((i+1<cword)); then
+                    next=${words[i+1]}
+                    case $next in '~/'*) next=${HOME-}/${next:2} ;; esac
+                    context+=("$arg" "$next")
+                    [[ $arg != --build-file ]] || build_file=$next
+                    ((i+=1))
+                fi
+                ;;
+            --build-file=*)
+                build_file=${arg#*=}
+                case $build_file in '~/'*) build_file=${HOME-}/${build_file:2} ;; esac
+                context+=(--build-file "$build_file")
+                ;;
+            --cache-dir=*|--global-cache-dir=*|--zig-lib=*|--zig-lib-dir=*|--fork=*|--release|--release=*|-fsys=*|-fno-sys=*) context+=("$arg") ;;
+        esac
+    done
+    if [[ -n $build_file ]]; then
+        case $build_file in
+            '~/'*) build_file=${HOME-}/${build_file:2} ;;
+            /*) ;;
+            *) build_file=$PWD/$build_file ;;
+        esac
+        return 0
+    fi
+    while :; do
+        if [[ -f $dir/build.zig ]]; then build_file=$dir/build.zig; break; fi
+        [[ $dir != / ]] || break
+        dir=${dir%/*}; [[ -n $dir ]] || dir=/
+    done
+}
+
+_zigc_query() {
+    local timeout_s=${ZIG_COMPLETION_TIMEOUT:-5}
+    [[ $timeout_s =~ ^[0-9]+([.][0-9]+)?$ ]] || timeout_s=5
+    if [[ $timeout_s != 0 ]] && command -v timeout >/dev/null 2>&1; then
+        LC_ALL=C NO_COLOR=1 CLICOLOR_FORCE=0 command timeout --kill-after=1s "${timeout_s}s" "$@" </dev/null 2>&1
+    else
+        LC_ALL=C NO_COLOR=1 CLICOLOR_FORCE=0 command "$@" </dev/null 2>&1
+    fi
+}
+
+# The cache lives in this shell, not in a command-substitution subshell.
+# A changed executable/build.zig/build.zig.zon refreshes immediately. A short
+# TTL also catches imported build helpers and environment-dependent choices.
+_zigc_metadata() {
+    local exe=$1 cmd=$2 project=$3 key signature output parsed ttl=86400 rc=0
+    local -a stamp_files=("$exe") argv=("$exe")
+    shift 3
+    [[ $cmd != build && $cmd != build-steps ]] || stamp_files+=("$project" "$project.zon")
+    printf -v key '%q ' "$exe" "$cmd" "${ZIG_LIB_DIR-}" "${ZIG_GLOBAL_CACHE_DIR-}"
+    if [[ $cmd == build || $cmd == build-steps ]]; then
+        printf -v key '%s%q ' "$key" "$PWD"
+        local item
+        for item in "$project" "$@"; do printf -v key '%s%q ' "$key" "$item"; done
+        ttl=${ZIG_COMPLETION_TTL:-5}
+        [[ $ttl =~ ^[0-9]+$ ]] || ttl=5
+        if [[ ${ZIG_COMPLETION_BUILD:-1} == 0 || ! -f $project ]]; then
+            _zigc_result=''
+            [[ $cmd != build ]] || _zigc_result=$_zigc_build_seed
+            return 0
+        fi
+    fi
+    signature=$(command stat -Lc '%d:%i:%s:%y:%z' -- "${stamp_files[@]}" 2>/dev/null) || :
+    if [[ ${_zigc_stamp[$key]-} == "$signature" && -n ${_zigc_time[$key]-} ]] &&
+        ((SECONDS < ${_zigc_time[$key]})); then
+        _zigc_result=${_zigc_data[$key]}
+        return 0
+    fi
+    if ((${#_zigc_data[@]} >= 64)); then
+        _zigc_data=(); _zigc_stamp=(); _zigc_time=()
+    fi
+    case $cmd in
+        root) argv+=(--help) ;;
+        lib) argv+=(lib '/?') ;;
+        build) argv+=(build --help "$@") ;;
+        build-steps) argv+=(build -l "$@") ;;
+        targets) argv+=(targets) ;;
+        *) argv+=("$cmd" --help) ;;
+    esac
+    output=$(_zigc_query "${argv[@]}") || rc=$?
+    parsed=''
+    if ((rc==0)); then
+        case $cmd in
+            build-steps) parsed=$(_zigc_parse_steps <<< "$output") ;;
+            targets) parsed=$(_zigc_parse_targets <<< "$output") || { parsed=''; rc=2; } ;;
+            *) parsed=$(_zigc_parse_help "$cmd" <<< "$output") ;;
+        esac
+    fi
+    if [[ -n $parsed && ( $cmd != build || $output == *'Steps:'* ) ]]; then
+        _zigc_data[$key]=$parsed
+    else
+        _zigc_error="Zig completion query failed (status $rc): ${argv[*]}"$'\n'"${output:0:4096}"
+        if [[ -z ${_zigc_data[$key]-} ]]; then
+            case $cmd in
+                root) _zigc_data[$key]=$_zigc_root_seed ;;
+                build) _zigc_data[$key]=$_zigc_build_seed ;;
+                build-steps) _zigc_data[$key]='' ;;
+                targets) _zigc_data[$key]=$_zigc_target_seed ;;
+                lib) _zigc_data[$key]=$'O\t/?\tflag' ;;
+                *) _zigc_data[$key]=$'O\t-h\tflag\nO\t--help\tflag' ;;
+            esac
+        fi
+        # Retry failures soon, but not on every repeated Tab.
+        ttl=5
+    fi
+    _zigc_stamp[$key]=$signature
+    _zigc_time[$key]=$((SECONDS+ttl))
+    _zigc_result=${_zigc_data[$key]}
+}
+
+_zigc_complete_inner() {
+    local exe=$1 kind name value key prefix typed i arg in_cflags=0 passed=0
+    local -A types=() takes=() joins=() vals=() seen_options=()
+    local options='' steps='' commands='' build_file='' data operations='' modifiers='' archive_operation=0
+    local -a context=()
+    if ((cword<=command_index+1)); then
+        _zigc_metadata "$exe" root ''
+        data=$_zigc_result
+        _zigc_describe_mode=root
+        while IFS=$'\t' read -r kind name value; do
+            [[ -n $name ]] || continue
+            case $kind in
+                C) commands+="$name"$'\n'; _zigc_groups[$name]=1; _zigc_descriptions[$name]=$value ;;
+                O) commands+="$name"$'\n'; _zigc_groups[$name]=2 ;;
+                D) _zigc_descriptions[$name]=$value ;;
+            esac
+        done <<< "$data"
+        _zigc_offer "$cur" '' "$commands"
+        return 0
+    fi
+    subcmd=${words[command_index+1]}
+    case $prev in '<'|'>'|'>>'|'<<') _zigc_paths "$cur" ''; return 0 ;; esac
+    # Data-only commands do not have an option menu. Do not execute them on Tab.
+    case $subcmd in env|targets|version|zen|help) return 0 ;; esac
+    for ((i=command_index+2; i<cword; i++)); do
+        arg=${words[i]}
+        case $arg in
+            -cflags|-rcflags) in_cflags=1 ;;
+            --) if ((in_cflags)); then in_cflags=0; else passed=1; fi ;;
+        esac
+    done
+    if ((passed || in_cflags)); then _zigc_paths "$cur" ''; return 0; fi
+    if [[ $subcmd == build ]]; then _zigc_project; fi
+    _zigc_metadata "$exe" "$subcmd" "$build_file" "${context[@]}"
+    data=$_zigc_result
+    _zigc_describe_mode=options
+    [[ $subcmd != build ]] || _zigc_describe_mode=build
+    while IFS=$'\t' read -r kind name value; do
+        [[ -n $name ]] || continue
+        case $kind in
+            O)
+                options+="$name"$'\n'; seen_options[$name]=$value
+                if [[ $subcmd == build ]]; then
+                    if [[ $name == -D* ]]; then _zigc_groups[$name]=2; else _zigc_groups[$name]=3; fi
+                else
+                    _zigc_groups[$name]=1
+                fi
+                ;;
+            S) steps+="$name"$'\n'; _zigc_groups[$name]=1; _zigc_descriptions[$name]=$value ;;
+            D) _zigc_descriptions[$name]=$value ;;
+            T) types[$name]=$value ;;
+            A) takes[$name]=$value; types[$name]=$value ;;
+            J) joins[$name]=$value; types[$name]=$value ;;
+            R) operations+="$name"$'\n' ;;
+            Q) modifiers+=$name ;;
+            V) vals[$name]+="$value"$'\n' ;;
+        esac
+    done <<< "$data"
+    # Build help describes --release values inline rather than as enum rows.
+    if [[ $subcmd == build ]]; then types[--release]=text; fi
+    if [[ -n $prev && -n ${takes[$prev]-} ]]; then _zigc_value "$prev" "$cur" ''; return 0; fi
+    if [[ $cur == @* ]]; then _zigc_paths "${cur:1}" '@'; return 0; fi
+    # -Mroot=src/main.zig has a user-chosen name, then a source path.
+    if [[ $subcmd != build && $cur == -M?*=* ]]; then
+        _zigc_paths "${cur#*=}" "${cur%%=*}="; return 0
+    fi
+    if [[ $cur == [-/]*=* ]]; then
+        key=${cur%%=*}; typed=${cur#*=}; prefix=$key=
+        _zigc_value "$key" "$typed" "$prefix"
+        return 0
+    fi
+    if [[ $subcmd == lib && $cur == [-/]*:* ]]; then
+        # Preserve literal flags such as /WX:no before treating : as a value.
+        _zigc_offer "$cur" '' "$options"
+        if ((${#COMPREPLY[@]}==1)) && [[ ${COMPREPLY[0]} == "$cur" && $cur == *: ]]; then
+            COMPREPLY=()
+        fi
+        ((${#COMPREPLY[@]}==0)) || return 0
+        key=${cur%%:*}; _zigc_value "$key" "${cur#*:}" "$key:"
+        return 0
+    fi
+    if [[ $cur == -* || ( $subcmd == rc || $subcmd == lib ) && $cur == /* ]]; then
+        _zigc_offer "$cur" '' "$options"
+        if ((${#COMPREPLY[@]}==1)) && [[ ${seen_options[${COMPREPLY[0]}]-} == join ]]; then
+            compopt -o nospace 2>/dev/null || :
+        fi
+        ((${#COMPREPLY[@]}==0)) || return 0
+    fi
+    # Literal attached arguments such as -Iinclude, -j8 and -lssl.
+    local longest=''
+    for key in "${!joins[@]}"; do
+        if [[ $cur == "$key"?* ]] && ((${#key}>${#longest})); then longest=$key; fi
+    done
+    if [[ -n $longest ]]; then
+        _zigc_value "$longest" "${cur:${#longest}}" "$longest"
+        return 0
+    fi
+    if [[ $subcmd == ar ]]; then
+        for ((i=command_index+2; i<cword; i++)); do
+            arg=${words[i]}
+            if [[ -n ${takes[$arg]-} ]]; then ((i+=1)); continue; fi
+            [[ $arg == [-@]* ]] || archive_operation=1
+        done
+        if ((archive_operation==0)) && [[ $cur != --* ]]; then
+            _zigc_describe_mode=''
+            local op modifier bare=${cur#-} sign=''
+            [[ $cur != -* ]] || sign=-
+            if [[ -z $bare ]]; then
+                _zigc_offer '' "$sign" "$operations"
+            else
+                op=${bare:0:1}
+                if [[ $'\n'$operations == *$'\n'"$op"$'\n'* ]]; then
+                    COMPREPLY+=("$cur")
+                    for ((i=0; i<${#modifiers}; i++)); do
+                        modifier=${modifiers:i:1}
+                        [[ $bare == *"$modifier"* ]] || COMPREPLY+=("$cur$modifier")
+                    done
+                fi
+            fi
+            if ((${#COMPREPLY[@]})); then compopt -o nospace 2>/dev/null || :; return 0; fi
+        fi
+    fi
+    if [[ $subcmd == build ]]; then
+        # -l is authoritative for positional build-step completion. Only query
+        # it when completing a step, not when completing an option or its value.
+        # If listing fails, retain the steps advertised by successful build help.
+        _zigc_metadata "$exe" build-steps "$build_file" "${context[@]}"
+        if [[ -n $_zigc_result ]]; then
+            steps=''
+            while IFS=$'\t' read -r kind name value; do
+                if [[ $kind == S && -n $name ]]; then
+                    steps+="$name"$'\n'
+                    _zigc_groups[$name]=1; _zigc_descriptions[$name]=$value
+                fi
+            done <<< "$_zigc_result"
+        fi
+        _zigc_offer "$cur" '' "$steps"
+        [[ -n $cur ]] || _zigc_offer '' '' "$options"
+        return 0
+    fi
+    [[ $cur != -* ]] || return 0
+    if [[ -z $cur ]]; then _zigc_offer '' '' "$options"; fi
+    case $subcmd in
+        fmt|ast-check) _zigc_paths "$cur" '' zig ;;
+        build-exe|build-lib|build-obj|test|test-obj|run) _zigc_paths "$cur" '' compile ;;
+        translate-c) _zigc_paths "$cur" '' c ;;
+        init|std) ;;
+        *) _zigc_paths "$cur" '' ;;
+    esac
+}
+
+# Description metadata never goes into an insertable completion. These locals
+# are owned by _zig_complete and are visible here through Bash dynamic scope.
+_zigc_description_rows() {
+    local candidate group description
+    local -A printed=()
+    for candidate in "${COMPREPLY[@]}"; do
+        [[ -n $candidate && -z ${printed[$candidate]-} ]] || continue
+        printed[$candidate]=1
+        group=${_zigc_groups[$candidate]-}
+        [[ -n $group ]] || continue
+        description=${_zigc_descriptions[$candidate]-}
+        [[ $description != - ]] || description=''
+        printf '%s\t%s\t%s\n' "$group" "$candidate" "$description"
+    done
+}
+
+# Input: group-number TAB candidate TAB description. Sort and wrap only the
+# display; candidate ordering, quoting and inserted strings stay untouched.
+_zigc_render_descriptions() {
+    local columns=${COLUMNS:-80}
+    [[ $columns =~ ^[0-9]{1,4}$ ]] || columns=80
+    ((10#$columns >= 20)) || columns=80
+    LC_ALL=C command sort -t $'\t' -k1,1n -k2,2 | LC_ALL=C command awk \
+        -F '\t' -v width="$columns" -v mode="$_zigc_describe_mode" '
+function clean(s) {
+    # Help text is data. Never allow terminal control characters through.
+    gsub(/[[:cntrl:]]/, " ", s)
+    gsub(/[ \t]+/, " ", s)
+    sub(/^ +/, "", s); sub(/ +$/, "", s)
+    return s
+}
+function heading(g) {
+    if (mode=="build") return g==1 ? "Build steps" : g==2 ? "Project options" : "Build options"
+    if (mode=="root") return g==1 ? "Commands" : "Global options"
+    return "Options"
+}
+function spaces(n, s) { s=""; while (n-- > 0) s=s " "; return s }
+function wrapped(text, first, continuation, available, chunk, p) {
+    while (length(text)>available) {
+        chunk=substr(text,1,available)
+        p=length(chunk)
+        while(p>0 && substr(chunk,p,1)!=" ") p--
+        if(p<1) p=available
+        chunk=substr(text,1,p); sub(/ +$/, "",chunk)
+        print first chunk
+        text=substr(text,p+1); sub(/^ +/, "",text)
+        first=continuation
+    }
+    print first text
+}
+{
+    group[++count]=$1; name[count]=clean($2)
+    description=$3
+    for(j=4;j<=NF;j++) description=description " " $j
+    desc[count]=clean(description)
+    if(length(name[count])>longest[$1]) longest[$1]=length(name[count])
+}
+END {
+    last=""
+    for(i=1;i<=count;i++) {
+        g=group[i]
+        if(g!=last) {
+            if(last!="") print ""
+            print heading(g) ":"
+            last=g
+        }
+        if(desc[i]=="") { print "  " name[i]; continue }
+        col=longest[g]+4
+        if(width-col<24) {
+            print "  " name[i]
+            wrapped(desc[i],"    ","    ",width-5)
+        } else {
+            wrapped(desc[i],"  " name[i] spaces(col-2-length(name[i])),spaces(col),width-col-1)
+        }
+    }
+}'
+}
+
+_zigc_maybe_describe() {
+    # 63 is Readline possible-completions (successive Tab / Meta-?). Never
+    # substitute the blank redraw marker during insertion or menu completion.
+    [[ ${ZIG_COMPLETION_DESCRIPTIONS:-1} != 0 && ${COMP_TYPE:-0} == 63 ]] || return 0
+    [[ -n $_zigc_describe_mode && ${#COMPREPLY[@]} -gt 0 ]] || return 0
+    [[ -t 0 && -t 1 ]] || return 0
+    # A real completion context is required: do not alter direct function calls.
+    compopt +o filenames +o default +o bashdefault 2>/dev/null || return 0
+
+    local count=${#COMPREPLY[@]} limit=${ZIG_COMPLETION_QUERY_ITEMS-} a b c answer=''
+    if [[ -z $limit ]]; then
+        limit=100
+        while read -r a b c; do
+            [[ $a != set || $b != completion-query-items ]] || { limit=$c; break; }
+        done < <(bind -v 2>/dev/null)
+    fi
+    [[ $limit =~ ^[0-9]{1,9}$ ]] || limit=100
+    limit=$((10#$limit))
+    if ((limit>0 && count>=limit)); then
+        printf '\nDisplay all %d possibilities? (y or n) ' "$count"
+        IFS= read -r -s -n 1 answer || answer=n
+        printf '\n'
+    else
+        printf '\n'
+        answer=y
+    fi
+    if [[ $answer == [yY] ]]; then
+        _zigc_description_rows | _zigc_render_descriptions
+    fi
+
+    # An empty match on a LIST-ONLY request lets Readline perform its own
+    # redisplay, including colored/multiline prompts and a mid-line cursor.
+    # COMPREPLY=() alone would leave the cursor below the table, without a prompt.
+    # No description or sentinel is ever used on an insertion request.
+    COMPREPLY=('')
+    compopt -o nospace 2>/dev/null || :
+    return 0
+}
+
+_zig_complete() {
+    local cur='' prev='' cword=0 trim_prefix='' completion_quote='' command_index=-1 subcmd=''
+    local exe='' i candidate invocation=${1:-zig} _zigc_describe_mode=''
+    local -A _zigc_descriptions=() _zigc_groups=()
+    local -a words=()
+    COMPREPLY=()
+    compopt +o nospace +o filenames +o default +o bashdefault 2>/dev/null || :
+    _zigc_words
+    for ((i=0; i<=cword; i++)); do
+        if [[ ${words[i]} == "$invocation" || ${words[i]##*/} == zig ]]; then command_index=$i; break; fi
+    done
+    ((command_index>=0)) || return 0
+    exe=$(type -P -- "${words[command_index]}") || return 0
+    _zigc_complete_inner "$exe"
+    _zigc_maybe_describe
+    # Readline already retains this part when = or : is a word break.
+    # Never change COMP_WORDBREAKS globally: that would affect other commands.
+    if [[ -n $trim_prefix ]]; then
+        for i in "${!COMPREPLY[@]}"; do COMPREPLY[i]=${COMPREPLY[i]#"$trim_prefix"}; done
+    fi
+    if ((${#COMPREPLY[@]}==1)); then
+        candidate=${COMPREPLY[0]}
+        [[ $candidate != *[=:/] ]] || compopt -o nospace 2>/dev/null || :
+    fi
+    return 0
+}
+
+# Read target data only when a target/CPU argument is actually being completed.
+# A/O/B = architecture/OS/ABI; M/F = CPU model/feature; N = native architecture.
+_zigc_target() {
+    local typed=$1 prefix=$2 record arch os fragment rest value suffix wanted list=''
+    _zigc_metadata "$exe" targets ''
+    if [[ $typed != *-* ]]; then
+        _zigc_offer "$typed" "$prefix" native
+        wanted=A; fragment=$typed; suffix=-; prefix=$2
+    else
+        arch=${typed%%-*}; rest=${typed#*-}
+        if [[ $rest != *-* ]]; then
+            wanted=O; fragment=$rest; suffix=-; prefix=$2$arch-
+        else
+            os=${rest%%-*}; fragment=${rest#*-}
+            wanted=B; suffix=''; prefix=$2$arch-$os-
+        fi
+    fi
+    while IFS=$'\t' read -r record arch value; do
+        if [[ $record == "$wanted" && $arch == "$fragment"* ]]; then
+            COMPREPLY+=("$prefix$arch$suffix")
+        fi
+    done <<< "$_zigc_result"
+    # An unfinished triple needs another component, not an inserted space.
+    if [[ -n $suffix && ( ${#COMPREPLY[@]} != 1 || ${COMPREPLY[0]} != "${2}native" ) ]]; then
+        compopt -o nospace 2>/dev/null || :
+    fi
+    return 0
+}
+
+_zigc_cpu() {
+    local typed=$1 prefix=$2 target='' native_arch='' arch='' i word record name value
+    local models=$'baseline\nnative' features='' fragment feature_prefix=''
+    _zigc_metadata "$exe" targets ''
+    local data=$_zigc_result
+    for ((i=command_index+2; i<cword; i++)); do
+        word=${words[i]}
+        case "$subcmd:$word" in
+            build:-Dtarget=*) target=${word#*=} ;;
+            build:*) ;;
+            *:-target)
+                if ((i+1<cword)); then target=${words[i+1]}; ((i+=1)); fi
+                ;;
+            *:-target=*) target=${word#*=} ;;
+        esac
+    done
+    while IFS=$'\t' read -r record name value; do
+        [[ $record != N ]] || native_arch=$name
+    done <<< "$data"
+    if [[ -n $target && $target != native ]]; then
+        arch=${target%%-*}
+        case $arch in armv*) arch=arm ;; thumbv*) arch=thumb ;; esac
+    elif [[ -n $native_arch ]]; then
+        arch=$native_arch
+    else
+        case $(command uname -m 2>/dev/null) in
+            x86_64|amd64) arch=x86_64 ;;
+            i?86) arch=x86 ;;
+            aarch64|arm64) arch=aarch64 ;;
+            armv*) arch=arm ;;
+            riscv64) arch=riscv64 ;; riscv32) arch=riscv32 ;;
+            ppc64le) arch=powerpc64le ;; ppc64) arch=powerpc64 ;;
+        esac
+    fi
+    while IFS=$'\t' read -r record name value; do
+        [[ $name == "$arch" ]] || continue
+        case $record in
+            M) [[ $value == baseline || $value == native ]] || models+=$'\n'$value ;;
+            F) features+="$value"$'\n' ;;
+        esac
+    done <<< "$data"
+    if [[ $typed == *[+-]* ]]; then
+        fragment=${typed##*[+-]}
+        feature_prefix=${typed%"$fragment"}
+        _zigc_offer "$fragment" "$prefix$feature_prefix" "$features"
+    else
+        _zigc_offer "$typed" "$prefix" "$models"
+    fi
+    return 0
+}
+
+# `zig build -l` has no section heading. Take only aligned step rows, never
+# the '(default)' marker or descriptions as candidates. Names are not hardcoded.
+_zigc_parse_steps() {
+    LC_ALL=C command awk '
+        { gsub(/\r/, ""); gsub(/\033\[[0-9;]*[[:alpha:]]/, "") }
+        /^[ \t]+[^ \t]+([ \t]+\(default\))?[ \t][ \t]+/ {
+            name=$1
+            if (name ~ /:$/ || name ~ /^[-(]/) next
+            desc=$0
+            sub(/^[ \t]+[^ \t]+[ \t]+/, "", desc)
+            sub(/^\(default\)[ \t]+/, "", desc)
+            if (!seen[name]++) print "S\t" name "\t" desc
+        }
+    '
+}
+
+# A small DATA tokenizer for the JSON and ZON shapes produced by `zig targets`.
+# It does not evaluate Zig or shell text, and accepts identifier-like names only.
+# Current fields: arch, os, abi, cpus, cpu_features, native.cpu.arch.
+# Also accepts older cpu.<arch>.models/features layouts. This is intentionally
+# not a general-purpose JSON/ZON parser; malformed/unrecognized data falls back.
+_zigc_parse_targets() {
+    LC_ALL=C command awk '
+function emit(kind, name, value, id) {
+    if (name !~ /^[a-zA-Z0-9_][a-zA-Z0-9_.+-]*$/) return
+    if (value != "" && value !~ /^[a-zA-Z0-9_][a-zA-Z0-9_.+-]*$/) return
+    id=kind SUBSEP name SUBSEP value
+    if (!seen[id]++) {
+        out[++count]=kind "\t" name "\t" (value == "" ? "-" : value)
+        if (kind == "A") have_arch=1
+        if (kind == "O") have_os=1
+        if (kind == "B") have_abi=1
+    }
+}
+function model(p, a,n) {
+    n=split(p,a,"/")
+    if (n==3 && a[1]=="cpus") emit("M",a[2],a[3])
+    if (n==4 && a[1]=="cpu" && a[3]=="models") emit("M",a[2],a[4])
+}
+function flush( p,a,n,value) {
+    if (!has_pending[depth]) return
+    value=pending[depth]; p=path[depth]
+    if (field[depth]!="") p=p (p=="" ? "" : "/") field[depth]
+    n=split(p,a,"/")
+    if (p=="arch") emit("A",value,"")
+    else if (p=="os") emit("O",value,"")
+    else if (p=="abi") emit("B",value,"")
+    else if (n==2 && a[1]=="cpu_features") emit("F",a[2],value)
+    else if (n==3 && a[1]=="cpu" && a[3]=="features") emit("F",a[2],value)
+    else if (n==3 && a[1]=="cpu" && a[3]=="models") emit("M",a[2],value)
+    else if (p=="native/cpu/arch") emit("N",value,"")
+    has_pending[depth]=0; pending[depth]=""
+}
+function token(t, scalar, p) {
+    if (scalar) {
+        flush()
+        pending[depth]=t; has_pending[depth]=1
+    } else if (t=="=" || t==":") {
+        if (!has_pending[depth]) { bad=1; return }
+        field[depth]=pending[depth]; pending[depth]=""; has_pending[depth]=0
+    } else if (t=="{" || t=="[") {
+        p=path[depth]
+        if (field[depth]!="") p=p (p=="" ? "" : "/") field[depth]
+        field[depth]=""; pending[depth]=""; has_pending[depth]=0
+        depth++; path[depth]=p; field[depth]=""; pending[depth]=""; has_pending[depth]=0
+        model(p)
+    } else if (t=="}" || t=="]") {
+        flush(); depth--
+        if (depth<0) bad=1
+    } else if (t==",") {
+        flush(); field[depth]=""
+    }
+}
+{
+    for (i=1; i<=length($0); i++) {
+        c=substr($0,i,1)
+        if (quoted) {
+            if (escaped) { text=text c; escaped=0 }
+            else if (c=="\\") escaped=1
+            else if (c=="\"") { token(text,1); text=""; quoted=0 }
+            else text=text c
+        } else if (c=="\"") { quoted=1; text="" }
+        else if (c=="/" && substr($0,i+1,1)=="/") break
+        else if (c ~ /[a-zA-Z0-9_]/) {
+            value=c
+            while (substr($0,i+1,1) ~ /[a-zA-Z0-9_]/ && i<length($0)) {
+                i++; value=value substr($0,i,1)
+            }
+            token(value,1)
+        } else token(c,0)
+    }
+}
+END {
+    if (bad || depth!=0 || quoted || !have_arch || !have_os || !have_abi) exit 1
+    for (i=1;i<=count;i++) print out[i]
+}
+    '
+}
+
+_zigc_parse_help() {
+    LC_ALL=C command awk -v cmd="$1" '# Convert human-readable Zig/LLVM help into tab-separated completion metadata.
+# Output is data, never shell code.
+function emit(k,n,v, id) {
+    if (n == "") return
+    if(k=="O" && collecting && !desc_seen[n]++) desc_names[++desc_count]=n
+    id=k SUBSEP n SUBSEP v
+    if (!seen[id]++) print k "\t" n "\t" (v == "" ? "-" : v)
+}
+function flush_description( i) {
+    gsub(/[ \t]+/," ",desc_text)
+    desc_text=trim(desc_text)
+    if(desc_text!="") for(i=1;i<=desc_count;i++) emit("D",desc_names[i],desc_text)
+    delete desc_names; delete desc_seen
+    desc_count=0; desc_text=""; collecting=0; desc_values=0
+}
+function row_description(s) {
+    sub(/^[^ \t]+[ \t]+/,"",s)
+    sub(/^\(default\)[ \t]+/,"",s)
+    return s
+}
+function trim(s) { sub(/^[ \t]+/,"",s); sub(/[ \t]+$/,"",s); return s }
+function values(key,s, a,n,i) {
+    gsub(/[\[\]<>]/,"",s); sub(/^=/,"",s)
+    n=split(s,a,/\|/)
+    if (n>1) for (i=1;i<=n;i++) if(a[i] ~ /^[a-zA-Z0-9_.+-]+$/) emit("V",key,a[i])
+}
+function kind(key,ph,desc, p,d) {
+    p=tolower(ph); d=tolower(desc)
+    if (key ~ /^(--cache-dir|--global-cache-dir|--zig-lib|--zig-lib-dir|--sysroot|--search-prefix|--prefix|--prefix-.*-dir|--libc-runtimes|--pkg-dir|--main-mod-path|--library-directory|--embed-dir|--fork)$/) return "dir"
+    if (key ~ /^(-I|-L|-F|-idirafter|-isystem|-rpath)$/) return "dir"
+    if (key ~ /^(--build-file|--libc|--script|--version-script|--test-runner|--entitlements|--extract-to|--add-gnu-debuglink|--dynamic-linker)$/) return "file"
+    if (key ~ /^-femit-/) return key == "-femit-docs" ? "dir" : "file"
+    if (key ~ /^--verbose-llvm-(ir|bc)$/) return "file"
+    if (p ~ /bool/) return "bool"
+    if (p ~ /^(dir|directory|pkgdir)$/) return "dir"
+    if (p ~ /^(file|path|script|src)$/) {
+        if (d ~ /directory|directories|prefix path/) return "dir"
+        return "file"
+    }
+    if (p == "string" || p == "value" || p == "arg" || p == "") {
+        if (d ~ /directory|directories|include path|search path/) return "dir"
+        if (d ~ /path to|file path|input .*file|output .*file|input .*library/) return "file"
+    }
+    if (key ~ /^(--maxrss|--seed|--error-limit|--debounce|--port|-j|-freference-trace)$/) return "number"
+    if (p ~ /^(integer|int|num|number|bytes|port|ms|size|addr|limit|timeout|n)$/) return "number"
+    return "text"
+}
+function option(tok,ph,desc,separate, base,tail,t,opt,join,parts,n,i,pre,post) {
+    sub(/,+$/,"",tok)
+    if (tok ~ /\[no-\]/) {
+        pre=tok; sub(/\[no-\]/,"",pre); option(pre,ph,desc,separate)
+        pre=tok; sub(/\[no-\]/,"no-",pre); option(pre,ph,desc,separate); return
+    }
+    if (tok ~ /\{[^}]+\}/) {
+        pre=tok; sub(/\{.*/,"",pre)
+        post=tok; sub(/^[^{]*\{/,"",post); sub(/\}.*/,"",post)
+        n=split(post,parts,/\|/)
+        for(i=1;i<=n;i++) emit("O",pre parts[i],"flag")
+        last=""; return
+    }
+    base=tok; sub(/[\[<{].*$/, "",base)
+    opt=(tok ~ /\[=/ && base !~ /=$/)
+    join=(tok ~ /[\[<]/ && base !~ /[=:]$/ && !opt)
+    if (base ~ /=/) { sub(/=.*/,"",base); join=0 }
+    tail=tok
+    if (tok ~ /[\[<]/) {
+        sub(/^[^\[<]*[\[<]=?/,"",tail); sub(/[\]>].*/,"",tail)
+        if (ph == "") ph=tail
+    }
+    if (base ~ /:$/) { sub(/:$/,"",base); join=0 }
+    if (base !~ /^[-\/@][a-zA-Z0-9_?#+:.,=-]+$/) return
+    t=kind(base,ph,desc)
+    last=base; last_kind=t; value_mode=0
+    last_plain=(tok !~ /[\[<:=]/ && !separate)
+    if (cmd=="ar" && base=="--output") separate=1
+    if (cmd=="build" && base=="-p") { separate=1; t="dir" }
+    if (join && base ~ /^(-I|-L|-F|-T|-l)$/) separate=1
+    if (tok ~ /\[=/ && !join) {
+        emit("O",base,"flag"); emit("O",base "=","join")
+        emit("T",base,t)
+    } else if (tok ~ /=/ && !join) {
+        if (tok !~ /[\[<]/) emit("O",tok,"flag")
+        else emit("O",base "=","join")
+        emit("T",base,t)
+    } else if (tok ~ /:</) {
+        emit("O",base ":","join"); emit("T",base,t)
+    } else {
+        emit("O",base,join ? "join" : "flag")
+        if (join) { emit("J",base,t); emit("T",base,t) }
+        if (separate) { emit("A",base,t); emit("T",base,t) }
+    }
+    if (ph ~ /\|/) values(base,ph)
+    if (tok ~ /\|/) {
+        tail=tok; sub(/^[^[]*\[=?/,"",tail); sub(/\].*/,"",tail)
+        values(base,tail)
+    }
+    if (cmd=="build" && base ~ /^-D/ && t=="bool") {
+        emit("O",base,"flag"); emit("V",base,"true"); emit("V",base,"false")
+    }
+    if (cmd=="rc" && base ~ /^\//) {
+        pre=tok; sub(/^\//,"-",pre); option(pre,ph,desc,separate)
+        pre=tok; sub(/^\//,"--",pre); option(pre,ph,desc,separate)
+        last=base
+    }
+}
+{
+    gsub(/\r/,"")
+    gsub(/\033\[[0-9;]*[[:alpha:]]/,"")
+    raw=$0; s=trim(raw)
+    match(raw,/[^ \t]/); indent=RSTART-1
+    if (cmd=="ar" && s ~ /ar -M/) emit("O","-M","flag")
+    if (cmd=="ar" && s == "OPERATIONS:") { flush_description(); section="operations"; last=""; next }
+    if (cmd=="ar" && s == "MODIFIERS:") { flush_description(); section="modifiers"; last=""; next }
+    if (section=="operations" && s ~ /^[a-z] -/) { emit("R",substr(s,1,1),""); next }
+    if (section=="modifiers" && s ~ /^\[[a-zA-Z]\]/) { emit("Q",substr(s,2,1),""); next }
+    if (s == "Commands:") { flush_description(); section="commands"; last=""; next }
+    if (s == "Steps:") { flush_description(); section="steps"; last=""; next }
+    if (s ~ /^Available System Integrations:/) { flush_description(); section="systems"; last=""; next }
+    if (s ~ /^Unsupported .*Options:/) { flush_description(); section="unsupported"; last=""; next }
+    if (s ~ /[Oo][Pp][Tt][Ii][Oo][Nn][Ss].*:/ || (indent==0 && s ~ /:$/)) {
+        flush_description(); section="options"; last=""; next
+    }
+    if (s=="") next
+    if (section=="commands" && s ~ /^[a-z][a-z0-9+_-]*[ \t]/) {
+        split(s,a,/[ \t]+/); emit("C",a[1],row_description(s)); next
+    }
+    if (section=="steps" && indent>=2 && s ~ /^[^ \t]+[ \t]/) {
+        split(s,a,/[ \t]+/); emit("S",a[1],row_description(s)); next
+    }
+    if (section=="systems" && indent>=2 && s !~ /^\(/) {
+        split(s,a,/[ \t]+/); emit("V","-fsys",a[1]); emit("V","-fno-sys",a[1]); next
+    }
+    if (section=="unsupported") next
+    if (s ~ /^[-\/@][^ \t]+/ && indent>=1) {
+        flush_description(); collecting=1
+        rest=s
+        while (rest ~ /^(-[^ \t]+|\/[^ \t]+|@<[^ \t]+)/) {
+            match(rest,/^[^ \t]+/); tok=substr(rest,1,RLENGTH)
+            rest=trim(substr(rest,RLENGTH+1)); ph=""; separate=0
+            if (rest ~ /^[\[<]/) {
+                match(rest,/^[^ \t]+/); ph=substr(rest,1,RLENGTH)
+                rest=trim(substr(rest,RLENGTH+1)); separate=1
+                gsub(/^[\[<]|[\]>,]+$/,"",ph)
+            }
+            # Zig documents this placeholder without brackets.
+            if (tok=="-x" && rest ~ /^language[ \t]/) {
+                ph="language"; separate=1; sub(/^language[ \t]+/,"",rest)
+            }
+            option(tok,ph,rest,separate)
+        }
+        desc_text=rest; collecting=0
+        option_indent=indent
+        next
+    }
+    if (last!="" && s=="Supported Values:") { value_mode=1; desc_values=1; next }
+    # Enum rows have modest indentation; wrapped prose is much farther right.
+    if (last!="" && indent>option_indent && (value_mode || indent<=option_indent+6)) {
+        if (s ~ /\(planned feature\)/) next
+        v=s; sub(/[ \t][ \t]+.*/,"",v); sub(/[ \t]+\(.*/,"",v)
+        sub(/^=/,"",v); v=trim(v)
+        if (v ~ /^[a-zA-Z0-9_.+-]+=[\[<]/) {
+            sub(/[\[<].*/,"",v); emit("V",last,v); desc_values=1; next
+        }
+        if (v ~ /^[a-zA-Z0-9_.+-]+(,[ \t]*[a-zA-Z0-9_.+-]+)*$/) {
+            n=split(v,a,/,[ \t]*/)
+            if (last_plain) { emit("A",last,last_kind); emit("T",last,last_kind) }
+            for(i=1;i<=n;i++) emit("V",last,a[i])
+            desc_values=1
+        }
+    }
+    if(desc_count>0 && !desc_values && indent>option_indent+6) {
+        desc_text=desc_text (desc_text=="" ? "" : " ") s
+    }
+}
+END { flush_description() }
+'
+}
+
+# Generic fallback data from the supplied Zig help, without project steps.
+_zigc_root_seed=$(cat <<'ZIG_ROOT_DATA'
+C	build	Build project from build.zig
+C	fetch	Copy a package into global cache and print its hash
+C	init	Initialize a Zig package in the current directory
+C	build-exe	Create executable from source or object files
+C	build-lib	Create library from source or object files
+C	build-obj	Create object from source or object files
+C	test	Perform unit testing
+C	test-obj	Create object for unit testing
+C	run	Create executable and run immediately
+C	ast-check	Look for simple compile errors in any set of files
+C	fmt	Reformat Zig source into canonical form
+C	reduce	Minimize a bug report
+C	translate-c	Convert C code to Zig code
+C	ar	Combine object files into static archive
+C	cc	Use Zig as a drop-in C compiler
+C	c++	Use Zig as a drop-in C++ compiler
+C	dlltool	Use Zig as a drop-in dlltool.exe
+C	lib	Use Zig as a drop-in lib.exe
+C	objcopy	Manipulate executables and relocatables
+C	objdump	Print information about executables and relocatables
+C	ranlib	Use Zig as a drop-in ranlib
+C	rc	Use Zig as a drop-in rc.exe
+C	env	Print lib path, std path, cache directory, and version
+C	help	Print this help and exit
+C	std	View standard library documentation in a browser
+C	libc	Display native libc paths file or validate one
+C	targets	List available compilation targets
+C	version	Print version number and exit
+C	zen	Print Zen of Zig and exit
+O	-h	flag
+O	--help	flag
+D	-h	Print command-specific usage
+D	--help	Print command-specific usage
+ZIG_ROOT_DATA
+)
+_zigc_build_seed=$(cat <<'ZIG_BUILD_DATA'
+O	--search-prefix	flag
+A	--search-prefix	dir
+T	--search-prefix	dir
+O	--sysroot	flag
+A	--sysroot	dir
+T	--sysroot	dir
+O	--libc	flag
+A	--libc	file
+T	--libc	file
+O	--system	flag
+A	--system	dir
+T	--system	dir
+O	-fsys=	join
+T	-fsys	text
+O	-fno-sys=	join
+T	-fno-sys	text
+O	-fdarling	flag
+O	-fno-darling	flag
+O	-fqemu	flag
+O	-fno-qemu	flag
+O	--libc-runtimes	flag
+A	--libc-runtimes	dir
+T	--libc-runtimes	dir
+O	-frosetta	flag
+O	-fno-rosetta	flag
+O	-fwasmtime	flag
+O	-fno-wasmtime	flag
+O	-fwine	flag
+O	-fno-wine	flag
+O	-h	flag
+O	--help	flag
+O	-l	flag
+O	--list-steps	flag
+O	-p	flag
+O	--prefix	flag
+A	--prefix	dir
+T	--prefix	dir
+O	--prefix-lib-dir	flag
+A	--prefix-lib-dir	dir
+T	--prefix-lib-dir	dir
+O	--prefix-exe-dir	flag
+A	--prefix-exe-dir	dir
+T	--prefix-exe-dir	dir
+O	--prefix-include-dir	flag
+A	--prefix-include-dir	dir
+T	--prefix-include-dir	dir
+O	--release	flag
+O	--release=	join
+T	--release	text
+O	--verbose	flag
+O	--color	flag
+A	--color	text
+T	--color	text
+V	--color	auto
+V	--color	off
+V	--color	on
+O	--error-style	flag
+A	--error-style	text
+T	--error-style	text
+V	--error-style	verbose
+V	--error-style	minimal
+V	--error-style	verbose_clear
+V	--error-style	minimal_clear
+O	--multiline-errors	flag
+A	--multiline-errors	text
+T	--multiline-errors	text
+V	--multiline-errors	indent
+V	--multiline-errors	newline
+V	--multiline-errors	none
+O	--summary	flag
+A	--summary	text
+T	--summary	text
+V	--summary	all
+V	--summary	new
+V	--summary	failures
+V	--summary	line
+V	--summary	none
+O	-j	join
+J	-j	number
+T	-j	number
+O	--maxrss	flag
+A	--maxrss	number
+T	--maxrss	number
+O	--skip-oom-steps	flag
+O	--test-timeout	flag
+A	--test-timeout	number
+T	--test-timeout	number
+O	--watch	flag
+O	--debounce	flag
+A	--debounce	number
+T	--debounce	number
+O	--webui	flag
+O	--webui=	join
+T	--webui	text
+O	--fuzz	flag
+O	--fuzz=	join
+T	--fuzz	number
+O	--time-report	flag
+O	-fincremental	flag
+O	-fno-incremental	flag
+O	--fetch	flag
+O	--fetch=	join
+T	--fetch	text
+V	--fetch	needed
+V	--fetch	all
+O	--fork=	join
+T	--fork	dir
+O	--fork	flag
+A	--fork	dir
+O	-freference-trace	flag
+O	-freference-trace=	join
+T	-freference-trace	number
+O	-fno-reference-trace	flag
+O	-fallow-so-scripts	flag
+O	-fno-allow-so-scripts	flag
+O	--error-limit	flag
+A	--error-limit	number
+T	--error-limit	number
+O	--build-file	flag
+A	--build-file	file
+T	--build-file	file
+O	--cache-dir	flag
+A	--cache-dir	dir
+T	--cache-dir	dir
+O	--global-cache-dir	flag
+A	--global-cache-dir	dir
+T	--global-cache-dir	dir
+O	--zig-lib=	join
+T	--zig-lib	dir
+O	--seed	flag
+A	--seed	number
+T	--seed	number
+O	--cache-poison	flag
+O	--cache-poison=	join
+T	--cache-poison	text
+V	--cache-poison	pure
+V	--cache-poison	poisoned
+V	--cache-poison	disallowed
+V	--cache-poison	ignored
+O	--print-configuration	flag
+O	--print-configuration-path	flag
+O	--build-id	flag
+O	--build-id=	join
+T	--build-id	text
+V	--build-id	fast
+V	--build-id	sha1
+V	--build-id	tree
+V	--build-id	md5
+V	--build-id	uuid
+V	--build-id	none
+O	--debug-log	flag
+A	--debug-log	text
+T	--debug-log	text
+O	--debug-pkg-config	flag
+O	--verbose-link	flag
+O	--verbose-air	flag
+O	--verbose-llvm-ir	flag
+O	--verbose-cimport	flag
+O	--verbose-cc	flag
+O	--verbose-llvm-cpu-features	flag
+D	--search-prefix	Add a path to look for binaries, libraries, headers
+D	--sysroot	Set the system root directory (usually /)
+D	--libc	Provide a file which specifies libc paths
+D	--system	Disable package fetching; enable all integrations
+D	-fsys=	Enable a system integration
+D	-fno-sys=	Disable a system integration
+D	-fdarling	Integration with system-installed Darling to execute macOS programs on Linux hosts (default: no)
+D	-fno-darling	Integration with system-installed Darling to execute macOS programs on Linux hosts (default: no)
+D	-fqemu	Integration with system-installed QEMU to execute foreign-architecture programs on Linux hosts (default: no)
+D	-fno-qemu	Integration with system-installed QEMU to execute foreign-architecture programs on Linux hosts (default: no)
+D	--libc-runtimes	Enhances QEMU integration by providing dynamic libc (e.g. glibc or musl) built for multiple foreign architectures, allowing execution of non-native programs that link with libc.
+D	-frosetta	Rely on Rosetta to execute x86_64 programs on ARM64 macOS hosts. (default: no)
+D	-fno-rosetta	Rely on Rosetta to execute x86_64 programs on ARM64 macOS hosts. (default: no)
+D	-fwasmtime	Integration with system-installed wasmtime to execute WASI binaries. (default: no)
+D	-fno-wasmtime	Integration with system-installed wasmtime to execute WASI binaries. (default: no)
+D	-fwine	Integration with system-installed Wine to execute Windows programs on Linux hosts. (default: no)
+D	-fno-wine	Integration with system-installed Wine to execute Windows programs on Linux hosts. (default: no)
+D	-h	Print this help to stdout and exit
+D	--help	Print this help to stdout and exit
+D	-l	Print available steps to stdout and exit
+D	--list-steps	Print available steps to stdout and exit
+D	-p	Where to install files (default: zig-out)
+D	--prefix	Where to install files (default: zig-out)
+D	--prefix-lib-dir	Where to install libraries
+D	--prefix-exe-dir	Where to install executables
+D	--prefix-include-dir	Where to install C header files
+D	--release	Request release mode, optionally specifying a preferred optimization mode: fast, safe, small
+D	--release=	Request release mode, optionally specifying a preferred optimization mode: fast, safe, small
+D	--verbose	Print commands before executing them
+D	--color	Enable or disable colored error messages
+D	--error-style	Control how build errors are printed
+D	--multiline-errors	Control how multi-line error messages are printed
+D	--summary	Control the printing of the build summary
+D	-j	Limit concurrent jobs (default is to use all CPU cores)
+D	--maxrss	Limit memory usage (default is to use available memory)
+D	--skip-oom-steps	Instead of failing, skip steps that would exceed --maxrss
+D	--test-timeout	Limit execution time of unit tests, terminating if exceeded. The timeout must include a unit: ns, us, ms, s, m, h
+D	--watch	Continuously rebuild when source files are modified
+D	--debounce	Delay before rebuilding after changed file detected
+D	--webui	Enable the web interface on the given IP address
+D	--webui=	Enable the web interface on the given IP address
+D	--fuzz	Continuously search for unit test failures with an optional limit to the max number of iterations. The argument supports an optional 'K', 'M', or 'G' suffix (e.g. '10K'). Implies '--webui' when no limit is specified.
+D	--fuzz=	Continuously search for unit test failures with an optional limit to the max number of iterations. The argument supports an optional 'K', 'M', or 'G' suffix (e.g. '10K'). Implies '--webui' when no limit is specified.
+D	--time-report	Force full rebuild and provide detailed information on compilation time of Zig source code (implies '--webui')
+D	-fincremental	Enable incremental compilation
+D	-fno-incremental	Disable incremental compilation
+D	--fetch	Fetch dependency tree (optionally choose laziness) and exit
+D	--fetch=	Fetch dependency tree (optionally choose laziness) and exit
+D	--fork=	Override one or more projects from dependency tree
+D	--fork	Override one or more projects from dependency tree
+D	-freference-trace	How many lines of reference trace should be shown per compile error
+D	-freference-trace=	How many lines of reference trace should be shown per compile error
+D	-fno-reference-trace	Disable reference trace
+D	-fallow-so-scripts	Allows .so files to be GNU ld scripts
+D	-fno-allow-so-scripts	(default) .so files must be ELF files
+D	--error-limit	Set the maximum amount of distinct error values
+D	--build-file	Override path to build.zig
+D	--cache-dir	Override path to local Zig cache directory
+D	--global-cache-dir	Override path to global Zig cache directory
+D	--zig-lib=	Override path to Zig lib directory
+D	--seed	For shuffling dependency traversal order (default: random)
+D	--cache-poison	Override configuration caching behavior
+D	--cache-poison=	Override configuration caching behavior
+D	--print-configuration	Render configuration as .zon to stdout
+D	--print-configuration-path	Print the path to the binary configuration file to stdout
+D	--build-id	At a minor link-time expense, embeds a build ID in binaries
+D	--build-id=	At a minor link-time expense, embeds a build ID in binaries
+D	--debug-log	Enable debugging the compiler
+D	--debug-pkg-config	Fail if unknown pkg-config flags encountered
+D	--verbose-link	Enable compiler debug output for linking
+D	--verbose-air	Enable compiler debug output for Zig AIR
+D	--verbose-llvm-ir	Enable compiler debug output for LLVM IR
+D	--verbose-cimport	Enable compiler debug output for C imports
+D	--verbose-cc	Enable compiler debug output for C compilation
+D	--verbose-llvm-cpu-features	Enable compiler debug output for LLVM CPU features
+ZIG_BUILD_DATA
+)
+
+# Fallback target components retained from the original completion. These are
+# suggestions, not validation of every possible architecture/OS/ABI combination.
+_zigc_target_seed=$(cat <<'ZIG_TARGET_DATA'
+A	x86	-
+A	x86_64	-
+A	arm	-
+A	thumb	-
+A	aarch64	-
+A	aarch64_be	-
+A	riscv32	-
+A	riscv64	-
+A	powerpc	-
+A	powerpc64	-
+A	powerpc64le	-
+A	mips	-
+A	mipsel	-
+A	mips64	-
+A	mips64el	-
+A	sparc	-
+A	sparc64	-
+A	wasm32	-
+A	wasm64	-
+A	loongarch32	-
+A	loongarch64	-
+O	freestanding	-
+O	linux	-
+O	windows	-
+O	macos	-
+O	ios	-
+O	tvos	-
+O	watchos	-
+O	visionos	-
+O	freebsd	-
+O	netbsd	-
+O	openbsd	-
+O	dragonfly	-
+O	haiku	-
+O	solaris	-
+O	plan9	-
+O	wasi	-
+O	emscripten	-
+O	uefi	-
+O	other	-
+B	none	-
+B	gnu	-
+B	gnuabi64	-
+B	gnueabi	-
+B	gnueabihf	-
+B	gnux32	-
+B	musl	-
+B	musleabi	-
+B	musleabihf	-
+B	msvc	-
+B	itanium	-
+B	android	-
+B	androideabi	-
+B	eabi	-
+B	eabihf	-
+B	macabi	-
+B	simulator	-
+B	code16	-
+B	ohos	-
+ZIG_TARGET_DATA
+)
+
+complete -F _zig_complete zig

@@ -1,0 +1,7 @@
+.{
+    .name = .zwe,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0",
+    .paths = .{""},
+    .fingerprint = 0xfb814e72466bab1c,
+}

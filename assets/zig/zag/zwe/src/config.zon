@@ -1,0 +1,18 @@
+.{
+    .schema_version = 1,
+    .zig_version = "0.17.0",
+    .zwe_version = "0.1.0",
+
+    .defaults = .{
+        .zig_exe = "zig",
+        .lsp_exe = "zls",
+    },
+
+    .workspaces = .{
+        .{
+            .name = "zwe",
+            .path = "~/mkit/zag/zwe",
+            .trusted = true,
+        },
+    },
+}

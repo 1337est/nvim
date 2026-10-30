@@ -1,0 +1,2065 @@
+local Workspace = (function()
+    local M = {}
+    local settings, snapshot = {}, nil
+    local records, paths, buffers, bindings, overrides = {}, {}, {}, {}, {}
+    local generation = 0
+    local function value(v) if v == vim.NIL then return nil end; return v end
+    local function absolute(path)
+        if path == '~' then path = vim.env.HOME or vim.fn.expand('~')
+        elseif path:sub(1, 2) == '~/' then path = (vim.env.HOME or vim.fn.expand('~')) .. path:sub(2) end
+        path = vim.fs.normalize(vim.fn.fnamemodify(path, ':p')):gsub('/+$', '')
+        if path == '' then path = '/' end
+        return vim.uv.fs_realpath(path) or path
+    end
+    local function executable(exe)
+        if exe:sub(1, 2) == '~/' then exe = (vim.env.HOME or vim.fn.expand('~')) .. exe:sub(2) end
+        local path = vim.fn.exepath(exe)
+        return path ~= '' and absolute(path) or exe
+    end
+    local function query(command, path)
+        local argv = { settings.cmd, command }
+        if path then argv[#argv + 1] = path end
+        local request = { text = true }
+        if command == 'resolve' and snapshot then
+            argv[#argv + 1] = '--snapshot'
+            request.stdin = vim.json.encode(snapshot)
+        elseif settings.config then
+            vim.list_extend(argv, { '--config', settings.config })
+        end
+        local result = vim.system(argv, request):wait(5000)
+        if result.code ~= 0 then error(vim.trim(result.stderr or '') ~= '' and result.stderr or ('ZWE ' .. command .. ' failed'), 0) end
+        local decoded = vim.json.decode(result.stdout or '')
+        assert(type(decoded) == 'table', 'Invalid ZWE configuration response')
+        return decoded
+    end
+    local function identify(record)
+        return record.kind == 'file' and record.path or record.root
+    end
+    local function construct(data)
+        assert(type(data.root) == 'string' and type(data.zig_exe) == 'string' and type(data.lsp_exe) == 'string', 'Invalid ZWE workspace response')
+        local id = identify(data)
+        if records[id] then return records[id] end
+        local r = vim.deepcopy(data)
+        r.name, r.entry = value(r.name), value(r.entry)
+        r.zig_exe, r.lsp_exe = executable(r.zig_exe), executable(r.lsp_exe)
+        r.build_options = {}
+        for k, v in pairs(overrides[id] or {}) do r[k] = vim.deepcopy(v) end
+        r.generation = generation
+        r.key = vim.json.encode({ id, r.zig_exe, r.lsp_exe, r.build_options, r.trusted, generation })
+        records[id] = r
+        return r
+    end
+    local function resolve(path)
+        assert(snapshot, 'Call require("zwe").setup() first')
+        path = absolute(path)
+        if not paths[path] then paths[path] = construct(query('resolve', path)) end
+        return paths[path]
+    end
+    local function changed(old)
+        vim.api.nvim_exec_autocmds('User', {
+            pattern = 'ZweWorkspaceChanged', modeline = false,
+            data = { root = old.root, old = old.key, generation = generation },
+        })
+    end
+    function M.get(buf)
+        if buf == nil or buf == 0 then buf = vim.api.nvim_get_current_buf() end
+        if bindings[buf] then
+            local origin = bindings[buf]
+            if not records[origin.id] then records[origin.id] = resolve(origin.path) end
+            return records[origin.id]
+        end
+        if not buffers[buf] then
+            local path = vim.api.nvim_buf_get_name(buf)
+            if path == '' or path:match('^%a[%w+.-]*://') then path = vim.fn.getcwd() end
+            buffers[buf] = resolve(path)
+        end
+        return buffers[buf]
+    end
+    function M.for_root(root) return resolve(root) end
+    function M.peek(buf)
+        buf = (buf == nil or buf == 0) and vim.api.nvim_get_current_buf() or buf
+        return bindings[buf] and records[bindings[buf].id] or buffers[buf]
+    end
+    function M.bind(buf, context)
+        local r = (context.zig_exe and context.lsp_exe) and context or resolve(context.path or context.root)
+        local id = identify(r)
+        bindings[buf] = { id = id, path = r.path or r.root }
+        records[id], buffers[buf] = r, r
+    end
+    function M.list()
+        assert(snapshot, 'Call require("zwe").setup() first')
+        local list = {}
+        for _, data in ipairs(snapshot.workspaces or {}) do list[#list + 1] = construct(data) end
+        return list
+    end
+    function M.named(name)
+        for _, r in ipairs(M.list()) do if r.name == name then return r end end
+        error('Unknown workspace: ' .. name, 0)
+    end
+    function M.configuration() return vim.deepcopy(snapshot) end
+    function M.command() return settings.cmd end
+    function M.config_path() return snapshot and snapshot.config_path end
+    function M.set(target, patch)
+        local old = type(target) == 'table' and target or M.for_root(target)
+        for key, v in pairs(patch) do
+            if key == 'zig_exe' or key == 'lsp_exe' then
+                assert(type(v) == 'string' and v ~= '' and not v:find('%z'), key .. ' must be an executable')
+                patch[key] = executable(v)
+            elseif key == 'trusted' then assert(type(v) == 'boolean', 'trusted must be boolean')
+            elseif key == 'build_options' then
+                assert(type(v) == 'table' and vim.islist(v), 'build_options must be an array')
+                for _, arg in ipairs(v) do assert(type(arg) == 'string' and arg ~= '' and arg:sub(1, 1) ~= '-' and not arg:find('%z'), 'Build options must omit -D') end
+            else error('Unsupported workspace override: ' .. key) end
+        end
+        local id = identify(old)
+        local merged = overrides[id] or {}
+        for key, v in pairs(patch) do merged[key] = vim.deepcopy(v) end
+        overrides[id] = merged
+        generation = generation + 1
+        records[id] = nil
+        local next_record = construct(old)
+        for key, r in pairs(paths) do if r.key == old.key then paths[key] = next_record end end
+        for buf, r in pairs(buffers) do if r.key == old.key then buffers[buf] = next_record end end
+        changed(old)
+        return next_record
+    end
+    function M.reload()
+        -- Validate before replacing the last usable configuration.
+        local next_snapshot = query('config')
+        assert(type(next_snapshot.workspaces) == 'table', 'Invalid ZWE workspace list')
+        local previous = records
+        snapshot, records, paths, buffers, overrides = next_snapshot, {}, {}, {}, {}
+        generation = generation + 1
+        for _, old in pairs(previous) do changed(old) end
+        return snapshot
+    end
+    function M.refresh() return M.reload() end
+    function M.setup(opts)
+        settings = { cmd = opts.cmd, config = opts.config and absolute(opts.config) or nil }
+        M.reload()
+        local group = vim.api.nvim_create_augroup('ZweWorkspace', { clear = true })
+        vim.api.nvim_create_autocmd({ 'BufFilePost', 'BufWipeout' }, { group = group, callback = function(e)
+            buffers[e.buf], bindings[e.buf] = nil, nil
+        end })
+        vim.api.nvim_create_autocmd('DirChanged', { group = group, callback = function() buffers = {} end })
+        vim.api.nvim_create_user_command('ZweWorkspace', function(c)
+            local r = c.args ~= '' and M.named(c.args) or M.get()
+            vim.notify(vim.inspect(r), vim.log.levels.INFO, { title = 'ZWE workspace' })
+        end, { nargs = '?', complete = function(lead)
+            local names = {}; for _, r in ipairs(M.list()) do if r.name:sub(1, #lead) == lead then names[#names + 1] = r.name end end; return names
+        end, desc = 'Show current or named workspace' })
+        vim.api.nvim_create_user_command('ZweConfigReload', function()
+            local ok, result = pcall(M.reload)
+            vim.notify(ok and ('Reloaded ' .. result.config_path) or tostring(result), ok and vim.log.levels.INFO or vim.log.levels.ERROR)
+        end, { desc = 'Validate and reload ZWE config; preserve last valid config on failure' })
+        vim.api.nvim_create_user_command('ZweWorkspaceRefresh', function() M.reload() end, { desc = 'Refresh workspace configuration and services' })
+        vim.api.nvim_create_user_command('ZweToolchain', function(c)
+            assert(#c.fargs <= 2, 'Usage: ZweToolchain ZIG [ZLS]')
+            local zig, lsp = executable(c.fargs[1]), c.fargs[2] and executable(c.fargs[2]) or M.get().lsp_exe
+            assert(vim.fn.executable(zig) == 1 and vim.fn.executable(lsp) == 1, 'Zig and ZLS must be executable')
+            M.set(M.get(), { zig_exe = zig, lsp_exe = lsp })
+        end, { nargs = '+', complete = 'file', desc = 'Select workspace Zig [ZLS] for this session' })
+        vim.api.nvim_create_user_command('ZweBuildOptions', function(c)
+            assert(M.get().kind == 'build', 'Standalone files take literal compiler flags, not -D build options')
+            M.set(M.get(), { build_options = c.fargs })
+        end, { nargs = '*', desc = 'Set session-only -D values; empty clears them' })
+        vim.api.nvim_create_user_command('ZweTrust', function(c)
+            M.set(M.get(), { trusted = not c.bang })
+        end, { bang = true, desc = 'Authorize automatic graph configuration for this session; ! revokes' })
+        return M
+    end
+    return M
+end)()
+
+
+local Jobs = (function()
+local M = {}
+
+local runs = {}
+local contexts = {}
+local serial = 0
+local output_win
+local options = { concurrency = 4, max_output_bytes = 2 * 1024 * 1024, max_history = 20 }
+local pump
+
+local function visible(buf)
+    return buf and vim.api.nvim_buf_is_loaded(buf) and #vim.fn.win_findbuf(buf) > 0
+end
+
+-- Retain a bounded tail without rebuilding the entire log on every output callback.
+local function append_output(holder, channel_name, data, limit)
+    if not data or data == "" then return end
+    local chunks = holder[channel_name]
+    local key = channel_name .. "_bytes"
+    chunks[#chunks + 1] = data
+    holder[key] = (holder[key] or 0) + #data
+    while holder[key] > limit and #chunks > 0 do
+        local excess = holder[key] - limit
+        if #chunks[1] <= excess then holder[key] = holder[key] - #table.remove(chunks, 1)
+        else chunks[1] = chunks[1]:sub(excess + 1); holder[key] = limit end
+        holder.truncated = true
+    end
+end
+
+local function prune_history()
+    local i = 1
+    while #runs > options.max_history and i <= #runs do
+        local state = runs[i]
+        local shown = visible(state.buf)
+        for _, item in ipairs(state.items) do shown = shown or visible(item.buf) end
+        if state.finished and not shown then
+            local function remove(buf)
+                if buf then contexts[buf] = nil; pcall(vim.api.nvim_buf_delete, buf, { force = true }) end
+            end
+            remove(state.buf)
+            for _, item in ipairs(state.items) do remove(item.buf) end
+            table.remove(runs, i)
+        else i = i + 1 end
+    end
+end
+
+local function notify(message, level)
+    vim.notify("Batch: " .. message, level or vim.log.levels.INFO)
+end
+
+local function callback(fn, ...)
+    if not fn then return end
+    local ok, err = pcall(fn, ...)
+    if not ok then notify(tostring(err), vim.log.levels.ERROR) end
+end
+
+local function expand(path)
+    if path == "~" then return vim.env.HOME or vim.fn.expand("~") end
+    if path:sub(1, 2) == "~/" then
+        return (vim.env.HOME or vim.fn.expand("~")) .. path:sub(2)
+    end
+    return path
+end
+
+local function directory(path)
+    local value = vim.fs.normalize(vim.fn.fnamemodify(expand(path), ":p"))
+    return vim.uv.fs_realpath(value) or value
+end
+
+local function one_line(value)
+    return tostring(value):gsub("\r", "\\r"):gsub("\n", "\\n"):gsub("%z", "^@")
+end
+
+local function command_string(argv)
+    return one_line(table.concat(vim.tbl_map(vim.fn.shellescape, argv), " "))
+end
+
+local function elapsed(started, ended)
+    if not started then return "00:00:000000" end
+    local us = math.floor(((ended or vim.uv.hrtime()) - started) / 1000)
+    return string.format("%02d:%02d:%06d", math.floor(us / 60000000), math.floor(us / 1000000) % 60, us % 1000000)
+end
+
+local function clean(value)
+    return value:gsub("\27%[[0-?]*[ -/]*[@-~]", ""):gsub("\r", ""):gsub("%z", "^@")
+end
+
+local function channel(lines, label, chunks)
+    local content = clean(table.concat(chunks))
+    local parts = vim.split(content, "\n", { plain = true })
+    if #parts > 1 and parts[#parts] == "" then table.remove(parts) end
+    lines[#lines + 1] = label .. ":" .. (content ~= "" and (" " .. parts[1]) or "")
+    for i = 2, #parts do lines[#lines + 1] = parts[i] end
+end
+
+local function counts(state)
+    local result = { ready = 0, running = 0, succeeded = 0, failed = 0, skipped = 0, stopped = 0 }
+    for _, item in ipairs(state.items) do result[item.status] = result[item.status] + 1 end
+    return result
+end
+
+local function put_lines(buf, lines)
+    if not buf or not vim.api.nvim_buf_is_loaded(buf) then return end
+    vim.bo[buf].modifiable = true
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].modified = false
+end
+
+local function reusable(buf)
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then return false end
+    if not vim.api.nvim_buf_is_loaded(buf) then vim.fn.bufload(buf) end
+    return true
+end
+
+local function hide_window(win)
+    local ok = pcall(vim.api.nvim_win_hide, win)
+    if not ok and vim.api.nvim_win_is_valid(win) then
+        vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, false))
+    end
+end
+
+local function hide(buf)
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_get_buf(win) == buf then
+            hide_window(win)
+        end
+    end
+end
+
+local function scratch(name, context)
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(buf, name)
+    vim.bo[buf].bufhidden = "hide"
+    vim.bo[buf].filetype = "batchoutput"
+    vim.bo[buf].swapfile = false
+    contexts[buf] = context
+    vim.keymap.set("n", "q", function() hide(buf) end, { buffer = buf, silent = true, desc = "Batch: hide output" })
+    return buf
+end
+
+local function show(buf, toggle)
+    local win = vim.fn.bufwinid(buf)
+    if win ~= -1 then
+        if toggle and win == vim.api.nvim_get_current_win() then
+            hide_window(win)
+        else
+            vim.api.nvim_set_current_win(win)
+        end
+    else
+        local reuse = output_win and vim.api.nvim_win_is_valid(output_win)
+            and vim.api.nvim_win_get_tabpage(output_win) == vim.api.nvim_get_current_tabpage()
+        local previous = reuse and vim.api.nvim_win_get_buf(output_win)
+        if reuse and (contexts[previous]) then
+            vim.api.nvim_set_current_win(output_win)
+        else
+            vim.cmd("botright 12split")
+        end
+        vim.api.nvim_win_set_buf(0, buf)
+    end
+    local visible = vim.fn.bufwinid(buf)
+    if visible ~= -1 then output_win = visible end
+end
+
+function M.context()
+    return contexts[vim.api.nvim_get_current_buf()]
+end
+
+function M.latest(predicate)
+    for i = #runs, 1, -1 do
+        local state = runs[i]
+        if not state.hidden and (not predicate or predicate(state)) then return state end
+    end
+end
+
+local function render_output(state, item, force)
+    if not item.buf or not vim.api.nvim_buf_is_loaded(item.buf) then return end
+    if not force and (not item.dirty or not visible(item.buf)) then return end
+    item.dirty = false
+    local lines = { "cwd: " .. one_line(item.dir) }
+    if item.truncated then lines[#lines + 1] = "[output tail truncated at configured limit]" end
+    if item.log_paths then lines[#lines + 1] = "Full logs: " .. one_line(item.log_paths.stdout) .. " / " .. one_line(item.log_paths.stderr) end
+    if #item.steps > 1 then lines[#lines + 1] = "batch: " .. state.title end
+    for i, step in ipairs(item.steps) do
+        if i > 1 then lines[#lines + 1] = "" end
+        local label = #item.steps == 1 and "cmd" or ("cmd" .. i)
+        lines[#lines + 1] = label .. ": " .. step.command.text
+        channel(lines, "out", step.stdout)
+        channel(lines, "err", step.stderr)
+        if step.status == "running" then
+            lines[#lines + 1] = "[running] [" .. elapsed(step.started_at) .. "]"
+        elseif step.result then
+            lines[#lines + 1] = string.format("[exit %d, signal %d] [%s]", step.result.code, step.result.signal,
+                elapsed(step.started_at, step.ended_at))
+        else
+            lines[#lines + 1] = "[" .. step.status .. "]"
+        end
+        if step.reason then lines[#lines + 1] = one_line(step.reason) end
+    end
+    if item.reason then lines[#lines + 1] = one_line(item.reason) end
+    if #item.steps > 1 then
+        lines[#lines + 1] = "sequence: [" .. item.status .. "] [" .. elapsed(item.started_at, item.ended_at) .. "]"
+    end
+    put_lines(item.buf, lines)
+end
+
+local function render_summary(state)
+    if not state.buf or not vim.api.nvim_buf_is_loaded(state.buf) then return end
+    local n = counts(state)
+    local lines = { "Batch: " .. state.title .. " [" .. state.phase .. "]" }
+    if state.phase == "preview" then lines[#lines + 1] = "cwd: " .. one_line(state.cwd) end
+    for i, command in ipairs(state.per_workspace and {} or state.commands) do
+        local label = #state.commands == 1 and "cmd" or ("cmd" .. i)
+        lines[#lines + 1] = label .. ": " .. command.text
+    end
+    lines[#lines + 1] = string.format("%d ready; %d running; %d succeeded; %d failed; %d skipped; %d stopped",
+        n.ready, n.running, n.succeeded, n.failed, n.skipped, n.stopped)
+    lines[#lines + 1] = "Enter on a started directory opens its output. :ZigStop interrupts running jobs."
+    lines[#lines + 1] = ""
+    state.rows = {}
+    for _, item in ipairs(state.items) do
+        local function row(text)
+            lines[#lines + 1] = text
+            state.rows[#lines] = item
+        end
+        row("[" .. item.status .. "] " .. (item.name and (one_line(item.name) .. " | ") or "") .. one_line(item.dir))
+        if state.per_workspace then
+            for j, step in ipairs(item.steps) do row("    cmd" .. j .. ": " .. step.command.text) end
+        end
+        if item.reason then row("    " .. one_line(item.reason)) end
+        if item.status == "running" then
+            row("    " .. elapsed(item.started_at))
+            if #item.steps > 1 then row(string.format("    command %d/%d", item.index, #item.steps)) end
+        elseif item.result then
+            row(string.format("    exit %d, signal %d, %s", item.result.code, item.result.signal,
+                elapsed(item.started_at, item.ended_at)))
+        elseif state.phase ~= "preview" then
+            row("    not executed, " .. elapsed(item.started_at, item.ended_at))
+        end
+    end
+    put_lines(state.buf, lines)
+end
+
+local function output_buffer(state, item)
+    if not reusable(item.buf) then
+        item.buf = scratch("batch://output/" .. state.id .. "/" .. item.id, { state = state, item = item })
+    end
+    render_output(state, item, true)
+    return item.buf
+end
+
+local function summary_buffer(state)
+    if not reusable(state.buf) then
+        state.buf = scratch("batch://summary/" .. state.id, { state = state })
+        vim.keymap.set("n", "<CR>", function()
+            local item = state.rows[vim.api.nvim_win_get_cursor(0)[1]]
+            if item and item.started_at then
+                M.open_job(state, item.id)
+            elseif item then
+                notify("No output for this directory")
+            end
+        end, { buffer = state.buf, silent = true, desc = "Batch: open directory output" })
+    end
+    render_summary(state)
+    return state.buf
+end
+
+function M.open_summary(state, toggle)
+    state = state or M.latest()
+    if not state then return notify("No batch output yet") end
+    show(summary_buffer(state), toggle)
+end
+
+function M.open_job(state, dir, toggle)
+    state = state or M.latest()
+    if not state then return notify("No batch output yet") end
+    local id = type(dir) == "number" and dir or nil
+    if not id then dir = directory(dir) end
+    for _, item in ipairs(state.items) do
+        if (id and item.id == id) or (not id and item.dir == dir) then
+            if not item.started_at then return notify("No output for this directory") end
+            show(output_buffer(state, item), toggle)
+            callback(state.on_open, item, state)
+            return
+        end
+    end
+    notify("Directory is not in this batch: " .. dir, vim.log.levels.WARN)
+end
+
+function M.open(state, toggle)
+    state = state or M.latest()
+    if not state then return notify("No batch output yet") end
+    local context = M.context()
+    if context and context.state == state and context.item then
+        return M.open_job(state, context.item.id, toggle)
+    end
+    if not state.summary_only and #state.items == 1 and state.items[1].started_at then
+        return M.open_job(state, state.items[1].id, toggle)
+    end
+    M.open_summary(state, toggle)
+end
+
+function M.toggle(state)
+    M.open(state, true)
+end
+
+local function finish(state)
+    if state.finished or state.launching then return end
+    local n = counts(state)
+    if n.ready > 0 or n.running > 0 then return end
+    state.finished, state.running = true, false
+    state.phase = (state.cancelled or n.stopped > 0) and "stopped" or "complete"
+    if state.timer then
+        vim.fn.timer_stop(state.timer)
+        state.timer = nil
+    end
+    render_summary(state)
+    callback(state.on_complete, state)
+    prune_history()
+end
+
+local function remaining(item, status, reason)
+    for _, step in ipairs(item.steps) do
+        if step.status == "pending" then step.status, step.reason = status, reason end
+    end
+end
+
+local function complete_item(state, item, status, reason)
+    if item.done then return end
+    item.done, item.status, item.reason = true, status, reason
+    item.dirty = true
+    for _, fd in pairs(item.log_fds or {}) do pcall(vim.uv.fs_close, fd) end
+    item.log_fds = nil
+    item.ended_at = vim.uv.hrtime()
+    item.active, item.job = nil, nil
+    if status ~= "succeeded" then remaining(item, status == "stopped" and "stopped" or "skipped", reason) end
+    render_output(state, item)
+    render_summary(state)
+    callback(state.on_job_exit, item, item.result, state)
+    vim.schedule(function() if state.running then pump(state) end end)
+    finish(state)
+end
+
+local function start_step(state, item)
+    if item.done then return end
+    if state.cancelled or item.stop_requested then
+        return complete_item(state, item, "stopped", "Remaining commands were not started")
+    end
+    item.index = item.index + 1
+    local step = item.steps[item.index]
+    if not step then return complete_item(state, item, "succeeded") end
+
+    item.status, step.status = "running", "running"
+    item.dirty = true
+    step.started_at = vim.uv.hrtime()
+    item.started_at = item.started_at or step.started_at
+    item.active = step
+    if state.log_dir and not item.log_paths then
+        local directory_path = state.log_dir .. "/" .. state.id .. "-" .. item.id .. "-" .. tostring(vim.uv.hrtime())
+        vim.fn.mkdir(directory_path, "p", 448)
+        item.log_paths, item.log_fds = {}, {}
+        for _, name in ipairs({ "stdout", "stderr" }) do
+            local path = directory_path .. "/" .. name .. ".log"
+            local fd, err = vim.uv.fs_open(path, "w", 384)
+            if fd then item.log_paths[name], item.log_fds[name] = path, fd
+            else item.log_paths[name] = "(unavailable)"; notify(tostring(err), vim.log.levels.WARN) end
+        end
+    end
+    local function add(channel_name, data)
+        append_output(step, channel_name, data, state.max_output_bytes)
+        append_output(item, channel_name, data, state.max_output_bytes)
+        local fd = item.log_fds and item.log_fds[channel_name]
+        if fd and data then
+            local written, err = vim.uv.fs_write(fd, data, -1)
+            if not written or written ~= #data then
+                vim.uv.fs_close(fd); item.log_fds[channel_name] = nil
+                vim.schedule(function() notify("Log write failed: " .. tostring(err or "short write"), vim.log.levels.WARN) end)
+            end
+        end
+        item.dirty = true
+    end
+    local function stream(channel_name)
+        return function(err, data)
+            if err then add("stderr", tostring(err) .. "\n") end
+            if data and data ~= "" then add(channel_name, data) end
+        end
+    end
+
+    local ok, job = pcall(vim.system, step.command.argv, {
+        cwd = item.dir,
+        text = true,
+        env = { NO_COLOR = "1", CLICOLOR_FORCE = "0" },
+        stdout = stream("stdout"),
+        stderr = stream("stderr"),
+    }, function(result)
+        local ended_at = vim.uv.hrtime()
+        vim.schedule(function()
+            if step.completed then return end
+            step.completed = true
+            item.dirty = true
+            step.result, step.ended_at, step.job = result, ended_at, nil
+            item.result, item.job, item.active = result, nil, nil
+            local success = result.code == 0 and result.signal == 0
+            step.status = item.stop_requested and "stopped" or (success and "succeeded" or "failed")
+            callback(state.on_step_exit, item, step, result, state)
+            render_output(state, item)
+            if item.stop_requested or state.cancelled then
+                complete_item(state, item, "stopped", "Remaining commands were not started")
+            elseif not success then
+                complete_item(state, item, "failed", "Command " .. item.index .. " failed; later commands were not started")
+            elseif item.index == #item.steps then
+                complete_item(state, item, "succeeded")
+            else
+                -- Yield between commands so cancellation can prevent the next launch.
+                vim.schedule(function() start_step(state, item) end)
+            end
+        end)
+    end)
+    if ok then
+        step.job, item.job = job, job
+    else
+        step.completed, step.status, step.ended_at = true, "failed", vim.uv.hrtime()
+        step.reason = "Could not start: " .. tostring(job)
+        item.result = nil
+        callback(state.on_step_exit, item, step, nil, state)
+        complete_item(state, item, "failed", step.reason)
+    end
+end
+
+pump = function(state)
+    if state.cancelled or state.finished or state.pumping then return end
+    state.pumping, state.launching = true, true
+    local n = counts(state).running
+    for _, item in ipairs(state.items) do
+        if n >= state.concurrency then break end
+        if item.status == "ready" then
+            start_step(state, item)
+            if item.status == "running" then n = n + 1 end
+        end
+    end
+    state.pumping, state.launching = false, false
+    finish(state)
+end
+
+function M.stop(state, dir)
+    state = state or M.latest()
+    if not state or not state.running then return end
+    local id = type(dir) == "number" and dir or nil
+    local target = dir and not id and directory(dir) or nil
+    if not target and not id then state.cancelled, state.phase = true, "stopping" end
+    for _, item in ipairs(state.items) do
+        if (item.status == "ready" or item.status == "running") and ((id and item.id == id) or (not id and (not target or item.dir == target))) then
+            item.stop_requested = true
+            remaining(item, "stopped", "Not started after stop request")
+            if item.job then
+                local ok, err = pcall(item.job.kill, item.job, 2)
+                if not ok then notify("Could not interrupt: " .. tostring(err), vim.log.levels.WARN) end
+            elseif not item.active then
+                complete_item(state, item, "stopped", "Not started after stop request")
+            end
+        end
+    end
+    render_summary(state)
+    finish(state)
+end
+
+function M.active(predicate)
+    local result = {}
+    for _, state in ipairs(runs) do
+        if state.running then
+            for _, item in ipairs(state.items) do
+                if item.status == "running" or item.status == "ready" then
+                    local entry = { state = state, item = item, step = item.active or item.steps[math.max(1, item.index)] }
+                    if not predicate or predicate(entry) then result[#result + 1] = entry end
+                end
+            end
+        end
+    end
+    return result
+end
+
+function M.select_stop(predicate, label)
+    label = label or "Batch"
+    local entries = M.active(predicate)
+    local function interrupt(entry)
+        local current = entry.item.active or entry.item.steps[math.max(1, entry.item.index)]
+        if (entry.item.status == "running" or entry.item.status == "ready") and current == entry.step then M.stop(entry.state, entry.item.id) end
+    end
+    if #entries == 0 then return vim.notify(label .. ": no running jobs", vim.log.levels.INFO) end
+    if #entries == 1 then return interrupt(entries[1]) end
+    local choices = { { all = true } }
+    vim.list_extend(choices, entries)
+    vim.ui.select(choices, {
+        prompt = label .. ": interrupt which job?",
+        format_item = function(entry)
+            if entry.all then return "All matching jobs (" .. #entries .. ")" end
+            return string.format("#%d %s | %s | %s", entry.state.id, entry.state.title,
+                one_line(entry.item.dir), entry.step.command.text)
+        end,
+    }, function(choice)
+        if not choice then return end
+        if choice.all then
+            for _, entry in ipairs(entries) do interrupt(entry) end
+        else
+            interrupt(choice)
+        end
+    end)
+end
+
+local function array(value, name)
+    assert(type(value) == "table" and vim.islist(value), name .. " must be an array")
+end
+
+local function specification(spec)
+    assert(type(spec) == "table", "Batch specification must be a table")
+    assert(spec.commands == nil or (spec.exe == nil and spec.args == nil), "Use commands OR exe/args, not both")
+    local input = spec.commands or (spec.jobs and spec.jobs[1] and spec.jobs[1].commands) or { { exe = spec.exe, args = spec.args } }
+    array(input, "commands")
+    assert(#input > 0, "commands must contain at least one command")
+    local commands = {}
+    for _, command in ipairs(input) do
+        assert(type(command) == "table", "Each command must contain exe and optional args")
+        assert(type(command.exe) == "string" and command.exe ~= "" and not command.exe:find("%z"), "exe must be a nonempty string")
+        local args = command.args or {}
+        array(args, "args")
+        local argv = { expand(command.exe) }
+        for _, arg in ipairs(args) do
+            assert(type(arg) == "string" and not arg:find("%z"), "args must contain strings without NUL bytes")
+            argv[#argv + 1] = arg
+        end
+        commands[#commands + 1] = { exe = argv[1], argv = argv, text = command_string(argv) }
+    end
+    if spec.jobs ~= nil then
+        array(spec.jobs, "jobs")
+        assert(#spec.jobs > 0, "No workspaces selected")
+        for _, job in ipairs(spec.jobs) do
+            assert(type(job) == "table" and type(job.dir) == "string", "Invalid workspace job")
+        end
+    end
+    if spec.dirs ~= nil then array(spec.dirs, "dirs") end
+    for _, dir in ipairs(spec.dirs or {}) do
+        assert(type(dir) == "string" and dir ~= "" and not dir:find("%z"), "dirs must contain nonempty paths")
+    end
+    for _, key in ipairs({ "on_step_exit", "on_job_exit", "on_complete", "on_open" }) do
+        assert(spec[key] == nil or type(spec[key]) == "function", key .. " must be a function")
+    end
+    for _, field in ipairs({ "concurrency", "max_output_bytes" }) do
+        assert(spec[field] == nil or (type(spec[field]) == "number" and spec[field] >= 1 and spec[field] % 1 == 0), field .. " must be a positive integer")
+    end
+    return spec, commands
+end
+
+local function prepare(spec, preview)
+    local commands
+    spec, commands = specification(spec)
+    serial = serial + 1
+    local state = {
+        id = serial,
+        name = spec.name,
+        title = one_line(spec.name or spec.title or commands[1].exe),
+        cwd = directory(vim.fn.getcwd()),
+        commands = commands,
+        owner = spec.owner,
+        per_workspace = spec.jobs ~= nil,
+        concurrency = spec.concurrency or options.concurrency,
+        max_output_bytes = spec.max_output_bytes or options.max_output_bytes,
+        log_dir = spec.log_dir and directory(spec.log_dir) or options.log_dir,
+        phase = preview and "preview" or "running",
+        running = not preview,
+        finished = preview,
+        hidden = spec.show == false,
+        summary_only = spec.summary_only == true,
+        items = {},
+        rows = {},
+        on_step_exit = spec.on_step_exit,
+        on_job_exit = spec.on_job_exit,
+        on_complete = spec.on_complete,
+        on_open = spec.on_open,
+    }
+    local seen = {}
+    local entries = spec.jobs
+    if not entries then
+        entries = {}
+        for _, dir in ipairs(spec.dirs or { state.cwd }) do entries[#entries + 1] = { dir = dir } end
+    end
+    for _, entry in ipairs(entries) do
+        local dir = directory(entry.dir)
+        local identity = entry.name or dir
+        if not seen[identity] then
+            seen[identity] = true
+            local item = { id = #state.items + 1, name = entry.name, dir = dir, status = "ready", index = 0, steps = {}, stdout = {}, stderr = {} }
+            local selected_commands = commands
+            if entry.commands then
+                local ignored
+                ignored, selected_commands = specification({ commands = entry.commands })
+            end
+            for _, command in ipairs(selected_commands) do
+                item.steps[#item.steps + 1] = { command = command, status = "pending", stdout = {}, stderr = {} }
+            end
+            local stat = vim.uv.fs_stat(dir)
+            if entry.reason or not stat or stat.type ~= "directory" then
+                item.status, item.reason, item.done = "skipped", entry.reason or "Directory is unavailable", true
+                remaining(item, "skipped", item.reason)
+            end
+            state.items[#state.items + 1] = item
+        end
+    end
+    table.sort(state.items, function(a, b)
+        if (a.status == "skipped") ~= (b.status == "skipped") then return b.status == "skipped" end
+        return a.id < b.id
+    end)
+    runs[#runs + 1] = state
+    prune_history()
+    return state
+end
+
+local function start(state, preview)
+    local win = vim.api.nvim_get_current_win()
+    if preview then
+        if not state.hidden then M.open_summary(state) end
+    else
+        pump(state)
+        if not state.finished then
+            state.timer = vim.fn.timer_start(200, function()
+                for _, item in ipairs(state.items) do render_output(state, item) end
+                -- Only the small visible summary updates elapsed time, not the complete logs.
+                if visible(state.buf) then render_summary(state) end
+            end, { ["repeat"] = -1 })
+        end
+        if not state.hidden then M.open(state) end
+    end
+    if vim.api.nvim_win_is_valid(win) then vim.api.nvim_set_current_win(win) end
+    return state
+end
+
+function M.preview(spec)
+    return start(prepare(spec, true), true)
+end
+
+function M.run(spec)
+    return start(prepare(spec, false), false)
+end
+
+function M.setup(opts)
+    opts = opts or {}
+    for _, key in ipairs({ "concurrency", "max_output_bytes", "max_history" }) do
+        if opts[key] ~= nil then
+            assert(type(opts[key]) == "number" and opts[key] >= 1 and opts[key] % 1 == 0, key .. " must be a positive integer")
+            options[key] = opts[key]
+        end
+    end
+    options.log_dir = opts.log_dir and directory(opts.log_dir) or nil
+    local group = vim.api.nvim_create_augroup("1337.batch", { clear = true })
+    vim.api.nvim_create_autocmd("BufEnter", { group = group, callback = function(e)
+        local context = contexts[e.buf]
+        if context and context.item then render_output(context.state, context.item, true) end
+    end })
+    vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = function()
+        for _, state in ipairs(runs) do
+            state.cancelled = true
+            if state.timer then vim.fn.timer_stop(state.timer); state.timer = nil end
+            for _, item in ipairs(state.items) do
+                if item.job then pcall(item.job.kill, item.job, 15) end
+                for _, fd in pairs(item.log_fds or {}) do pcall(vim.uv.fs_close, fd) end
+                item.log_fds = nil
+            end
+        end
+    end })
+end
+
+return M
+end)()
+
+
+local Client = (function()
+local M = {}
+local uv, api = vim.uv, vim.api
+local defaults = {
+  cmd = 'zwe', zig = 'zig', build_options = {}, build_graph = true,
+  connect_timeout_ms = 5000, request_timeout_ms = 5000,
+  graph_timeout_ms = 150000,
+  diagnostic_delay_ms = 150, diagnostics = { virtual_text = false },
+  mappings = { definition = 'gd', completion = '<C-Space>' },
+  overwrite_mappings = false, definition_fallback = false,
+}
+local opts, projects, documents = {}, {}, {}
+local namespace = api.nvim_create_namespace('zwe')
+local configured, exiting = false, false
+local start_project, stop_project, fail_project, snapshot, queue_diagnostics
+
+local function notify(message, level)
+  if exiting then return end
+  vim.schedule(function()
+    if not exiting then vim.notify(message, level or vim.log.levels.INFO, { title = 'ZWE' }) end
+  end)
+end
+
+local function u32(n)
+  assert(n >= 0 and n <= MAX_U32 and n == math.floor(n), 'integer outside u32')
+  return string.char(n % 256, math.floor(n / 256) % 256,
+    math.floor(n / 65536) % 256, math.floor(n / 16777216) % 256)
+end
+
+local function u16(n)
+  return string.char(n % 256, math.floor(n / 256) % 256)
+end
+
+local function read32(s, at)
+  local a, b, c, d = s:byte(at, at + 3)
+  if not d then error('truncated u32') end
+  return a + b * 256 + c * 65536 + d * 16777216
+end
+
+local Reader = {}
+Reader.__index = Reader
+function Reader:u32()
+  local value = read32(self.body, self.at)
+  self.at = self.at + 4
+  return value
+end
+function Reader:bytes(n)
+  if n > #self.body - self.at + 1 then error('truncated response payload') end
+  local value = self.body:sub(self.at, self.at + n - 1)
+  self.at = self.at + n
+  return value
+end
+function Reader:rest() return self:bytes(#self.body - self.at + 1) end
+function Reader:count(minimum)
+  local n = self:u32()
+  if n > math.floor((#self.body - self.at + 1) / minimum) then error('invalid item count') end
+  return n
+end
+
+local function close_handle(handle)
+  if handle and not handle:is_closing() then
+    if handle.stop then pcall(handle.stop, handle) end
+    handle:close()
+  end
+end
+
+local function live(d)
+  return documents[d.buf] == d and api.nvim_buf_is_valid(d.buf) and api.nvim_buf_is_loaded(d.buf)
+end
+
+local function capable(p, flag)
+  return math.floor((p.capabilities or 0) / flag) % 2 == 1
+end
+
+local function root_for(buf)
+  local root = opts.root
+  if type(root) == 'function' then root = root(buf) end
+  if not root then root = vim.fs.root(buf, { 'build.zig', 'build.zig.zon', '.git' }) end
+  root = vim.fs.normalize(vim.fn.fnamemodify(root or uv.cwd(), ':p'))
+  return uv.fs_realpath(root) or root
+end
+
+local function context_for(buf)
+  local context = opts.workspace and opts.workspace(buf) or {}
+  assert(type(context) == 'table', 'workspace callback must return a table')
+  local root = context.root or root_for(buf)
+  local zig = context.zig_exe or opts.zig
+  local options = vim.deepcopy(context.build_options or opts.build_options)
+  local trusted = context.trusted
+  if trusted == nil then trusted = not opts.workspace end
+  return { root = root, zig = zig, build_options = options, trusted = trusted,
+    key = context.key or vim.json.encode({root, zig, options, trusted}),
+    generation = context.generation or 1, kind = context.kind or 'build', path = context.path }
+end
+local function state_value(p)
+  return { root = p.root, key = p.key, state = p.state, ready = p.ready,
+    failure = p.failure, zig_exe = p.context.zig, generation = p.context.generation,
+    graph_state = p.graph_state or 'idle', graph_status = p.graph_status, graph_generation = p.graph_generation }
+end
+local function publish(p)
+  if exiting then return end
+  api.nvim_exec_autocmds('User', { pattern = '1337ZweUpdated', modeline = false, data = state_value(p) })
+end
+function M.state(buf)
+  if buf == nil or buf == 0 then buf = api.nvim_get_current_buf() end
+  local d = documents[buf]
+  return d and state_value(d.project) or nil
+end
+
+local function path_for(buf, root)
+  local path = api.nvim_buf_get_name(buf)
+  if path == '' then return root .. '/__zwe_unsaved_' .. buf .. '.zig' end
+  return vim.fs.normalize(vim.fn.fnamemodify(path, ':p'))
+end
+
+local function source(buf)
+  return table.concat(api.nvim_buf_get_lines(buf, 0, -1, true), '\n') .. '\n'
+end
+
+local function send(p, opcode, id, docid, body)
+  if not p.pipe or p.pipe:is_closing() then return false end
+  if #body > MAX_BODY then
+    notify(('Message exceeds the %d-byte protocol limit.'):format(MAX_BODY), vim.log.levels.ERROR)
+    return false
+  end
+  if uv.stream_get_write_queue_size(p.pipe) > MAX_BODY * 2 then
+    vim.schedule(function() fail_project(p, ('Outgoing queue exceeded %d bytes; use :ZweRestart to resynchronize.'):format(MAX_BODY * 2)) end)
+    return false
+  end
+  local header = u32(#body) .. u32(id) .. u32(docid) .. u16(opcode) .. u16(0)
+  local generation = p.generation
+  local ok, result, err = pcall(p.pipe.write, p.pipe, { header, body }, function(write_error)
+    if write_error then
+      vim.schedule(function()
+        if p.generation == generation then fail_project(p, 'Socket write: ' .. write_error) end
+      end)
+    end
+  end)
+  if not ok or not result then
+    vim.schedule(function()
+      if p.generation == generation then fail_project(p, 'Socket write: ' .. tostring(err or result)) end
+    end)
+    return false
+  end
+  return true
+end
+
+local function request(p, opcode, d, body, callback, timeout)
+  if not p.pipe or (opcode ~= OP.hello and not p.ready) then return nil end
+  repeat p.next_id = p.next_id % MAX_U32 + 1 until not p.pending[p.next_id]
+  local id = p.next_id
+  local item = { opcode = opcode, docid = d and d.buf or 0,
+    document = d, revision = d and d.revision, callback = callback }
+  p.pending[id] = item
+  if not send(p, opcode, id, item.docid, body) then p.pending[id] = nil; return nil end
+  vim.defer_fn(function()
+    if p.pending[id] ~= item then return end
+    p.pending[id] = nil
+    if opcode == OP.hello then
+      fail_project(p, 'Protocol handshake timed out.')
+    elseif opcode == OP.refresh_graph or opcode == OP.graph_state then
+      p.graph_configuring = false
+      p.graph_status = 'Build graph request timed out.'
+      p.graph_state = 'failed'; publish(p)
+      notify(p.graph_status .. '\n' .. p.root, vim.log.levels.WARN)
+    elseif opcode ~= OP.diagnostics and (not d or (live(d) and d.revision == item.revision)) then
+      notify('Request timed out; ' .. p.root, vim.log.levels.WARN)
+    end
+  end, timeout or opts.request_timeout_ms)
+  return id
+end
+
+local function next_revision(d)
+  d.revision = d.revision % MAX_U32 + 1
+end
+
+snapshot = function(d, bump)
+  if not live(d) or d.blocked then return false end
+  if bump then next_revision(d) end
+  d.length = api.nvim_buf_get_offset(d.buf, api.nvim_buf_line_count(d.buf))
+  d.path = path_for(d.buf, d.project.root)
+  if d.length > MAX_SOURCE or d.length + #d.path + 8 > MAX_BODY then
+    d.too_large = true
+    if d.sent_revision and d.project.ready then send(d.project, OP.close, 0, d.buf, '') end
+    d.sent_revision = nil
+    close_handle(d.diagnostic_timer); d.diagnostic_timer = nil
+    if not d.warned_large then
+      d.warned_large = true
+      notify(('Buffer exceeds ZWE\'s %d-byte source limit: %s'):format(MAX_SOURCE, d.path), vim.log.levels.WARN)
+    end
+    return false
+  end
+  d.too_large = false
+  if not d.project.ready then return false end
+  local text = source(d.buf)
+  d.length = #text
+  local sent = send(d.project, OP.open, 0, d.buf, u32(d.revision) .. u32(#d.path) .. d.path .. text)
+  if sent then d.sent_revision = d.revision; queue_diagnostics(d) end
+  return sent
+end
+
+local function positions(buf)
+  local count = api.nvim_buf_line_count(buf)
+  local total = api.nvim_buf_get_offset(buf, count)
+  return function(offset)
+    if offset < 0 or offset > total then error('destination offset outside buffer') end
+    local lo, hi = 0, count - 1
+    while lo < hi do
+      local mid = math.floor((lo + hi + 1) / 2)
+      if api.nvim_buf_get_offset(buf, mid) <= offset then lo = mid else hi = mid - 1 end
+    end
+    local line = api.nvim_buf_get_lines(buf, lo, lo + 1, true)[1]
+    return lo, math.min(offset - api.nvim_buf_get_offset(buf, lo), #line)
+  end
+end
+
+local function current_offset(buf)
+  local cursor = api.nvim_win_get_cursor(0)
+  return api.nvim_buf_get_offset(buf, cursor[1] - 1) + cursor[2], cursor
+end
+
+local function origin_for(d)
+  local offset, cursor = current_offset(d.buf)
+  return { window = api.nvim_get_current_win(), buffer = d.buf,
+    cursor = cursor, offset = offset, revision = d.revision }
+end
+
+local function origin_current(origin)
+  if api.nvim_get_current_win() ~= origin.window or api.nvim_get_current_buf() ~= origin.buffer then return false end
+  local cursor = api.nvim_win_get_cursor(0)
+  return cursor[1] == origin.cursor[1] and cursor[2] == origin.cursor[2]
+end
+
+local function jump(buf, offset)
+  local row, col = positions(buf)(offset)
+  vim.cmd("normal! m'")
+  api.nvim_set_current_buf(buf)
+  api.nvim_win_set_cursor(0, { row + 1, col })
+  vim.cmd('normal! zv')
+end
+
+local function query_result(reader, status, d, quiet)
+  local revision = reader:u32()
+  if revision ~= d.revision then return false end
+  if status ~= STATUS.ok then
+    local message = reader:rest()
+    if status == STATUS.stale_revision then snapshot(d, false)
+    elseif not quiet then notify(message ~= '' and message or 'No result.', vim.log.levels.INFO) end
+    return false
+  end
+  return true
+end
+
+queue_diagnostics = function(d)
+  if opts.diagnostics == false or not live(d) or d.blocked then return end
+  close_handle(d.diagnostic_timer)
+  d.diagnostic_timer = nil
+  if not d.project.ready or not capable(d.project, CAP.diagnostics) or d.too_large then return end
+  local timer = uv.new_timer()
+  d.diagnostic_timer = timer
+  timer:start(opts.diagnostic_delay_ms, 0, vim.schedule_wrap(function()
+    if d.diagnostic_timer ~= timer then return end
+    close_handle(timer); d.diagnostic_timer = nil
+    if not live(d) or not d.project.ready or d.sent_revision ~= d.revision then return end
+    request(d.project, OP.diagnostics, d, u32(d.revision), function(r, status)
+      if not query_result(r, status, d, true) then return end
+      local count, result, position = r:count(16), {}, positions(d.buf)
+      for _ = 1, count do
+        local first, last, severity, size = r:u32(), r:u32(), r:u32(), r:u32()
+        local message = r:bytes(size)
+        if last < first then error('reversed diagnostic range') end
+        local row, col = position(first)
+        local end_row, end_col = position(last)
+        result[#result + 1] = { lnum = row, col = col, end_lnum = end_row, end_col = end_col,
+          severity = severity >= 1 and severity <= 4 and severity or 1,
+          message = message, source = 'zwe' }
+      end
+      vim.diagnostic.set(namespace, d.buf, result)
+    end, d.project.graph_configuring and math.max(opts.request_timeout_ms, opts.graph_timeout_ms)
+      or opts.request_timeout_ms)
+  end))
+end
+
+local function remove_maps(d)
+  if not api.nvim_buf_is_valid(d.buf) then return end
+  for _, map in ipairs(d.maps or {}) do
+    api.nvim_buf_call(d.buf, function()
+      local existing = vim.fn.maparg(map.lhs, map.mode, false, true)
+      if existing.desc == map.desc and existing.buffer == 1 then
+        pcall(vim.keymap.del, map.mode, map.lhs, { buffer = d.buf })
+      end
+    end)
+  end
+end
+
+local function detach(d)
+  if documents[d.buf] ~= d then return end
+  documents[d.buf], d.project.documents[d.buf] = nil, nil
+  close_handle(d.diagnostic_timer)
+  if d.project.ready then send(d.project, OP.close, 0, d.buf, '') end
+  vim.schedule(function()
+    if not documents[d.buf] then
+      remove_maps(d)
+      if api.nvim_buf_is_valid(d.buf) then vim.diagnostic.reset(namespace, d.buf) end
+    end
+  end)
+end
+
+local function handle_response(p, opcode, id, docid, body)
+  local r = setmetatable({ body = body, at = 1 }, Reader)
+  local status = r:u32()
+  if opcode == OP.protocol_error and id == 0 then
+    local message, d = r:rest(), documents[docid]
+    if d and d.project == p then
+      if not d.blocked then notify(message .. '\nBuffer paused; use :ZweRestart to retry.', vim.log.levels.WARN) end
+      d.blocked, d.sent_revision = message, nil
+      close_handle(d.diagnostic_timer); d.diagnostic_timer = nil
+      vim.diagnostic.reset(namespace, d.buf)
+      for pending_id, pending in pairs(p.pending) do
+        if pending.document == d then p.pending[pending_id] = nil end
+      end
+    elseif docid == 0 then
+      fail_project(p, message ~= '' and message or 'Daemon rejected the workspace.')
+    end
+    return
+  end
+  if opcode == OP.resync_required and id == 0 then
+    local d = documents[docid]
+    if status ~= STATUS.stale_revision and status ~= STATUS.invalid_request then error('invalid resynchronization status') end
+    if d and d.project == p and not d.blocked then snapshot(d, false) end
+    return
+  end
+  local item = p.pending[id]
+  if not item then return end
+  p.pending[id] = nil
+  if item.docid ~= docid then error('response document does not match request') end
+  local d = item.document
+  if d and (not live(d) or d.blocked or d.revision ~= item.revision) then return end
+  if opcode == OP.protocol_error then
+    notify(r:rest(), vim.log.levels.ERROR)
+  elseif item.opcode ~= opcode then
+    error('response opcode does not match request')
+  else
+    item.callback(r, status, item)
+  end
+end
+
+local function receive(p, generation, err, chunk)
+  if p.generation ~= generation then return end
+  if err or chunk == nil then
+    vim.schedule(function()
+      if p.generation == generation then fail_project(p, err and ('Socket read: ' .. err) or 'Daemon disconnected.') end
+    end)
+    return
+  end
+  p.input = p.input .. chunk
+  while #p.input >= 16 do
+    local length = read32(p.input, 1)
+    if length > MAX_BODY then
+      vim.schedule(function()
+        if p.generation == generation then fail_project(p, 'Daemon sent an oversized frame.') end
+      end)
+      return
+    end
+    if #p.input < length + 16 then return end
+    local id, docid = read32(p.input, 5), read32(p.input, 9)
+    local a, b, c, e = p.input:byte(13, 16)
+    local opcode, flags = a + b * 256, c + e * 256
+    local body = p.input:sub(17, 16 + length)
+    p.input = p.input:sub(17 + length)
+    vim.schedule(function()
+      if p.generation ~= generation then return end
+      if flags ~= 1 then fail_project(p, 'Invalid daemon response flags.'); return end
+      local ok, message = pcall(handle_response, p, opcode, id, docid, body)
+      if not ok then fail_project(p, 'Invalid response: ' .. tostring(message)) end
+    end)
+  end
+end
+
+local function cleanup(p)
+  p.ready = false
+  p.graph_configuring = false
+  p.graph_state = 'idle'
+  p.generation = p.generation + 1
+  close_handle(p.connect_timer); p.connect_timer = nil
+  close_handle(p.candidate); p.candidate = nil
+  close_handle(p.pipe); p.pipe = nil
+  local job, directory, socket = p.job, p.directory, p.socket
+  p.job, p.directory, p.socket = nil, nil, nil
+  p.pending, p.input = {}, ''
+  if job then pcall(vim.fn.jobstop, job) end
+  local function remove_socket()
+    if socket then pcall(uv.fs_unlink, socket) end
+    if directory then pcall(uv.fs_rmdir, directory) end
+  end
+  remove_socket()
+  if not exiting then vim.defer_fn(remove_socket, 150) end
+  for _, d in pairs(p.documents) do
+    d.sent_revision = nil
+    close_handle(d.diagnostic_timer); d.diagnostic_timer = nil
+    if api.nvim_buf_is_valid(d.buf) then vim.diagnostic.reset(namespace, d.buf) end
+  end
+end
+
+fail_project = function(p, reason)
+  if p.state == 'failed' or p.state == 'stopped' or exiting then return end
+  local stderr = p.stderr
+  p.state, p.failure = 'failed', reason
+  cleanup(p)
+  publish(p)
+  notify(reason .. (stderr ~= '' and ('\n' .. stderr) or '') .. '\nUse :ZweRestart to reconnect.', vim.log.levels.ERROR)
+end
+
+stop_project = function(p)
+  p.state = 'stopped'
+  if p.ready then send(p, OP.shutdown, 0, 0, '') end
+  cleanup(p)
+  publish(p)
+end
+
+local function refresh_project(p, silent)
+  if p.context.kind ~= 'build' then
+    p.graph_state, p.graph_status = 'not_applicable', 'This workspace has no build.zig.'
+    publish(p)
+    if not silent then notify(p.graph_status) end
+    return
+  end
+  if not p.ready then if not silent then notify('Daemon is not ready.', vim.log.levels.WARN) end; return end
+  if not p.context.trusted then
+    p.graph_state, p.graph_status = 'untrusted', 'Build configuration disabled until this workspace is trusted.'
+    publish(p)
+    if not silent then notify(p.graph_status .. ' Use :ZweTrust to authorize it.', vim.log.levels.WARN) end
+    return
+  end
+  if not capable(p, CAP.build_graph) then if not silent then notify('Daemon does not support a build graph.') end; return end
+  if p.graph_configuring then if not silent then notify('Build graph is already configuring.') end; return end
+  p.stderr = ''
+  p.graph_configuring, p.graph_state, p.graph_status = true, 'configuring', 'Configuring build graph...'
+  publish(p)
+  local generation, started = p.generation, uv.hrtime()
+  local function finished(ok, message)
+    if p.generation ~= generation then return end
+    if not ok and p.stderr ~= '' then message = message .. '\n' .. p.stderr end
+    p.graph_configuring, p.graph_state, p.graph_status = false, ok and 'ready' or 'failed', message
+    publish(p)
+    for _, d in pairs(p.documents) do queue_diagnostics(d) end
+    if not silent or not ok then notify(message, ok and vim.log.levels.INFO or vim.log.levels.WARN) end
+  end
+  local poll
+  poll = function()
+    if p.generation ~= generation or not p.ready or not p.graph_configuring then return end
+    if (uv.hrtime() - started) / 1000000 > opts.graph_timeout_ms then return finished(false, 'Build graph deadline exceeded.') end
+    request(p, OP.graph_state, nil, '', function(r, status)
+      if status ~= STATUS.ok then return finished(false, r:rest()) end
+      local graph_generation, phase = r:u32(), r:u32()
+      p.graph_generation = graph_generation
+      local message = r:rest()
+      if phase == GRAPH.configuring then vim.defer_fn(poll, 250)
+      elseif phase == GRAPH.ready then finished(true, message)
+      elseif phase == GRAPH.failed then finished(false, message)
+      else finished(false, 'Build graph did not start: ' .. message) end
+    end)
+  end
+  request(p, OP.refresh_graph, nil, '', function(r, status)
+    local message = r:rest()
+    if status ~= STATUS.ok then return finished(false, message) end
+    if capable(p, CAP.async_graph) then poll() else finished(true, message) end
+  end, capable(p, CAP.async_graph) and opts.request_timeout_ms or opts.graph_timeout_ms)
+end
+
+start_project = function(p)
+  if p.state == 'connecting' or p.ready then return end
+  p.generation = p.generation + 1
+  p.state, p.failure, p.stderr, p.input, p.pending = 'connecting', nil, '', '', {}
+  p.graph_state = 'idle'
+  publish(p)
+  for _, d in pairs(p.documents) do d.blocked, d.warned_large = nil, nil end
+  if vim.fn.executable(opts.cmd) ~= 1 then
+    fail_project(p, 'Executable not found: ' .. opts.cmd); return
+  end
+  local directory, make_error = uv.fs_mkdtemp(uv.os_tmpdir() .. '/zwe-XXXXXX')
+  if not directory then fail_project(p, 'Cannot create socket directory: ' .. tostring(make_error)); return end
+  p.directory, p.socket = directory, directory .. '/s'
+  local chmod_ok, chmod_error = uv.fs_chmod(directory, 448) -- 0700
+  if not chmod_ok then fail_project(p, 'Cannot secure socket directory: ' .. tostring(chmod_error)); return end
+  if #p.socket > 100 then fail_project(p, 'Temporary directory path is too long for a Unix socket.'); return end
+  local argv = { opts.cmd, 'serve', '--socket', p.socket, '--root', p.root, '--zig', p.context.zig }
+  for _, option in ipairs(p.context.build_options) do
+    argv[#argv + 1] = '--build-option'; argv[#argv + 1] = option
+  end
+  local generation = p.generation
+  local spawned, job = pcall(vim.fn.jobstart, argv, {
+    cwd = p.root, stdin = 'null',
+    on_stderr = function(_, data)
+      if p.generation == generation then p.stderr = (p.stderr .. table.concat(data, '\n')):sub(-8192) end
+    end,
+    on_exit = function(_, code)
+      vim.schedule(function()
+        if p.generation == generation then fail_project(p, 'Daemon exited (' .. code .. ').') end
+      end)
+    end,
+  })
+  if not spawned or job <= 0 then fail_project(p, 'Could not launch daemon (' .. tostring(job) .. ').'); return end
+  p.job = job
+  local started, timer = nil, uv.new_timer()
+  p.connect_timer = timer
+  timer:start(0, 25, vim.schedule_wrap(function()
+    -- A stopped timer may already have callbacks queued by schedule_wrap.
+    if p.generation ~= generation or p.connect_timer ~= timer or p.pipe then return end
+    -- Measure connection time once Neovim can service the first attempt.
+    local now = uv.hrtime()
+    started = started or now
+    if (now - started) / 1000000 > opts.connect_timeout_ms then
+      fail_project(p, 'Timed out waiting for daemon socket.'); return
+    end
+    if p.candidate then return end
+    local pipe = uv.new_pipe(false)
+    p.candidate = pipe
+    pipe:connect(p.socket, function(connect_error)
+      vim.schedule(function()
+        if p.generation ~= generation or p.connect_timer ~= timer or p.candidate ~= pipe or p.pipe then
+          close_handle(pipe); return
+        end
+        p.candidate = nil
+        if connect_error then close_handle(pipe); return end
+        close_handle(timer); p.connect_timer = nil
+        p.pipe = pipe
+        pipe:read_start(function(err, chunk) receive(p, generation, err, chunk) end)
+        request(p, OP.hello, nil, u32(PROTOCOL_VERSION), function(r, status)
+          if status ~= STATUS.ok then fail_project(p, 'Handshake rejected: ' .. r:rest()); return end
+          local version, capabilities = r:u32(), r:u32()
+          if version ~= PROTOCOL_VERSION then fail_project(p, 'Unsupported protocol version: ' .. version); return end
+          p.capabilities, p.server_message, p.ready, p.state = capabilities, r:rest(), true, 'ready'
+          for _, d in pairs(p.documents) do if live(d) then snapshot(d, false) end end
+          publish(p)
+          if opts.build_graph then refresh_project(p, true) else p.graph_state = 'disabled'; publish(p) end
+        end)
+      end)
+    end)
+  end))
+end
+
+local function changed(d, _, buf, _, row, col, first, _, _, old_size, new_rows, new_col, new_size)
+  if not live(d) then return true end
+  local previous = d.revision
+  next_revision(d)
+  if d.recovering then return end
+  d.bytes_since_lines = true
+  local expected = d.length - old_size + new_size
+  if d.blocked then d.length = expected; return end
+  if expected > MAX_SOURCE then snapshot(d, false); return end
+  if not d.project.ready or d.too_large then
+    d.length = expected
+    if d.too_large and expected <= MAX_SOURCE then snapshot(d, false) end
+    return
+  end
+  local ok, inserted = pcall(function()
+    if first + old_size > d.length or expected < 1 or d.revision == 1 then error('snapshot required') end
+    local end_row, end_col = row + new_rows, new_col
+    if new_rows == 0 then end_col = col + new_col end
+    local count = api.nvim_buf_line_count(buf)
+    local final_newline = end_row == count and end_col == 0
+    if final_newline then
+      end_row = count - 1
+      end_col = #api.nvim_buf_get_lines(buf, end_row, end_row + 1, true)[1]
+    end
+    local text = ''
+    if new_size > 0 then
+      text = table.concat(api.nvim_buf_get_text(buf, row, col, end_row, end_col, {}), '\n')
+      if final_newline then text = text .. '\n' end
+    end
+    if #text ~= new_size then error('replacement extent requires snapshot') end
+    return text
+  end)
+  if not ok or d.sent_revision ~= previous or #inserted + 16 > MAX_BODY then snapshot(d, false); return end
+  d.length = expected
+  if send(d.project, OP.replace, 0, d.buf,
+    u32(previous) .. u32(d.revision) .. u32(first) .. u32(old_size) .. inserted) then
+    d.sent_revision = d.revision
+    queue_diagnostics(d)
+  end
+end
+
+-- Undo/redo can emit on_lines first and replay on_bytes only after the entire
+-- undo block has changed the buffer. Those replayed ranges do not describe the
+-- text currently readable through nvim_buf_get_text. Reconcile once after the
+-- callback burst instead of interpreting the replay against its final state.
+local function lines_changed(d)
+  if not live(d) then return true end
+  local bytes = api.nvim_buf_get_offset(d.buf, api.nvim_buf_line_count(d.buf))
+  if d.bytes_since_lines and not d.recovering and bytes == d.length then
+    d.bytes_since_lines = false
+    return
+  end
+  d.bytes_since_lines, d.recovering = false, true
+  next_revision(d)
+  if d.recovery_pending then return end
+  d.recovery_pending = true
+  vim.schedule(function()
+    if not live(d) then return end
+    d.recovery_pending, d.recovering, d.bytes_since_lines = false, false, false
+    snapshot(d, false)
+  end)
+end
+
+local function install_maps(d)
+  if not opts.mappings then return end
+  local candidates = {
+    { 'definition', 'n', M.definition }, { 'completion', 'i', M.complete }, { 'symbols', 'n', M.symbols },
+  }
+  api.nvim_buf_call(d.buf, function()
+    for _, candidate in ipairs(candidates) do
+      local name, mode, callback = unpack(candidate)
+      local lhs = opts.mappings[name]
+      if type(lhs) == 'string' and lhs ~= '' then
+        local existing = vim.fn.maparg(lhs, mode, false, true)
+        if opts.overwrite_mappings or next(existing) == nil then
+          local desc = 'ZWE: ' .. name
+          vim.keymap.set(mode, lhs, callback, { buffer = d.buf, silent = true, desc = desc })
+          d.maps[#d.maps + 1] = { lhs = lhs, mode = mode, desc = desc }
+        end
+      end
+    end
+  end)
+end
+
+function M.attach(buf)
+  if not configured or exiting then return end
+  buf = buf or api.nvim_get_current_buf()
+  if buf == 0 then buf = api.nvim_get_current_buf() end
+  if not api.nvim_buf_is_valid(buf) or not api.nvim_buf_is_loaded(buf) then return end
+  if vim.bo[buf].buftype ~= '' or (vim.bo[buf].filetype ~= 'zig' and not api.nvim_buf_get_name(buf):match('%.zig$')) then return end
+  if buf < 1 or buf > MAX_U32 then notify('Buffer ID exceeds the protocol limit.', vim.log.levels.ERROR); return end
+  local context = context_for(buf)
+  if documents[buf] then
+    local d = documents[buf]
+    if d.project.key == context.key then return d end
+    remove_maps(d); detach(d)
+  end
+  local root = context.root
+  local p = projects[context.key]
+  if not p then
+    p = { root = root, key = context.key, context = context, documents = {}, state = 'new', generation = 0, next_id = 0,
+      pending = {}, input = '', stderr = '', ready = false }
+    projects[context.key] = p
+  end
+  local d = { buf = buf, project = p, revision = 1,
+    length = api.nvim_buf_get_offset(buf, api.nvim_buf_line_count(buf)), maps = {}, path = path_for(buf, root) }
+  documents[buf], p.documents[buf] = d, d
+  local attached = api.nvim_buf_attach(buf, false, {
+    on_bytes = function(...) return changed(d, ...) end,
+    on_lines = function() return lines_changed(d) end,
+    on_reload = function()
+      if not live(d) then return true end
+      snapshot(d, true)
+    end,
+    on_detach = function() detach(d) end,
+  })
+  if not attached then documents[buf], p.documents[buf] = nil, nil; return end
+  install_maps(d)
+  if p.ready then snapshot(d, false) elseif p.state == 'new' then start_project(p) end
+  return d
+end
+
+local function current_document(flag)
+  if not configured then notify('Call require("zwe").setup() first.', vim.log.levels.WARN); return end
+  local d = documents[api.nvim_get_current_buf()] or M.attach()
+  if not d then notify('The current buffer is not a Zig source file.', vim.log.levels.WARN); return end
+  if not d.project.ready then
+    notify('Daemon is ' .. d.project.state .. '; use :ZweRestart if needed.', vim.log.levels.WARN); return
+  end
+  if d.blocked then notify('Buffer paused: ' .. d.blocked .. '\nUse :ZweRestart to retry.', vim.log.levels.WARN); return end
+  if d.too_large then notify('Buffer exceeds the protocol size limit.', vim.log.levels.WARN); return end
+  if d.recovering then notify('Buffer synchronization is pending; retry the query.'); return end
+  if flag and not capable(d.project, flag) then notify('This daemon does not support that request.'); return end
+  if d.sent_revision ~= d.revision and not snapshot(d, false) then return end
+  return d
+end
+
+-- The callback receives (error, result). Responses for superseded revisions are discarded.
+-- No buffer jump or LSP request is performed by this query API.
+function M.request_definition(callback)
+  assert(type(callback) == 'function', 'callback required')
+  local d = current_document(CAP.definition)
+  if not d then return end
+  local origin = origin_for(d)
+  return request(d.project, OP.definition, d, u32(d.revision) .. u32(origin.offset), function(r, status)
+    local revision = r:u32()
+    if revision ~= d.revision then return end
+    if status ~= STATUS.ok then
+      if status == STATUS.stale_revision then snapshot(d, false) end
+      callback({ code = status, message = r:rest() }, { origin = origin, revision = revision })
+      return
+    end
+    local target, target_revision, first, last, path_size = r:u32(), r:u32(), r:u32(), r:u32(), r:u32()
+    local path = r:bytes(path_size)
+    if last < first or path == '' then error('invalid definition destination') end
+    callback(nil, { origin = origin, revision = revision, document_id = target,
+      target_revision = target_revision, first = first, last = last, path = path })
+  end)
+end
+
+local function fallback_definition(origin, d)
+  for _, client in ipairs(vim.lsp.get_clients({ bufnr = d.buf, name = 'zls' })) do
+    if client:supports_method('textDocument/definition') then
+      local params = vim.lsp.util.make_position_params(origin.window, client.offset_encoding)
+      client:request('textDocument/definition', params, function(err, result)
+        if not live(d) or d.revision ~= origin.revision or not origin_current(origin) then return end
+        if err then notify(err.message or tostring(err), vim.log.levels.WARN); return end
+        if not result or (vim.islist(result) and #result == 0) then notify('ZLS returned no definition.'); return end
+        if result.uri or result.targetUri then result = { result } end
+        if #result == 1 then
+          local uri = result[1].uri or result[1].targetUri
+          if uri then Workspace.bind(vim.uri_to_bufnr(uri), d.project.context) end
+          vim.lsp.util.show_document(result[1], client.offset_encoding, { focus = true })
+          M.attach(api.nvim_get_current_buf())
+        else
+          vim.fn.setqflist({}, ' ', { title = 'ZWE: ZLS definition fallback',
+            items = vim.lsp.util.locations_to_items(result, client.offset_encoding) })
+          vim.cmd.copen()
+        end
+      end, d.buf)
+      return true
+    end
+  end
+  return false
+end
+
+function M.definition()
+  return M.request_definition(function(err, result)
+    local origin = result.origin
+    local d = documents[origin.buffer]
+    if not d or not live(d) or d.revision ~= origin.revision or not origin_current(origin) then return end
+    if err then
+      if opts.definition_fallback and (err.code == STATUS.unsupported or err.code == STATUS.not_found)
+        and fallback_definition(origin, d) then return end
+      if err.code ~= STATUS.stale_revision then notify(err.message ~= '' and err.message or 'No definition.') end
+      return
+    end
+    local destination
+    if result.document_id ~= 0 then
+      local td = documents[result.document_id]
+      if not td or not live(td) or td.project ~= d.project or td.revision ~= result.target_revision or td.recovering then return end
+      destination = td.buf
+    else
+      destination = vim.fn.bufadd(result.path)
+      if api.nvim_buf_is_loaded(destination) and vim.bo[destination].modified then
+        notify('Definition target has unsaved changes; refresh and retry.', vim.log.levels.WARN); return
+      end
+      Workspace.bind(destination, d.project.context)
+      vim.fn.bufload(destination)
+      M.attach(destination)
+    end
+    jump(destination, result.first)
+  end)
+end
+
+local completion_kinds = { 'f', 'v', 'v', 'm', 'M', 'k', 'v', 't' }
+function M.complete()
+  if api.nvim_get_mode().mode:sub(1, 1) ~= 'i' then
+    notify('Enter Insert mode to request completion.'); return
+  end
+  local d = current_document(CAP.completion)
+  if not d then return end
+  local origin = origin_for(d)
+  request(d.project, OP.completion, d, u32(d.revision) .. u32(origin.offset), function(r, status)
+    if not query_result(r, status, d, true) or not origin_current(origin) then return end
+    if api.nvim_get_mode().mode:sub(1, 1) ~= 'i' then return end
+    local first, last, count = r:u32(), r:u32(), r:count(16)
+    local row, col = positions(d.buf)(first)
+    if row ~= origin.cursor[1] - 1 or last ~= origin.offset or first > last then
+      notify('Unsupported completion replacement range.', vim.log.levels.WARN); return
+    end
+    local items = {}
+    for _ = 1, count do
+      local kind, label_size, detail_size, insert_size = r:u32(), r:u32(), r:u32(), r:u32()
+      local label, detail, insert = r:bytes(label_size), r:bytes(detail_size), r:bytes(insert_size)
+      if not insert:find('\n', 1, true) then
+        items[#items + 1] = { word = insert, abbr = label, menu = detail, kind = completion_kinds[kind] or '', dup = 0 }
+      end
+    end
+    if #items > 0 then vim.fn.complete(col + 1, items) end
+  end)
+end
+
+function M.request_symbols(callback)
+  local d = current_document(CAP.symbols)
+  if not d then return end
+  local revision = d.revision
+  return request(d.project, OP.symbols, d, u32(revision), function(r, status)
+    local returned = r:u32()
+    if returned ~= d.revision then return end
+    if status ~= STATUS.ok then callback({code = status, message = r:rest()}); return end
+    local count, items = r:count(16), {}
+    for _ = 1, count do
+      local first, last, kind, length = r:u32(), r:u32(), r:u32(), r:u32()
+      items[#items + 1] = { first = first, last = last, kind = kind, name = r:bytes(length) }
+    end
+    callback(nil, { buffer = d.buf, revision = revision, items = items })
+  end)
+end
+function M.symbols()
+  return M.request_symbols(function(err, result)
+    if err then notify(err.message); return end
+    local d = documents[result.buffer]
+    if #result.items == 0 then notify('No symbols in this buffer.'); return end
+    vim.ui.select(result.items, { prompt = 'ZWE symbols', format_item = function(item) return item.name end }, function(item)
+      if item and d and live(d) and d.revision == result.revision then jump(d.buf, item.first) end
+    end)
+  end)
+end
+function M.request_format(callback)
+  local d = current_document(CAP.format)
+  if not d then return end
+  return request(d.project, OP.format, d, u32(d.revision), function(r, status)
+    local revision = r:u32()
+    if revision ~= d.revision then return end
+    if status ~= STATUS.ok then callback({code = status, message = r:rest()}); return end
+    local text = r:rest()
+    if #text > MAX_SOURCE then error('formatted source exceeds limit') end
+    callback(nil, { buffer = d.buf, revision = revision, text = text })
+  end)
+end
+function M.format()
+  return M.request_format(function(err, result)
+    if err then notify(err.message, vim.log.levels.WARN); return end
+    local d = documents[result.buffer]
+    if not d or not live(d) or d.revision ~= result.revision or d.recovering or not vim.bo[d.buf].modifiable then return end
+    if result.text == source(d.buf) then return end
+    local rows = vim.split(result.text:gsub('\n$', ''), '\n', { plain = true })
+    local view = api.nvim_get_current_buf() == d.buf and vim.fn.winsaveview() or nil
+    api.nvim_buf_set_lines(d.buf, 0, -1, true, rows)
+    if view then vim.fn.winrestview(view) end
+  end)
+end
+
+local function selected_project()
+  local d = documents[api.nvim_get_current_buf()]
+  return d and d.project or projects[context_for(api.nvim_get_current_buf()).key]
+end
+
+function M.status()
+  if not configured then notify('ZWE has not been configured.'); return end
+  local p = selected_project()
+  if not p then notify('No daemon for the current project.'); return end
+  if not p.ready then notify(p.root .. '\n' .. p.state .. (p.failure and (': ' .. p.failure) or '')); return end
+  request(p, OP.status, nil, '', function(r, status)
+    notify(p.root .. '\n' .. r:rest(), status == STATUS.ok and vim.log.levels.INFO or vim.log.levels.WARN)
+  end)
+end
+
+function M.refresh()
+  local d = current_document()
+  if d then refresh_project(d.project, false) end
+end
+
+function M.stop(all)
+  if not configured then return end
+  if all then for _, p in pairs(projects) do stop_project(p) end
+  else local p = selected_project(); if p then stop_project(p) end end
+end
+
+function M.restart(all)
+  if not configured then return end
+  if all then
+    for _, p in pairs(projects) do stop_project(p); start_project(p) end
+  else
+    local p = selected_project()
+    if p then stop_project(p); start_project(p) else M.attach() end
+  end
+end
+
+function M.setup(config)
+  if configured then
+    for _, p in pairs(projects) do stop_project(p) end
+    for _, d in pairs(documents) do remove_maps(d) end
+  end
+  documents, projects = {}, {}
+  opts = vim.tbl_deep_extend('force', vim.deepcopy(defaults), config or {})
+  assert(type(opts.cmd) == 'string' and type(opts.zig) == 'string', 'ZWE cmd and zig must be executable names or paths')
+  assert(opts.workspace == nil or type(opts.workspace) == 'function', 'workspace must be a callback')
+  configured, exiting = true, false
+  if type(opts.diagnostics) == 'table' then vim.diagnostic.config(opts.diagnostics, namespace) end
+  local group = api.nvim_create_augroup('ZweClient', { clear = true })
+  api.nvim_create_autocmd('FileType', { group = group, pattern = 'zig', callback = function(event) M.attach(event.buf) end })
+  api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
+    group = group, pattern = '*.zig', callback = function(event) M.attach(event.buf) end,
+  })
+  api.nvim_create_autocmd('BufFilePost', { group = group, callback = function(event)
+    local d = documents[event.buf]
+    if d then
+      if context_for(event.buf).key ~= d.project.key then
+        remove_maps(d); detach(d); M.attach(event.buf)
+      else snapshot(d, true) end
+    else M.attach(event.buf) end
+  end })
+  api.nvim_create_autocmd('User', { group = group, pattern = 'ZweWorkspaceChanged', callback = function(event)
+    local pending_buffers, obsolete = {}, {}
+    for key, p in pairs(projects) do
+      if p.root == event.data.root then
+        stop_project(p)
+        for buf, d in pairs(p.documents) do
+          remove_maps(d); detach(d); pending_buffers[#pending_buffers + 1] = buf
+        end
+        obsolete[#obsolete + 1] = key
+      end
+    end
+    for _, key in ipairs(obsolete) do projects[key] = nil end
+    for _, buf in ipairs(pending_buffers) do M.attach(buf) end
+  end })
+  api.nvim_create_autocmd('VimLeavePre', { group = group, callback = function()
+    exiting = true
+    for _, p in pairs(projects) do stop_project(p) end
+  end })
+  for name, callback in pairs({ ZweDefinition = M.definition, ZweComplete = M.complete,
+    ZweSymbols = M.symbols, ZweFormat = M.format, ZweStatus = M.status, ZweRefresh = M.refresh }) do
+    api.nvim_create_user_command(name, callback, { force = true })
+  end
+  api.nvim_create_user_command('ZweStop', function(command) M.stop(command.bang) end, { bang = true, force = true })
+  api.nvim_create_user_command('ZweRestart', function(command) M.restart(command.bang) end, { bang = true, force = true })
+  for _, buf in ipairs(api.nvim_list_bufs()) do M.attach(buf) end
+  return M
+end
+
+return M
+
+end)()
+
+
+local Zig = (function()
+    local M = {}
+    local selected_exe
+    local function expand(path)
+        if path:sub(1, 2) == '~/' then return (vim.env.HOME or vim.fn.expand('~')) .. path:sub(2) end
+        return path
+    end
+    local function executable(path)
+        path = expand(path)
+        local result = vim.fn.exepath(path)
+        assert(result ~= '', 'Executable not found: ' .. path)
+        return vim.uv.fs_realpath(result) or result
+    end
+    local function cwd()
+        local path = vim.api.nvim_buf_get_name(0)
+        if vim.bo.buftype == '' and path ~= '' and not path:match('^%a[%w+.-]*://') then
+            local stat = vim.uv.fs_stat(path)
+            if not stat or stat.type ~= 'directory' then return vim.fs.dirname(path) end
+        end
+        return vim.fn.getcwd()
+    end
+    local function diagnostics(item)
+        local lines = { '__zig_cwd__' .. item.dir }
+        for _, chunks in ipairs({ item.stdout, item.stderr }) do
+            local text = table.concat(chunks):gsub('\27%[[0-?]*[ -/]*[@-~]', ''):gsub('\r', '')
+            vim.list_extend(lines, vim.split(text, '\n', { plain = true }))
+        end
+        local parsed = vim.fn.getqflist({ lines = lines, efm = table.concat({
+            '%D__zig_cwd__%f', '%f:%l:%c: %t%*[^:]: %m', '%f:%l:%c: %m', '%f:%l: %m', '%-G%.%#',
+        }, ',') }).items
+        return vim.tbl_filter(function(item) return item.valid == 1 end, parsed)
+    end
+    local function select_qf(info)
+        local list = vim.fn.getqflist({ id = info.id, nr = 0 })
+        if list.id ~= info.id then
+            vim.fn.setqflist({}, ' ', { nr = '$', title = info.title, items = info.items })
+            info.id = vim.fn.getqflist({ id = 0 }).id
+            list = vim.fn.getqflist({ id = info.id, nr = 0 })
+        end
+        if list.nr > 0 then vim.cmd(('silent %dchistory'):format(list.nr)) end
+    end
+    local function execute(spec, preview)
+        spec.owner = 'zig'
+        if preview then return Jobs.preview(spec) end
+        vim.fn.setqflist({}, ' ', { nr = '$', title = spec.title, items = {} })
+        local qf = { id = vim.fn.getqflist({ id = 0 }).id, title = spec.title, items = {} }
+        local results = {}
+        spec.on_open = function() select_qf(qf) end
+        spec.on_job_exit = function(item)
+            results[item.id] = diagnostics(item)
+            qf.items = {}
+            local ids = {}; for id in pairs(results) do ids[#ids + 1] = id end; table.sort(ids)
+            for _, id in ipairs(ids) do vim.list_extend(qf.items, results[id]) end
+            if vim.fn.getqflist({ id = qf.id }).id == qf.id then
+                vim.fn.setqflist({}, 'r', { id = qf.id, title = qf.title, items = qf.items })
+            end
+        end
+        spec.on_complete = function(state)
+            local failed, succeeded, skipped, stopped = 0, 0, 0, 0
+            for _, item in ipairs(state.items) do
+                if item.status == 'failed' then failed = failed + 1
+                elseif item.status == 'succeeded' then succeeded = succeeded + 1
+                elseif item.status == 'skipped' then skipped = skipped + 1
+                elseif item.status == 'stopped' then stopped = stopped + 1 end
+            end
+            vim.notify(('ZWE: %d succeeded; %d failed; %d skipped; %d stopped; %d quickfix entries'):format(
+                succeeded, failed, skipped, stopped, #qf.items), failed > 0 and vim.log.levels.WARN or vim.log.levels.INFO)
+        end
+        return Jobs.run(spec)
+    end
+    function M.plan(ws, args)
+        args = vim.deepcopy(args or {})
+        local command = { exe = ws.zig_exe, args = {} }
+        local reason
+        if ws.kind == 'build' then
+            command.args = { 'build' }
+            vim.list_extend(command.args, args)
+            for _, value in ipairs(ws.build_options or {}) do command.args[#command.args + 1] = '-D' .. value end
+        elseif ws.kind == 'file' then
+            local operation = 'build-exe'
+            if args[1] == 'test' or args[1] == 'run' or args[1] == 'build-exe' or args[1] == 'build-lib' or args[1] == 'build-obj' then
+                operation = table.remove(args, 1)
+            end
+            command.args = { operation, ws.entry }
+            vim.list_extend(command.args, args)
+        else
+            command.args = { 'build' }
+            reason = 'No build.zig or standalone Zig entry file at ' .. ws.path
+        end
+        if not ws.available then reason = reason or ('Workspace is unavailable: ' .. ws.path) end
+        if vim.fn.executable(expand(ws.zig_exe)) ~= 1 then reason = 'Compiler is not executable: ' .. ws.zig_exe end
+        return { name = ws.name or ws.path, dir = ws.root, commands = { command }, reason = reason }
+    end
+    function M.build(args, workspace)
+        local ws = workspace or Workspace.get()
+        return execute({ title = 'Build ' .. (ws.name or ws.root), jobs = { M.plan(ws, args) }, concurrency = 1 }, false)
+    end
+    function M.build_many(names, args, preview)
+        local selected = {}
+        if not names or #names == 0 or (#names == 1 and names[1] == '*') then
+            selected = Workspace.list()
+        else
+            local seen = {}
+            for _, name in ipairs(names) do if not seen[name] then selected[#selected + 1] = Workspace.named(name); seen[name] = true end end
+        end
+        assert(#selected > 0, 'No workspaces registered in ' .. (Workspace.config_path() or 'config.zon'))
+        local jobs = {}; for _, ws in ipairs(selected) do jobs[#jobs + 1] = M.plan(ws, args) end
+        return execute({ title = 'Workspaces', jobs = jobs, concurrency = #jobs, summary_only = true }, preview ~= false)
+    end
+    function M.run(args)
+        local exe = executable(selected_exe or Workspace.get().zig_exe)
+        local arguments = {}; for _, arg in ipairs(args) do arguments[#arguments + 1] = expand(arg) end
+        return execute({ title = 'zig ' .. table.concat(arguments, ' '), exe = exe, args = arguments, dirs = { cwd() } }, false)
+    end
+    local function version()
+        local exe = executable(selected_exe or Workspace.get().zig_exe)
+        Jobs.run({ exe = exe, args = { 'version' }, owner = 'zig-info', show = false,
+            on_job_exit = function(item, result)
+                local ok = result and result.code == 0 and result.signal == 0
+                vim.notify(ok and ('version: ' .. vim.trim(table.concat(item.stdout)) .. '\nexe: ' .. exe)
+                    or ('Could not run ' .. exe .. ': ' .. table.concat(item.stderr)), ok and vim.log.levels.INFO or vim.log.levels.ERROR)
+            end,
+        })
+    end
+    local function window()
+        local context = Jobs.context()
+        local state = context and context.state.owner == 'zig' and context.state or nil
+        if not state then
+            local path = cwd()
+            path = vim.uv.fs_realpath(path) or vim.fs.normalize(path)
+            state = Jobs.latest(function(run)
+                if run.owner ~= 'zig' then return false end
+                for _, item in ipairs(run.items) do if item.dir == path then return true end end
+                return false
+            end) or Jobs.latest(function(run) return run.owner == 'zig' end)
+        end
+        if state then Jobs.toggle(state) else vim.notify('No Zig output yet') end
+    end
+    function M.setup()
+        vim.api.nvim_create_user_command('Zig', function(c) if #c.fargs == 0 then version() else M.run(c.fargs) end end,
+            { nargs = '*', complete = 'file', desc = 'Show Zig version/path or run Zig in the current file directory' })
+        vim.api.nvim_create_user_command('ZigWindow', window, { desc = 'Open/focus output; hide when already focused' })
+        vim.api.nvim_create_user_command('ZigStop', function() Jobs.select_stop(function(e) return e.state.owner == 'zig' end, 'Zig') end,
+            { desc = 'Stop a build or select among active workspace jobs' })
+        vim.api.nvim_create_user_command('ZigExe', function(c)
+            selected_exe = c.args ~= '' and executable(c.fargs[1]) or nil
+            vim.notify(selected_exe and ('exe: ' .. selected_exe) or 'Using workspace Zig compiler')
+        end, { nargs = '?', complete = 'file', desc = 'Override raw :Zig only; no argument clears override' })
+        vim.api.nvim_create_user_command('ZweBuild', function(c) M.build(c.fargs) end,
+            { nargs = '*', complete = 'file', desc = 'Build the current workspace; pass Zig steps/options directly' })
+        vim.api.nvim_create_user_command('ZweBatch', function(c)
+            local names, args, after = {}, {}, false
+            for _, arg in ipairs(c.fargs) do
+                if not after and arg == '--' then after = true
+                elseif after then args[#args + 1] = arg else names[#names + 1] = arg end
+            end
+            M.build_many(names, args, not c.bang)
+        end, { nargs = '*', bang = true, complete = function(lead)
+            local names = {}; for _, r in ipairs(Workspace.list()) do if r.name:sub(1, #lead) == lead then names[#names + 1] = r.name end end; return names
+        end, desc = 'Preview registered workspaces; ! builds concurrently; names -- steps/options' })
+    end
+    return M
+end)()
+
+
+local M = Client
+local client_setup = Client.setup
+local settings = {}
+
+M.workspace = Workspace
+M.jobs = Jobs
+M.zig = Zig
+M.tools = {}
+
+function M.tools.executable() return Workspace.command() end
+function M.tools.manifests(paths, callback)
+    assert(type(paths) == 'table' and vim.islist(paths) and type(callback) == 'function', 'Expected paths and callback')
+    assert(#paths <= 4096, 'Too many manifests')
+    local resolved = {}
+    for _, path in ipairs(paths) do
+        assert(type(path) == 'string' and not path:find('%z'), 'Invalid manifest path')
+        if path:sub(1, 2) == '~/' then path = (vim.env.HOME or vim.fn.expand('~')) .. path:sub(2) end
+        resolved[#resolved + 1] = vim.fs.normalize(vim.fn.fnamemodify(path, ':p'))
+    end
+    local ok, job = pcall(vim.system, { Workspace.command(), 'manifests' }, {
+        text = true, stdin = vim.json.encode(resolved),
+    }, function(result)
+        vim.schedule(function()
+            if result.code ~= 0 then callback(result.stderr or 'Manifest request failed'); return end
+            local valid, decoded = pcall(vim.json.decode, result.stdout)
+            if not valid or type(decoded) ~= 'table' or type(decoded.projects) ~= 'table' or type(decoded.errors) ~= 'table' then
+                callback('Invalid manifest response'); return
+            end
+            callback(nil, decoded)
+        end)
+    end)
+    if not ok then callback(tostring(job)); return end
+    return job
+end
+
+function M.lsp_config()
+    return {
+        cmd = function(dispatchers, config)
+            local ws = Workspace.for_root(config.root_dir or vim.fn.getcwd())
+            return vim.lsp.rpc.start({ ws.lsp_exe }, dispatchers, { cwd = ws.root })
+        end,
+        filetypes = { 'zig', 'zir' },
+        root_dir = function(buf, on_dir)
+            local ok, ws = pcall(Workspace.get, buf)
+            if ok then on_dir(ws.root) else vim.notify(tostring(ws), vim.log.levels.ERROR) end
+        end,
+        workspace_required = false,
+        before_init = function(_, config)
+            local ws = Workspace.for_root(config.root_dir or vim.fn.getcwd())
+            config.settings = config.settings or {}
+            config.settings.zls = config.settings.zls or {}
+            config.settings.zls.zig_exe_path = ws.zig_exe
+            config._zwe_workspace_key = ws.key
+        end,
+    }
+end
+
+function M.setup(opts)
+    opts = opts or {}
+    settings = vim.deepcopy(opts)
+    local exe = opts.cmd or 'zwe'
+    if exe:sub(1, 2) == '~/' then exe = (vim.env.HOME or vim.fn.expand('~')) .. exe:sub(2) end
+    local resolved = vim.fn.exepath(exe)
+    assert(resolved ~= '', 'ZWE executable not found: ' .. exe .. '. Build ZWE and set setup({ cmd = ... }).')
+    settings.cmd = vim.uv.fs_realpath(resolved) or resolved
+    Workspace.setup({ cmd = settings.cmd, config = opts.config })
+    Jobs.setup(opts.jobs)
+    Zig.setup()
+
+    local client = vim.deepcopy(opts)
+    client.cmd = settings.cmd
+    client.workspace = Workspace.get
+    client.mappings = opts.mappings or { definition = 'gd', completion = false, symbols = '<leader>zs' }
+    if client.diagnostics == nil then client.diagnostics = false end
+    if client.definition_fallback == nil then client.definition_fallback = true end
+    client_setup(client)
+
+    vim.api.nvim_create_user_command('ZweManifests', function(c)
+        local paths = c.fargs
+        if #paths == 0 then paths = { Workspace.get().root .. '/build.zig.zon' } end
+        M.tools.manifests(paths, function(err, data)
+            if err then vim.notify(err, vim.log.levels.ERROR); return end
+            local buf = vim.api.nvim_create_buf(false, true)
+            vim.bo[buf].bufhidden, vim.bo[buf].filetype = 'wipe', 'lua'
+            vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(vim.inspect(data), '\n', { plain = true }))
+            vim.bo[buf].modifiable = false
+            vim.cmd('botright 12split')
+            vim.api.nvim_win_set_buf(0, buf)
+            vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = buf, silent = true })
+        end)
+    end, { nargs = '*', complete = 'file', desc = 'Read ZON manifest metadata without running build scripts' })
+
+    local group = vim.api.nvim_create_augroup('ZweLsp', { clear = true })
+    vim.api.nvim_create_autocmd('User', { group = group, pattern = 'ZweWorkspaceChanged', callback = function(e)
+        if settings.lsp == false then return end
+        local buffers = {}
+        for _, server in ipairs(vim.lsp.get_clients({ name = 'zls' })) do
+            if server.config.root_dir == e.data.root then
+                for buf in pairs(server.attached_buffers) do buffers[buf] = true end
+                server:stop(true)
+            end
+        end
+        vim.defer_fn(function()
+            for buf in pairs(buffers) do
+                if vim.api.nvim_buf_is_loaded(buf) then
+                    local ws = Workspace.get(buf)
+                    local config = vim.deepcopy(vim.lsp.config.zls)
+                    config.name, config.root_dir = 'zls', ws.root
+                    vim.lsp.start(config, { bufnr = buf, reuse_client = function(server)
+                        return server.name == 'zls' and not server:is_stopped() and server.config._zwe_workspace_key == ws.key
+                    end })
+                end
+            end
+        end, 50)
+    end })
+    if opts.lsp ~= false then
+        vim.lsp.config('zls', M.lsp_config())
+        vim.lsp.enable('zls')
+    end
+    return M
+end
+
+return M
