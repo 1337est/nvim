@@ -136,7 +136,6 @@ vim.diagnostic.config({
 
 -- lua/*.lua plugin files
 
-require("workspace").setup(require("config.workspaces"))
 require("syntax").setup({ cst = "treesitter" })
 require("vc").setup()
 require("ui").setup()
@@ -150,24 +149,15 @@ require("terminal").setup({
 require("textpairs").setup()
 require("modekeymapper").setup()
 
-require("batch").setup(require("config.tasks"))
-require("zig").setup() -- :ZigExe remains a command-only override.
-require("zwe_tools").setup() -- Explicit :ZweBuild and read-only :ZweManifests.
 require("zwe").setup({
-    cmd = require("zwe_tools").executable(),
-    workspace = function(buf)
-        local workspace = require("workspace")
-        local path = vim.api.nvim_buf_get_name(buf)
-        local parent = path:match("^(.-)/zig%-pkg/[^/]+/")
+    cmd = vim.fn.expand("~/.local/bin/zwe"),
 
-        if parent and vim.uv.fs_stat(parent .. "/build.zig") then
-            return workspace.for_root(parent)
-        end
+    mappings = {
+        definition = "gd",
+        completion = false,
+        symbols = "<leader>zs",
+    },
 
-        return workspace.get(buf)
-    end,
-    build_graph = true, -- additionally gated by workspace trust
-    definition_fallback = true,
-    mappings = { definition = "gd", completion = false, symbols = "<leader>zs" },
     diagnostics = false,
+    definition_fallback = true,
 })

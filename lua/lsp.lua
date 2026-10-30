@@ -99,40 +99,11 @@ function M.setup()
         end,
     })
 
-    vim.api.nvim_create_autocmd("User", {
-        group = lsp_attach_grp, pattern = "1337WorkspaceChanged",
-        callback = function(e)
-            local ws = require("workspace").for_root(e.data.root)
-            local bufs = {}
-            for _, client in ipairs(vim.lsp.get_clients({ name = "zls" })) do
-                if client.config.root_dir == ws.root then
-                    for buf in pairs(client.attached_buffers) do bufs[buf] = true end
-                    client:stop(true)
-                end
-            end
-            vim.defer_fn(function()
-                if require("workspace").for_root(ws.root).key ~= ws.key then return end
-                for buf in pairs(bufs) do
-                    if vim.api.nvim_buf_is_loaded(buf) then
-                        local config = vim.deepcopy(vim.lsp.config.zls)
-                        config.root_dir = ws.root
-                        config.name = "zls"
-                        vim.lsp.start(config, { bufnr = buf, reuse_client = function(client)
-                            return client.name == "zls" and not client:is_stopped()
-                                and client.config._zwe_workspace_key == ws.key
-                        end })
-                    end
-                end
-            end, 50)
-        end,
-    })
-
     vim.lsp.enable({
         "clangd",
         "gopls",
         "lua_ls",
         "rust_analyzer",
-        "zls",
     })
 end
 

@@ -212,8 +212,12 @@ function M.setup()
     local ui_grp = vim.api.nvim_create_augroup("1337.ui", { clear = true })
 
     vim.api.nvim_create_autocmd("User", {
-        group = ui_grp, pattern = { "1337ZweUpdated", "1337WorkspaceChanged" },
-        callback = function() vim.cmd.redrawstatus(); vim.cmd.redrawtabline() end,
+        group = ui_grp,
+        pattern = { "1337ZweUpdated", "ZweWorkspaceChanged" },
+        callback = function()
+            vim.cmd.redrawstatus()
+            vim.cmd.redrawtabline()
+        end,
     })
     vim.api.nvim_create_autocmd("User", {
         group = ui_grp,
