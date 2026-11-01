@@ -1,0 +1,7 @@
+.{
+    .name = .wagon,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0",
+    .paths = .{""},
+    .fingerprint = 0xbbdbd36f2f093ac,
+}
