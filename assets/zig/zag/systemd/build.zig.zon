@@ -1,0 +1,7 @@
+.{
+    .name = .systemd,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0",
+    .paths = .{""},
+    .fingerprint = 0xe27e5d75e15cf6ef,
+}
