@@ -1,0 +1,10 @@
+Name iteration/cycle
+Cleaning_Bathrooms 1/90
+Cleaning_Rooms 1/90
+Dusting 1/90
+Cleaning_Kitchen 1/90
+Cleaning_Living_Room 1/90
+Vacuuming_Sweeping 1/90
+Mopping 1/90
+Cleaning_the_Garage 1/90
+Cleaning_the_Laundry_room 1/90

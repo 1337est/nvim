@@ -1,0 +1,4 @@
+Name iteration/cycle
+Read 1/1
+Exercise 1/1
+Watering_lawn 0.33/1

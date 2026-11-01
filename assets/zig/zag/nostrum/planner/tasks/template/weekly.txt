@@ -1,0 +1,7 @@
+Name iteration/cycle enum(startdayofweek,enddayofweek)+enum(startdayofweek,enddayofweek)
+Trash 1/7 1,2+4,5
+Recycling 1/7 1,2
+Adults_Laundry 1/7 5,7
+Kids_Laundry 1/7 5,7
+Towels_Laundry 0.5/7 5,7
+Cutting_lawn 0.5/7 6,7
