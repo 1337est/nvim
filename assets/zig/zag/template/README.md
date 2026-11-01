@@ -1,0 +1,1 @@
+Pretty much a copy paste project that copies and initializes a zig project the way it is specified under directories listed here via a template under `src/init/*/**`, where the first asterisk is the name of the template, and everything after is what is to be copied to a destination.
