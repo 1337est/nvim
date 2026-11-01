@@ -1,7 +1,7 @@
 .{
-    .name = .zag,
+    .name = .ramen,
     .version = "0.0.1",
     .minimum_zig_version = "0.17.0",
     .paths = .{""},
-    .fingerprint = 0x9179a89f43d4735,
+    .fingerprint = 0x34255f1a964e5767,
 }
