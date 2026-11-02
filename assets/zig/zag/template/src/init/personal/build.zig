@@ -8,6 +8,9 @@ const compress_packages = false;
 const package_files: []const []const u8 = &.{"README.md"};
 const package_directories: []const []const u8 = &.{};
 
+// TODO: Add local here
+const InstallScope = enum { user, system };
+
 comptime {
     const minimum = std.SemanticVersion.parse(package.minimum_zig_version) catch
         @compileError("Invalid minimum_zig_version in build.zig.zon");
@@ -19,10 +22,13 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const release_optimize = b.option(std.lang.Optimize, "release-optimize", "Optimization used for release packages") orelse .fast;
+    const versioned = b.option(bool, "versioned", "Install into a project- and version-specific directory") orelse false;
     const version = try releaseVersion(b);
 
     const exe = try addExecutable(b, target, optimize);
-    b.installArtifact(exe);
+    addLocalInstallation(b, exe, versioned);
+    try addScopedInstallation(b, exe, .user, versioned);
+    try addScopedInstallation(b, exe, .system, versioned);
     b.step("check", "Compile without installing or running").dependOn(&exe.step);
 
     const run = b.addRunArtifact(exe);
@@ -31,43 +37,49 @@ pub fn build(b: *std.Build) !void {
     run.addPassthruArgs();
     b.step("run", "Build, install, and run this application").dependOn(&run.step);
 
-    const tests = b.addTest(.{
-        .name = artifact_name ++ "-tests",
-        .root_module = createModule(b, b.graph.host, optimize),
-    });
-    const run_tests = b.addRunArtifact(tests);
-    run_tests.step.dependOn(b.getInstallStep());
-    const test_step = b.step("test", "Build and run this project's tests on the host");
-    test_step.dependOn(&run_tests.step);
+    const test_step = addTests(b, optimize);
+    const assets = try addRuntimeAssets(b);
+    try addRelease(b, target, release_optimize, version, versioned, assets, test_step);
+}
 
-    const assets = b.addWriteFiles();
-    _ = assets.addCopyFile(b.path("build.zig.zon"), "build.zig.zon");
-    for (package_files) |path| {
-        if (!safePath(path)) return error.InvalidAssetPath;
-        _ = assets.addCopyFile(b.path(path), path);
+fn addLocalInstallation(b: *std.Build, exe: *std.Build.Step.Compile, versioned: bool) void {
+    if (versioned) {
+        const install = b.addInstallArtifact(exe, .{
+            .dest_dir = .{ .override = .{ .custom = b.fmt("{s}/bin", .{package.version}) } },
+        });
+        b.getInstallStep().dependOn(&install.step);
+    } else {
+        b.installArtifact(exe);
     }
-    for (package_directories) |path| {
-        if (!safePath(path)) return error.InvalidAssetPath;
-        _ = assets.addCopyDirectory(b.path(path), path, .{});
-    }
-    b.step("runtime-assets", "Stage this project's package assets in the build cache").dependOn(&assets.step);
 
-    const tool = b.addExecutable(.{
-        .name = artifact_name ++ "-package-tool",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("build.zig"),
-            .target = b.graph.host,
-            .optimize = .safe,
-        }),
-    });
-    const release_exe = try addExecutable(b, target, release_optimize);
-    const target_name = b.fmt("{s}-{s}-{s}", .{
-        @tagName(target.result.cpu.arch),
-        @tagName(target.result.os.tag),
-        @tagName(target.result.abi),
-    });
-    const archive = addPackage(b, tool, release_exe, assets.getDirectory(), test_step, version, target_name);
-    b.step("package", "Build a release package for the selected target").dependOn(archive);
+    const destination = if (versioned)
+        b.fmt("zig-out/{s}/bin/{s}", .{ package.version, exe.out_filename })
+    else
+        b.fmt("zig-out/bin/{s}", .{exe.out_filename});
+    const uninstall = b.addSystemCommand(&.{ "rm", "-f", "--", destination });
+    uninstall.setCwd(b.path(""));
+    b.step("uninstall-local", "Remove only this project's local executable").dependOn(&uninstall.step);
+}
+
+fn addScopedInstallation(b: *std.Build, exe: *std.Build.Step.Compile, scope: InstallScope, versioned: bool) !void {
+    const base = switch (scope) {
+        .user => b.fmt("{s}/.local", .{b.graph.environ_map.get("HOME") orelse return error.HomeNotSet}),
+        .system => "/usr/local",
+    };
+    const prefix = if (versioned)
+        b.fmt("{s}/zig-out/{s}/{s}", .{ base, artifact_name, package.version })
+    else
+        base;
+    const destination = b.fmt("{s}/bin/{s}", .{ prefix, exe.out_filename });
+    const scope_name = @tagName(scope);
+
+    const install = b.addSystemCommand(&.{ "install", "-D", "-m", "0755", "--" });
+    install.addFileArg(exe.getEmittedBin());
+    install.addArg(destination);
+    b.step(b.fmt("install-{s}", .{scope_name}), b.fmt("Install for {s}", .{scope_name})).dependOn(&install.step);
+
+    const uninstall = b.addSystemCommand(&.{ "rm", "-f", "--", destination });
+    b.step(b.fmt("uninstall-{s}", .{scope_name}), b.fmt("Uninstall for {s}", .{scope_name})).dependOn(&uninstall.step);
 }
 
 fn createModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) *std.Build.Module {
@@ -84,6 +96,59 @@ fn addExecutable(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.
         .version = try std.SemanticVersion.parse(package.version),
         .root_module = createModule(b, target, optimize),
     });
+}
+
+fn addTests(b: *std.Build, optimize: std.lang.Optimize) *std.Build.Step {
+    const tests = b.addTest(.{
+        .name = artifact_name ++ "-tests",
+        .root_module = createModule(b, b.graph.host, optimize),
+    });
+    const run_tests = b.addRunArtifact(tests);
+    const test_step = b.step("test", "Build and run this project's tests on the host");
+    test_step.dependOn(&run_tests.step);
+    return test_step;
+}
+
+fn addRuntimeAssets(b: *std.Build) !std.Build.LazyPath {
+    const assets = b.addWriteFiles();
+    _ = assets.addCopyFile(b.path("build.zig.zon"), "build.zig.zon");
+    for (package_files) |path| {
+        if (!safePath(path)) return error.InvalidAssetPath;
+        _ = assets.addCopyFile(b.path(path), path);
+    }
+    for (package_directories) |path| {
+        if (!safePath(path)) return error.InvalidAssetPath;
+        _ = assets.addCopyDirectory(b.path(path), path, .{});
+    }
+    b.step("runtime-assets", "Stage this project's package assets in the build cache").dependOn(&assets.step);
+    return assets.getDirectory();
+}
+
+fn addRelease(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.lang.Optimize,
+    version: []const u8,
+    versioned: bool,
+    assets: std.Build.LazyPath,
+    test_step: *std.Build.Step,
+) !void {
+    const tool = b.addExecutable(.{
+        .name = artifact_name ++ "-package-tool",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("build.zig"),
+            .target = b.graph.host,
+            .optimize = .safe,
+        }),
+    });
+    const release_exe = try addExecutable(b, target, optimize);
+    const target_name = b.fmt("{s}-{s}-{s}", .{
+        @tagName(target.result.cpu.arch),
+        @tagName(target.result.os.tag),
+        @tagName(target.result.abi),
+    });
+    const archive = addPackage(b, tool, release_exe, assets, test_step, version, versioned, target_name);
+    b.step("package", "Build a release package for the selected target").dependOn(archive);
 }
 
 fn releaseVersion(b: *std.Build) ![]const u8 {
@@ -114,6 +179,7 @@ fn addPackage(
     assets: std.Build.LazyPath,
     test_step: *std.Build.Step,
     version: []const u8,
+    versioned: bool,
     target_name: []const u8,
 ) *std.Build.Step {
     const name = b.fmt("{s}-{s}-{s}", .{ artifact_name, version, target_name });
@@ -139,7 +205,8 @@ fn addPackage(
         break :blk compress.captureStdOut(.{ .basename = b.fmt("{s}.tar.xz", .{name}) });
     } else tar;
     const suffix = if (compress_packages) ".tar.xz" else ".tar";
-    const install = b.addInstallFile(output, b.fmt("release/{s}{s}", .{ name, suffix }));
+    const subdir = if (versioned) b.fmt("{s}/release", .{package.version}) else "release";
+    const install = b.addInstallFile(output, b.fmt("{s}/{s}{s}", .{ subdir, name, suffix }));
     return &install.step;
 }
 
