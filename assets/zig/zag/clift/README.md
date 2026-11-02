@@ -1,6 +1,6 @@
 # Original idea
 
-clift stands for "CLI Template". I can't remember what the "f" stands for...
+clift stands for "Command Line Interface Formatter for your Terminal".
 
 This will be a template/library I can use for CLI applications that contains the features for certain terminal applications I want to write, to include for my `nostrum` application. I don't necessarily think this will be TUI apps, but it could evolve to that...
 
