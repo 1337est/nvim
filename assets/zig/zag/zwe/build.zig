@@ -11,7 +11,6 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{ .name = "zwe", .root_module = module });
     b.installArtifact(exe);
 
-    // Always run the generator on the build host, including when cross-compiling.
     const generator = b.addExecutable(.{
         .name = "zwe-generator",
         .root_module = b.createModule(.{
@@ -35,4 +34,36 @@ pub fn build(b: *std.Build) void {
     const run_tests = b.addRunArtifact(tests);
     b.step("test", "Run ZWE regression tests").dependOn(&run_tests.step);
     b.step("check", "Compile ZWE without installing").dependOn(&exe.step);
+
+    const install_user = installUserArtifact(b);
+    const uninstall_user = uninstallUserArtifact(b);
+
+    b.step("install-user", "Install to ~/.local with ~/.cache/zig").dependOn(&install_user.step);
+    b.step("uninstall-user", "Install to ~/.local with ~/.cache/zig").dependOn(&uninstall_user.step);
+}
+
+fn installUserArtifact(b: *std.Build) *std.Build.Step.Run {
+    const home = b.graph.environ_map.get("HOME") orelse @panic("HOME not set");
+    const cache = b.pathJoin(&.{ home, ".cache", "zig" });
+    const prefix = b.pathJoin(&.{ home, ".local" });
+
+    const install = b.addSystemCommand(&.{ b.graph.zig_exe, "build", "install", "--prefix", prefix, "--cache-dir", cache });
+    install.setCwd(b.path("."));
+    return install;
+}
+
+fn uninstallUserArtifact(b: *std.Build) *std.Build.Step.Run {
+    const home = b.graph.environ_map.get("HOME") orelse @panic("HOME not set");
+    const prefix = b.pathJoin(&.{ home, ".local" });
+
+    const uninstall = b.addSystemCommand(&.{
+        "rm",
+        "-f",
+        b.pathJoin(&.{ prefix, "bin/zwe" }),
+        b.pathJoin(&.{ prefix, "share/zwe/nvim/lua/zwe.lua" }),
+        b.pathJoin(&.{ prefix, "share/zwe/nvim/lsp/zls.lua" }),
+        b.pathJoin(&.{ prefix, "share/zwe/config.zon" }),
+    });
+    uninstall.has_side_effects = true;
+    return uninstall;
 }
