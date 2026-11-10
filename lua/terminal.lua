@@ -12,6 +12,17 @@ local state = {
     }
 }
 
+-- BUG: When creating a floating window and on a separate tab
+-- the floating window should be attached to that tab. Right now there
+-- can only be 1 floating window at a time, meaning when toggle_terminal()
+-- is ran, it toggles the terminal in the current tab, then switching to
+-- a different tab while the floating terminal is still on the previous tab
+-- and using toggle_terminal() on the new tab, the previous tab's floating
+-- terminal closes. Then invoking toggle_terminal again correctly opens
+-- the floating terminal in the current tab. This means there can only be
+-- 1 floating terminal at a time, when there should be a floating terminal
+-- allowed per tab. For now, each tab should have their own dedicated floating
+-- terminal. I'll add many terminals per tab when I need it.
 local function create_floating_window(opts)
     opts = opts or {}
     local width = opts.width or math.floor(vim.o.columns * 0.8)
