@@ -1,12 +1,21 @@
 const std = @import("std");
-const zag = @import("zag.zig");
 
 const Systemd = @This();
 
-project_file: zag.Fpb,
-install_file: zag.Fpb,
+project_file: Fpb,
+install_file: Fpb,
 sections: Sections = .{},
 require_runtime_directory: bool = false,
+
+/// File, Permission, Bytes
+/// Handles file access, permissions, and reading or writing bytes.
+pub const Fpb = struct {
+    path: []const u8, // path of the file or directory (implicit name)
+    bytes: ?[]const u8 = null, // file contents, null means not to alter bytes
+    permissions: ?std.Io.File.Permissions = null,
+    named_owner: ?[]const u8 = null, // optional explicit named owner
+    named_group: ?[]const u8 = null, // optional explicit named group
+};
 
 pub const Sections = struct {
     unit: ?Unit = null,
