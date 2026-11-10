@@ -96,6 +96,13 @@ local c    = {
     purple_dark = "#844a9c",
     purple_darker = "#5c326e",
     purple_darkest = "#100810",
+    -- pinks (flamingo!)
+    flamingo_lighter = "#ffe9e6",
+    flamingo_light = "#ffbdc9",
+    flamingo = "#f47da7",
+    flamingo_dark = "#cb557f",
+    flamingo_darker = "#8f365f",
+    flamingo_darkest = "#280d1b",
 }
 
 -- semantic aliases ----------------------
@@ -171,13 +178,16 @@ hl("Character", { link = "String" }) -- a character constant: 'c', '\n'
 hl("@string", { link = "String" }) -- string literals
 hl("@character", { link = "Character" }) -- character literals
 
-hl("Identifier", { fg = c.var }) -- variable names
+hl("Identifier", { fg = c.purple_light }) -- variable names
 hl("@variable", { link = "Identifier" }) -- various variable names
-hl("@variable.parameter", { link = "Identifier" }) -- parameters of a function
-hl("@variable.member", { link = "Identifier" }) -- object / struct fields FIEELLDSSS
+hl("@variable.parameter", { fg = c.orange_lighter }) -- parameters of a function
+hl("@variable.member", { fg = c.yellow_lighter }) -- object / struct fields FIEELLDSSS
 hl("@property", { link = "Identifier" }) -- keys in key/value pairs the key in key/value pairs
 hl("@variable.builtin", { fg = c.var, italic = true }) -- e.g. this, self
 hl("@variable.parameter.builtin", { fg = c.var, italic = true }) -- e.g. _, it
+
+hl("@lsp.type.property.zig", { link = "@variable.member" }) -- zls handles this more genericly I think
+hl("@lsp.type.property.lua", { link = "@variable.member" }) -- zls handles this more genericly I think
 
 hl("Function", { fg = c.fn }) -- function names (also: methods for classes)
 hl("@function", { link = "Function" }) -- function definitions
@@ -194,14 +204,16 @@ hl("Statement", { link = "Keyword" }) -- any statement
 hl("Conditional", { link = "Keyword" }) -- if, then, else, endif, swtich, etc.
 hl("Repeat", { link = "Keyword" }) -- for, do, while, etc.
 hl("Label", { link = "Keyword" }) -- case, default, etc.
-hl("Operator", { link = "Keyword" }) -- sizeof, +, *, etc.
 hl("Exception", { link = "Keyword" }) -- try, catch, throw
 hl("@keyword.conditional", { link = "Conditional" }) -- if, else
 hl("@keyword.repeat", { link = "Repeat" }) -- for, while
 hl("@label", { link = "Label" }) -- GOTO and other label:'s in C, including heredoc labels
+
+hl("Operator", { link = "Keyword" }) -- sizeof, +, *, etc.
 hl("@operator", { link = "Operator" }) -- symbolic operators e.g. +, *
 hl("@keyword.conditional.ternary", { link = "Operator" }) -- ?, :
 hl("@keyword.operator", { link = "Operator" }) -- Operators that are english words e.g. and, or
+
 hl("@keyword.exception", { link = "Exception" }) -- throw, catch
 hl("@keyword.coroutine", { fg = c.keyword, italic = true }) -- keywords related to coroutines e.g. go in GO, async/await in Python
 hl("@keyword.modifier", { fg = c.keyword, italic = true }) -- const, static, public
@@ -369,6 +381,7 @@ hl("VisualNOS", { link = "Visual" })
 hl("Error", { fg = c.error, bold = true })
 hl("ErrorMsg", { fg = c.error, bold = true })
 hl("WarningMsg", { fg = c.warn, bold = true })
+hl("@lsp.type.errorTag.zig", { fg = c.gray_lightest, bg = c.orange_darker }) -- zls handles this more genericly I think
 
 -- Diagnostics ----------------------------------------------------------------
 
