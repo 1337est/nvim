@@ -5,24 +5,6 @@ local config = {
     footer = { name = "1337est", pos = "right" },
 }
 
-local state = {
-    floating = {
-        buf = -1,
-        win = -1,
-    }
-}
-
--- BUG: When creating a floating window and on a separate tab
--- the floating window should be attached to that tab. Right now there
--- can only be 1 floating window at a time, meaning when toggle_terminal()
--- is ran, it toggles the terminal in the current tab, then switching to
--- a different tab while the floating terminal is still on the previous tab
--- and using toggle_terminal() on the new tab, the previous tab's floating
--- terminal closes. Then invoking toggle_terminal again correctly opens
--- the floating terminal in the current tab. This means there can only be
--- 1 floating terminal at a time, when there should be a floating terminal
--- allowed per tab. For now, each tab should have their own dedicated floating
--- terminal. I'll add many terminals per tab when I need it.
 local function create_floating_window(opts)
     opts = opts or {}
     local width = opts.width or math.floor(vim.o.columns * 0.8)
@@ -55,16 +37,27 @@ local function create_floating_window(opts)
     return { buf = buf, win = win }
 end
 
+local state = {
+    floating = {}
+}
+
 local function toggle_terminal()
-    if not vim.api.nvim_win_is_valid(state.floating.win) then
-        state.floating = create_floating_window { buf = state.floating.buf }
-        if vim.bo[state.floating.buf].buftype ~= "terminal" then
+    local tab = vim.api.nvim_get_current_tabpage()
+    local floating = state.floating[tab] or {
+        buf = -1,
+        win = -1,
+    }
+    if not vim.api.nvim_win_is_valid(floating.win) then
+        floating = create_floating_window { buf = floating.buf }
+        if vim.bo[floating.buf].buftype ~= "terminal" then
             vim.cmd.term()
-            state.floating.buf = vim.api.nvim_get_current_buf()
+            floating.buf = vim.api.nvim_get_current_buf()
         end
     else
-        vim.api.nvim_win_hide(state.floating.win)
+        vim.api.nvim_win_hide(floating.win)
     end
+
+    state.floating[tab] = floating
 end
 
 function M.setup(opts)
