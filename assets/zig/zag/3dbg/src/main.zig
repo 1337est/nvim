@@ -1,4 +1,4 @@
-// file: 3dbg.zig
+// file: main.zig
 // This is a single-file, dependency-light, first-principles
 // 3d/visual debugger. Written to help me with work and home projects.
 // I would like for this to be a reusable frontent debugger for arbitrary
