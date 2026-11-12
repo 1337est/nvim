@@ -753,6 +753,20 @@ const Framebuffer = struct {
         var fixed: fb.FixScreenInfo = undefined;
         if (c.ioctl(file_descriptor, fb.GET_VSCREENINFO, &variable) != 0) return error.FramebufferInfoFailed;
         if (c.ioctl(file_descriptor, fb.GET_FSCREENINFO, &fixed) != 0) return error.FramebufferInfoFailed;
+        std.log.info(
+            "framebuffer {s}: visible={d}x{d}, virtual={d}x{d}, offset={d},{d}, bpp={d}, stride={d}",
+            .{
+                path,
+                variable.xres,
+                variable.yres,
+                variable.xres_virtual,
+                variable.yres_virtual,
+                variable.xoffset,
+                variable.yoffset,
+                variable.bits_per_pixel,
+                fixed.line_length,
+            },
+        );
         if (fixed.type != 0 or fixed.visual != 2 or variable.nonstd != 0 or variable.grayscale != 0 or
             (variable.bits_per_pixel != 16 and variable.bits_per_pixel != 24 and variable.bits_per_pixel != 32))
             return error.UnsupportedFramebufferFormat;
@@ -796,7 +810,49 @@ const Framebuffer = struct {
         return @as(u32, @intCast((@as(u64, value) * max_value + 127) / 255)) << @intCast(field.offset);
     }
 
+    fn canDirectCopy(self: *const Framebuffer, canvas: *const Canvas) bool {
+        const row_bytes = canvas.width * @sizeOf(u32);
+        const x_bytes = self.xoffset * @sizeOf(u32);
+        const last_row = (self.yoffset + canvas.height - 1) * self.stride;
+
+        return self.bits_per_pixel == 32 and
+            canvas.width <= self.width and
+            canvas.height <= self.height and
+            x_bytes + row_bytes <= self.stride and
+            last_row + x_bytes + row_bytes <= self.mapped.len and
+            self.red.offset == 16 and self.red.length == 8 and
+            self.green.offset == 8 and self.green.length == 8 and
+            self.blue.offset == 0 and self.blue.length == 8 and
+            (self.transp.length == 0 or
+                (self.transp.offset == 24 and self.transp.length == 8));
+    }
+
     fn present(self: *Framebuffer, canvas: *const Canvas) void {
+        if (self.canDirectCopy(canvas)) {
+            const source = std.mem.sliceAsBytes(canvas.pixels);
+            const row_bytes = canvas.width * @sizeOf(u32);
+
+            if (self.stride == row_bytes and
+                self.xoffset == 0 and self.yoffset == 0)
+            {
+                @memcpy(self.mapped[0..source.len], source);
+            } else {
+                for (0..canvas.height) |y| {
+                    const src_offset = y * row_bytes;
+                    const dst_offset =
+                        (y + self.yoffset) * self.stride +
+                        self.xoffset * @sizeOf(u32);
+
+                    @memcpy(
+                        self.mapped[dst_offset..][0..row_bytes],
+                        source[src_offset..][0..row_bytes],
+                    );
+                }
+            }
+
+            return;
+        }
+
         const copy_width = @min(self.width, canvas.width);
         const copy_height = @min(self.height, canvas.height);
         const bytes_per_pixel: usize = @intCast(self.bits_per_pixel / 8);
@@ -875,6 +931,10 @@ const Mouse = struct {
         var path_buffer: [4096]u8 = undefined;
         const path_z = std.mem.printSentinel(&path_buffer, "{s}", .{path}, 0) catch return;
         self.fd = c.open(path_z.ptr, .{ .ACCMODE = .RDONLY, .NONBLOCK = true, .CLOEXEC = true });
+        if (self.fd < 0) {
+            std.log.err("could not open mouse device: {s}", .{path});
+            return;
+        }
         self.position = .{ @intCast(width / 2), @intCast(height / 2) };
     }
 
@@ -2541,6 +2601,7 @@ const Config = struct {
     fps: f64 = 30.0,
     frames: usize = 0,
     demo: bool = true,
+    size_explicit: bool = false,
 };
 
 fn printUsage(program_name: []const u8) void {
@@ -2604,6 +2665,7 @@ fn parseConfig(args: []const [:0]const u8, config: *Config) !bool {
             const size = try parseSize(try requireValue(args, &index, argument));
             config.width = size.width;
             config.height = size.height;
+            config.size_explicit = true;
         } else if (std.mem.eql(u8, argument, "--frames")) {
             config.frames = try std.fmt.parseInt(usize, try requireValue(args, &index, argument), 10);
         } else {
@@ -2646,8 +2708,14 @@ pub fn main(init: std.process.Init) !void {
         if (framebuffer_storage) |*framebuffer| framebuffer.close();
     }
 
-    const width = if (framebuffer_storage) |framebuffer| framebuffer.width else config.width;
-    const height = if (framebuffer_storage) |framebuffer| framebuffer.height else config.height;
+    const width = if (framebuffer_storage) |framebuffer|
+        @min(framebuffer.width, if (config.size_explicit) config.width else framebuffer.width)
+    else
+        config.width;
+    const height = if (framebuffer_storage) |framebuffer|
+        @min(framebuffer.height, if (config.size_explicit) config.height else framebuffer.height)
+    else
+        config.height;
     var canvas = try Canvas.init(init.gpa, width, height);
     defer canvas.deinit();
 
@@ -2672,6 +2740,9 @@ pub fn main(init: std.process.Init) !void {
         .clock = .awake,
     };
     var rendered_frames: usize = 0;
+    var render_total_ms: f64 = 0;
+    var present_total_ms: f64 = 0;
+    var perf_frames: usize = 0;
     scene.log(.info, "3dbg initialized: generic scene, software renderer, Linux platform backend", @as(f64, @floatFromInt(previous_time.raw.nanoseconds)) / 1_000_000_000.0);
     std.log.info("3dbg: {d}x{d}, UDP {d}, {s}", .{
         width,
@@ -2679,7 +2750,11 @@ pub fn main(init: std.process.Init) !void {
         config.udp_port,
         if (framebuffer_storage != null) "framebuffer output" else "headless PPM output",
     });
-
+    if (framebuffer_storage) |*framebuffer| {
+        std.log.info("framebuffer direct ARGB32 copy: {s}", .{
+            if (framebuffer.canDirectCopy(&canvas)) "enabled" else "disabled",
+        });
+    }
     while (app.running) {
         const frame_start = std.Io.Clock.Timestamp.now(init.io, .awake);
         const now = @as(f64, @floatFromInt(frame_start.raw.nanoseconds)) / 1_000_000_000.0;
@@ -2697,10 +2772,36 @@ pub fn main(init: std.process.Init) !void {
         while (terminal.readKey()) |key| app.keyboard(key);
         const layout = buildLayout(width, height, app.view);
         app.mouseInput(&mouse, layout);
-        app.updateTiming(dt);
+        if (rendered_frames > 0) app.updateTiming(dt);
+        const render_start = std.Io.Clock.Timestamp.now(init.io, .awake);
         app.render(&canvas, &scene, &udp, mouse.position);
-        if (framebuffer_storage) |*framebuffer| framebuffer.present(&canvas);
 
+        const present_start = std.Io.Clock.Timestamp.now(init.io, .awake);
+        if (framebuffer_storage) |*framebuffer| framebuffer.present(&canvas);
+        const present_end = std.Io.Clock.Timestamp.now(init.io, .awake);
+
+        render_total_ms += @as(
+            f64,
+            @floatFromInt(render_start.durationTo(present_start).raw.nanoseconds),
+        ) / 1_000_000.0;
+
+        present_total_ms += @as(
+            f64,
+            @floatFromInt(present_start.durationTo(present_end).raw.nanoseconds),
+        ) / 1_000_000.0;
+
+        perf_frames += 1;
+
+        if (perf_frames == 120) {
+            std.log.info("frame timing: render={d:.2}ms present={d:.2}ms", .{
+                render_total_ms / 120.0,
+                present_total_ms / 120.0,
+            });
+
+            render_total_ms = 0;
+            present_total_ms = 0;
+            perf_frames = 0;
+        }
         rendered_frames += 1;
         if (config.frames > 0 and rendered_frames >= config.frames) break;
         try frame_start.addDuration(frame_duration).wait(init.io);
