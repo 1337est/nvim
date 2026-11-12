@@ -186,9 +186,6 @@ hl("@property", { link = "Identifier" }) -- keys in key/value pairs the key in k
 hl("@variable.builtin", { fg = c.var, italic = true }) -- e.g. this, self
 hl("@variable.parameter.builtin", { fg = c.var, italic = true }) -- e.g. _, it
 
-hl("@lsp.type.property.zig", { link = "@variable.member" }) -- zls handles this more genericly I think
-hl("@lsp.type.property.lua", { link = "@variable.member" }) -- zls handles this more genericly I think
-
 hl("Function", { fg = c.fn }) -- function names (also: methods for classes)
 hl("@function", { link = "Function" }) -- function definitions
 hl("@function.call", { link = "Function" }) -- function calls
@@ -381,7 +378,6 @@ hl("VisualNOS", { link = "Visual" })
 hl("Error", { fg = c.error, bold = true })
 hl("ErrorMsg", { fg = c.error, bold = true })
 hl("WarningMsg", { fg = c.warn, bold = true })
-hl("@lsp.type.errorTag.zig", { fg = c.gray_lightest, bg = c.orange_darker }) -- zls handles this more genericly I think
 
 -- Diagnostics ----------------------------------------------------------------
 
@@ -466,3 +462,11 @@ hl("@markup.raw.block", { fg = c.gray_light, bg = c.bg_alt }) -- md code blocks
 hl("@markup.list", { fg = c.yellow }) -- md list markers
 hl("@markup.list.checked", { fg = c.green }) -- md checked todo-style list markers
 hl("@markup.list.unchecked", { fg = c.fg_alt }) -- md  unchecked todo-style list markers
+
+-- LSP ------------------------------------------------------------------------
+hl("@lsp.type.property.zig", { link = "@variable.member" }) -- zls handles this more genericly I think
+hl("@lsp.type.property.lua", { link = "@variable.member" }) -- zls handles this more genericly I think
+
+hl("@lsp.type.errorTag.zig", { fg = c.gray_lightest, bg = c.orange_darker }) -- zls handles this more genericly I think
+
+hl("LspReferenceRead", { underline = true }) -- underline instead of highlight similar cursor text
