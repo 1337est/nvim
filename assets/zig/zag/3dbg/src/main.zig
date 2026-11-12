@@ -1,4 +1,4 @@
-// file: main.zig
+// file: src/main.zig
 // This is a single-file, dependency-light, first-principles
 // 3d/visual debugger. Written to help me with work and home projects.
 // I would like for this to be a reusable frontent debugger for arbitrary
@@ -58,16 +58,18 @@
 //
 // Build with Zig 0.17.0:
 //
-//     zig build-exe 3dbg.zig -lc -OReleaseFast
-//     zig test 3dbg.zig -lc
+//     zig build test             // Compile and run all tests
+//     zig build                  // Test, compile, and install
+//     zig build install          // Test, compile, and install
+//     zig build run --           // Install and run locally
 //
 // Run on a dedicated Linux framebuffer console:
 //
-//     sudo ./3dbg --fb /dev/fb0 --mouse /dev/input/mice --udp 7777
+//     sudo ./zig-out/bin/3dbg --fb /dev/fb0 --mouse /dev/input/mice --udp 7777
 //
 // Render one headless frame for inspection:
 //
-//     ./3dbg --ppm 3dbg.ppm --frames 1 --size 1280x720
+//     zig build run -- --ppm 3dbg.ppm --frames 1 --size 1280x720
 //
 // UDP protocol, one or more newline-separated commands per datagram:
 //
@@ -106,9 +108,9 @@ const rad_per_deg: f64 = std.math.rad_per_deg;
 // limitations right now
 comptime {
     if (builtin.os.tag != .linux)
-        @compileError("3dbg.zig currently provides a Linux framebuffer platform backend");
+        @compileError("3dbg currently provides a Linux framebuffer platform backend");
     if (@sizeOf(usize) != 8)
-        @compileError("3dbg.zig currently requires a 64-bit Linux userspace");
+        @compileError("3dbg currently requires a 64-bit Linux userspace");
     if (builtin.cpu.arch.endian() != .little)
         @compileError("the prototype framebuffer and socket ABI currently target little-endian Linux");
 }
@@ -225,53 +227,6 @@ pub const ScreenVertex = @Vector(3, f32);
 
 pub const Color = @Vector(4, u8); // rgba
 
-pub const Transform = struct {
-    translation: Pos3 = @splat(0),
-    rotation_deg: Pos3 = @splat(0),
-    scale: Pos3 = @splat(1),
-};
-
-fn dot(a: Pos3, b: Pos3) f32 {
-    return @reduce(.Add, a * b);
-}
-
-fn cross(a: Pos3, b: Pos3) Pos3 {
-    return .{
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    };
-}
-
-fn length(v: Pos3) f32 {
-    return @sqrt(dot(v, v));
-}
-
-fn normalize(v: Pos3) Pos3 {
-    const len = length(v);
-    if (len <= 0.000001) return @splat(0);
-    return v / @as(Pos3, @splat(len));
-}
-
-fn finiteVector(v: anytype) bool {
-    inline for (0..@typeInfo(@TypeOf(v)).vector.len) |i| {
-        if (!std.math.isFinite(v[i])) return false;
-    }
-    return true;
-}
-
-fn finiteTransform(t: Transform) bool {
-    return finiteVector(t.translation) and
-        finiteVector(t.rotation_deg) and
-        finiteVector(t.scale);
-}
-
-fn parseFiniteFloat(comptime T: type, text: []const u8) !T {
-    const value = try std.fmt.parseFloat(T, text);
-    if (!std.math.isFinite(value)) return error.NonFiniteNumber;
-    return value;
-}
-
 const palette = struct {
     const background = Color{ 8, 12, 18, 255 };
     const panel = Color{ 17, 26, 36, 255 };
@@ -290,32 +245,6 @@ const palette = struct {
     const axis_y = Color{ 88, 230, 124, 255 };
     const axis_z = Color{ 83, 153, 255, 255 };
 };
-
-fn argb(self: Color) u32 {
-    return (@as(u32, self[3]) << 24) |
-        (@as(u32, self[0]) << 16) |
-        (@as(u32, self[1]) << 8) |
-        @as(u32, self[2]);
-}
-
-fn fromArgb(value: u32) Color {
-    return .{ @truncate(value >> 16), @truncate(value >> 8), @truncate(value), @truncate(value >> 24) };
-}
-
-fn shade(color: Color, multiplier: f32) Color {
-    const factor = std.math.clamp(multiplier, 0.0, 2.0);
-    const channels: @Vector(4, f32) = @floatFromInt(color);
-    const factors: @Vector(4, f32) = .{ factor, factor, factor, 1 };
-    return @intFromFloat(std.math.clamp(channels * factors, @as(@Vector(4, f32), @splat(0)), @as(@Vector(4, f32), @splat(255))));
-}
-
-fn contains(rect: Rect, point: Coord2) bool {
-    return @reduce(.And, point >= rect[0]) and @reduce(.And, point < rect[0] + rect[1]);
-}
-
-fn inset(rect: Rect, amount: i32) Rect {
-    return .{ rect[0] + @as(Coord2, @splat(amount)), @max(@as(Coord2, @splat(0)), rect[1] - @as(Coord2, @splat(amount * 2))) };
-}
 
 const Canvas = struct {
     allocator: std.mem.Allocator,
@@ -715,6 +644,90 @@ const Canvas = struct {
     }
 };
 
+fn argb(self: Color) u32 {
+    return (@as(u32, self[3]) << 24) |
+        (@as(u32, self[0]) << 16) |
+        (@as(u32, self[1]) << 8) |
+        @as(u32, self[2]);
+}
+
+fn fromArgb(value: u32) Color {
+    return .{ @truncate(value >> 16), @truncate(value >> 8), @truncate(value), @truncate(value >> 24) };
+}
+
+fn shade(color: Color, multiplier: f32) Color {
+    const factor = std.math.clamp(multiplier, 0.0, 2.0);
+    const channels: @Vector(4, f32) = @floatFromInt(color);
+    const factors: @Vector(4, f32) = .{ factor, factor, factor, 1 };
+    return @intFromFloat(std.math.clamp(channels * factors, @as(@Vector(4, f32), @splat(0)), @as(@Vector(4, f32), @splat(255))));
+}
+
+test "colors, shading and blending" {
+    try std.testing.expectEqual(@as(u32, 0x7812_3456), argb(.{ 0x12, 0x34, 0x56, 0x78 }));
+    try std.testing.expectEqual(Color{ 0x12, 0x34, 0x56, 0x78 }, fromArgb(0x7812_3456));
+    try std.testing.expectEqual(Color{ 50, 100, 125, 77 }, shade(.{ 100, 200, 250, 77 }, 0.5));
+    try std.testing.expectEqual(Color{ 200, 255, 255, 77 }, shade(.{ 100, 200, 250, 77 }, 3));
+    try std.testing.expectEqual(Color{ 0, 0, 0, 77 }, shade(.{ 100, 200, 250, 77 }, -1));
+    try std.testing.expectEqual(@as(u32, 0xff12_3456), Canvas.blend(0xff12_3456, .{ 255, 0, 0, 0 }));
+    try std.testing.expectEqual(@as(u32, 0xffff_0000), Canvas.blend(0xff12_3456, .{ 255, 0, 0, 255 }));
+    try std.testing.expectEqual(@as(u32, 0xff80_0000), Canvas.blend(0xff00_0000, .{ 255, 0, 0, 128 }));
+}
+
+pub const Transform = struct {
+    translation: Pos3 = @splat(0),
+    rotation_deg: Pos3 = @splat(0),
+    scale: Pos3 = @splat(1),
+};
+
+fn dot(a: Pos3, b: Pos3) f32 {
+    return @reduce(.Add, a * b);
+}
+
+fn cross(a: Pos3, b: Pos3) Pos3 {
+    return .{
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    };
+}
+
+fn length(v: Pos3) f32 {
+    return @sqrt(dot(v, v));
+}
+
+fn normalize(v: Pos3) Pos3 {
+    const len = length(v);
+    if (len <= 0.000001) return @splat(0);
+    return v / @as(Pos3, @splat(len));
+}
+
+fn finiteVector(v: anytype) bool {
+    inline for (0..@typeInfo(@TypeOf(v)).vector.len) |i| {
+        if (!std.math.isFinite(v[i])) return false;
+    }
+    return true;
+}
+
+fn finiteTransform(t: Transform) bool {
+    return finiteVector(t.translation) and
+        finiteVector(t.rotation_deg) and
+        finiteVector(t.scale);
+}
+
+fn parseFiniteFloat(comptime T: type, text: []const u8) !T {
+    const value = try std.fmt.parseFloat(T, text);
+    if (!std.math.isFinite(value)) return error.NonFiniteNumber;
+    return value;
+}
+
+fn contains(rect: Rect, point: Coord2) bool {
+    return @reduce(.And, point >= rect[0]) and @reduce(.And, point < rect[0] + rect[1]);
+}
+
+fn inset(rect: Rect, amount: i32) Rect {
+    return .{ rect[0] + @as(Coord2, @splat(amount)), @max(@as(Coord2, @splat(0)), rect[1] - @as(Coord2, @splat(amount * 2))) };
+}
+
 const Framebuffer = struct {
     fd: c_int,
     mapped: []u8,
@@ -807,13 +820,15 @@ const Framebuffer = struct {
 };
 
 const Terminal = struct {
+    fd: c_int = 0,
     active: bool = false,
-    saved: c.termios = undefined,
+    saved: linux.termios = undefined,
     saved_flags: c_int = 0,
 
     fn enter(self: *Terminal) void {
-        if (c.tcgetattr(0, &self.saved) != 0) return;
-        const flags = c.fcntl(0, c.F.GETFL);
+        self.saved = std.mem.zeroes(linux.termios);
+        if (linux.tcgetattr(self.fd, &self.saved) != 0) return;
+        const flags = c.fcntl(self.fd, c.F.GETFL);
         if (flags < 0) return;
         self.saved_flags = flags;
         var raw = self.saved;
@@ -821,11 +836,11 @@ const Terminal = struct {
         raw.lflag.ICANON = false;
         raw.cc[@backingInt(linux.V.MIN)] = 0;
         raw.cc[@backingInt(linux.V.TIME)] = 0;
-        if (c.tcsetattr(0, .NOW, &raw) != 0) return;
+        if (linux.tcsetattr(self.fd, .NOW, &raw) != 0) return;
         var nonblocking: c.O = @bitCast(self.saved_flags);
         nonblocking.NONBLOCK = true;
-        if (c.fcntl(0, c.F.SETFL, @as(c_int, @bitCast(nonblocking))) < 0) {
-            _ = c.tcsetattr(0, .NOW, &self.saved);
+        if (c.fcntl(self.fd, c.F.SETFL, @as(c_int, @bitCast(nonblocking))) < 0) {
+            _ = linux.tcsetattr(self.fd, .NOW, &self.saved);
             return;
         }
         self.active = true;
@@ -833,15 +848,15 @@ const Terminal = struct {
 
     fn leave(self: *Terminal) void {
         if (!self.active) return;
-        _ = c.tcsetattr(0, .NOW, &self.saved);
-        _ = c.fcntl(0, c.F.SETFL, self.saved_flags);
+        _ = linux.tcsetattr(self.fd, .NOW, &self.saved);
+        _ = c.fcntl(self.fd, c.F.SETFL, self.saved_flags);
         self.active = false;
     }
 
     fn readKey(self: *Terminal) ?u8 {
         if (!self.active) return null;
         var byte: [1]u8 = undefined;
-        return if (c.read(0, &byte, 1) == 1) byte[0] else null;
+        return if (c.read(self.fd, &byte, 1) == 1) byte[0] else null;
     }
 };
 
@@ -2668,7 +2683,7 @@ pub fn main(init: std.process.Init) !void {
     while (app.running) {
         const frame_start = std.Io.Clock.Timestamp.now(init.io, .awake);
         const now = @as(f64, @floatFromInt(frame_start.raw.nanoseconds)) / 1_000_000_000.0;
-        const dt = std.math.clamp(@as(f64, @floatFromInt(previous_time.durationTo(frame_start).raw.nanoseconds)) / 1_000_000_000.0, 0.0001, 0.25);
+        const dt = @max(@as(f64, @floatFromInt(previous_time.durationTo(frame_start).raw.nanoseconds)) / 1_000_000_000.0, 0.0001);
         previous_time = frame_start;
 
         udp.update(&scene, now);
@@ -2751,4 +2766,540 @@ test "series uses a bounded ring" {
         item.push(@as(f64, @floatFromInt(index)), @as(f32, @floatFromInt(index)));
     try std.testing.expectEqual(series_capacity, item.len);
     try std.testing.expectApproxEqAbs(@as(f32, 10), item.valueAt(0), 0.001);
+}
+
+// Unit, integration, and executable smoke tests.
+//
+// Run all tests:
+//   zig build test
+//
+// Standalone equivalent:
+//   zig test src/main.zig -lc
+//
+// No root, external map data, netcat, monitor, or image viewer is required.
+// Files and child executables stay in std.testing.tmpDir and are removed.
+//
+// Optional read-only framebuffer hardware test:
+//   DBG_TEST_FB=/dev/fb0 zig build test
+//
+// The hardware test is skipped when DBG_TEST_FB is unset.
+// All other tests run normally.
+//
+// zig build test supplies ZIG_EXE; standalone tests use ZIG_EXE or zig on PATH.
+// Kernel terminal structures are deliberately paired with linux.tc* calls.
+
+fn testPpm(dir: std.Io.Dir, path: []const u8, width: usize, height: usize, pixels: ?[]const u32) !void {
+    const io = std.testing.io;
+    var header_buffer: [128]u8 = undefined;
+    const header = try std.mem.print(&header_buffer, "P6\n{d} {d}\n255\n", .{ width, height });
+    const expected_len = header.len + width * height * 3;
+    const bytes = try dir.readFileAlloc(io, path, std.testing.allocator, .limited(expected_len + 1));
+    defer std.testing.allocator.free(bytes);
+    try std.testing.expectEqual(expected_len, bytes.len);
+    try std.testing.expectEqualSlices(u8, header, bytes[0..header.len]);
+    if (pixels) |expected| {
+        try std.testing.expectEqual(width * height, expected.len);
+        for (expected, 0..) |pixel, i| {
+            const rgb = [3]u8{ @truncate(pixel >> 16), @truncate(pixel >> 8), @truncate(pixel) };
+            try std.testing.expectEqualSlices(u8, &rgb, bytes[header.len + i * 3 ..][0..3]);
+        }
+    } else {
+        // Require different RGB pixels, not merely different bytes in a solid color.
+        var varied = false;
+        var i = header.len + 3;
+        while (i < bytes.len) : (i += 3) {
+            if (!std.mem.eql(u8, bytes[header.len..][0..3], bytes[i..][0..3])) {
+                varied = true;
+                break;
+            }
+        }
+        try std.testing.expect(varied);
+    }
+}
+
+fn testProcess(dir: std.Io.Dir, argv: []const []const u8, seconds: i64, expected_error: ?[]const u8) !void {
+    const io = std.testing.io;
+    const result = try std.process.run(std.testing.allocator, io, .{
+        .argv = argv,
+        .cwd = .{ .dir = dir },
+        .stdout_limit = .limited(1024 * 1024),
+        .stderr_limit = .limited(1024 * 1024),
+        .timeout = .{ .deadline = .fromNow(io, .{ .raw = .fromSeconds(seconds), .clock = .awake }) },
+    });
+    defer std.testing.allocator.free(result.stdout);
+    defer std.testing.allocator.free(result.stderr);
+    // A signal/crash is not a successful rejection of invalid arguments.
+    const exited = switch (result.term) {
+        .exited => |code| if (expected_error != null) code != 0 else code == 0,
+        else => false,
+    };
+    if (!exited) {
+        std.debug.print("\nchild {s}: {f}\n{s}{s}\n", .{ argv[0], result.term, result.stdout, result.stderr });
+        return error.ChildResultUnexpected;
+    }
+    if (expected_error) |name| {
+        if (std.mem.find(u8, result.stderr, name) == null) {
+            std.debug.print("\nexpected child error {s}:\n{s}\n", .{ name, result.stderr });
+            return error.ChildErrorUnexpected;
+        }
+    }
+}
+
+fn testReadable(fd: c_int) !void {
+    var descriptors = [_]c.pollfd{.{ .fd = fd, .events = c.POLL.IN, .revents = 0 }};
+    if (c.poll(&descriptors, 1, 2000) != 1 or descriptors[0].revents & c.POLL.IN == 0)
+        return error.InputNotReady;
+}
+
+fn testDatagram(sender: c_int, receiver: c_int, bytes: []const u8) !void {
+    var address: c.sockaddr.in = .{ .port = 0, .addr = 0 };
+    var size: c.socklen_t = @sizeOf(c.sockaddr.in);
+    try std.testing.expectEqual(@as(c_int, 0), c.getsockname(receiver, @ptrCast(&address), &size));
+    try std.testing.expect(address.port != 0);
+    address.addr = std.mem.nativeToBig(u32, 0x7f00_0001);
+    try std.testing.expectEqual(@as(isize, @intCast(bytes.len)), c.sendto(sender, bytes.ptr, bytes.len, 0, @ptrCast(&address), size));
+    try testReadable(receiver);
+}
+
+test "clipping, rectangles and line rasterization" {
+    var canvas = try Canvas.init(std.testing.allocator, 320, 240);
+    defer canvas.deinit();
+    canvas.clear(.{ 0, 0, 0, 255 });
+    const clip = Rect{ .{ 10, 20 }, .{ 4, 3 } };
+    try std.testing.expect(contains(clip, .{ 10, 20 }));
+    try std.testing.expect(!contains(clip, .{ 14, 20 }));
+    try std.testing.expect(!contains(clip, .{ 10, 23 }));
+    try std.testing.expectEqualDeep(Rect{ .{ 11, 21 }, .{ 2, 1 } }, inset(clip, 1));
+    canvas.setClip(clip);
+    canvas.fillRect(.{ .{ -20, -20 }, .{ 400, 300 } }, .{ 255, 0, 0, 255 });
+    for (canvas.pixels, 0..) |pixel, i| {
+        const p: Coord2 = .{ @intCast(i % canvas.width), @intCast(i / canvas.width) };
+        try std.testing.expectEqual(@as(u32, if (contains(clip, p)) 0xffff_0000 else 0xff00_0000), pixel);
+    }
+    canvas.resetClip();
+    canvas.line(.{ -10, 0 }, .{ 10, 0 }, .{ 0, 255, 0, 255 }, 1);
+    for (canvas.pixels[0..11]) |pixel| try std.testing.expectEqual(@as(u32, 0xff00_ff00), pixel);
+    canvas.setClip(.{ .{ 400, 400 }, .{ 20, 20 } });
+    try std.testing.expectEqual(Coord2{ 0, 0 }, canvas.clip[1]);
+    canvas.fillRect(.{ .{ 0, 0 }, .{ 320, 240 } }, .{ 255, 255, 255, 255 });
+    try std.testing.expectEqual(@as(u32, 0xff00_0000), canvas.pixels[30 * 320 + 30]);
+}
+
+test "depth tests for points, lines, circles and triangles" {
+    var canvas = try Canvas.init(std.testing.allocator, 320, 240);
+    defer canvas.deinit();
+    canvas.clear(.{ 0, 0, 0, 255 });
+    canvas.clearDepth();
+    canvas.putDepthPixel(20, 20, 5, .{ 255, 0, 0, 255 });
+    canvas.putDepthPixel(20, 20, 8, .{ 0, 255, 0, 255 });
+    try std.testing.expectEqual(@as(u32, 0xffff_0000), canvas.pixels[20 * 320 + 20]);
+    canvas.putDepthPixel(20, 20, 2, .{ 0, 0, 255, 255 });
+    try std.testing.expectEqual(@as(u32, 0xff00_00ff), canvas.pixels[20 * 320 + 20]);
+    canvas.depthLine(.{ 30, 30, 4 }, .{ 40, 30, 4 }, .{ 0, 255, 0, 255 }, 3);
+    try std.testing.expectEqual(@as(f32, 4), canvas.depth[30 * 320 + 35]);
+    canvas.depthCircle(.{ 35, 30 }, 2, 3, .{ 255, 0, 0, 255 });
+    try std.testing.expectEqual(@as(f32, 3), canvas.depth[30 * 320 + 35]);
+    canvas.depthTriangle(.{ 60, 60, 2 }, .{ 80, 60, 2 }, .{ 60, 80, 2 }, .{ 255, 255, 255, 255 });
+    try std.testing.expectEqual(@as(u32, 0xffff_ffff), canvas.pixels[65 * 320 + 65]);
+    try std.testing.expectApproxEqAbs(@as(f32, 2), canvas.depth[65 * 320 + 65], 0.00001);
+    canvas.fillCircle(.{ 100, 100 }, 0, .{ 255, 0, 0, 255 });
+    try std.testing.expectEqual(@as(u32, 0xffff_0000), canvas.pixels[100 * 320 + 100]);
+}
+
+test "nearest-neighbor image scaling" {
+    var canvas = try Canvas.init(std.testing.allocator, 320, 240);
+    defer canvas.deinit();
+    canvas.clear(.{ 0, 0, 0, 255 });
+    const image = [_]u32{ 0xffff_0000, 0xff00_ff00, 0xff00_00ff, 0xffff_ffff };
+    canvas.drawImageNearest(.{ .{ 10, 10 }, .{ 4, 4 } }, 2, 2, &image);
+    for (0..4) |y| for (0..4) |x| {
+        try std.testing.expectEqual(image[(y / 2) * 2 + x / 2], canvas.pixels[(y + 10) * 320 + x + 10]);
+    };
+    canvas.drawImageNearest(.{ .{ 10, 10 }, .{ 4, 4 } }, 0, 0, &.{});
+    try std.testing.expectEqual(image[0], canvas.pixels[10 * 320 + 10]);
+}
+
+test "transform order and projection rejection" {
+    const point = applyTransform(.{ 1, 0, 0 }, .{
+        .translation = .{ 10, 20, 30 },
+        .rotation_deg = .{ 0, 0, 90 },
+        .scale = .{ 2, 3, 4 },
+    });
+    inline for (0..3) |i| try std.testing.expectApproxEqAbs((Pos3{ 10, 22, 30 })[i], point[i], 0.0001);
+    const camera: Camera3D = .{};
+    const viewport = Rect{ .{ 0, 0 }, .{ 320, 240 } };
+    try std.testing.expect(camera.project(viewport, camera.position()) == null);
+    try std.testing.expect(camera.project(viewport, .{ std.math.nan(f32), 0, 0 }) == null);
+    try std.testing.expectEqual(@as(f64, -179), MapCamera.wrapLongitude(181));
+    try std.testing.expectEqual(@as(f64, 179), MapCamera.wrapLongitude(-181));
+}
+
+test "scene updates reject invalid values without replacing good data" {
+    var scene = try Scene.init(std.testing.allocator);
+    defer scene.deinit();
+    const good: Point3D = .{ .id = 7, .position = .{ 1, 2, 3 }, .updated_at = 1 };
+    try scene.upsertPoint3D(good);
+    var changed = good;
+    changed.position = .{ 4, 5, 6 };
+    try scene.upsertPoint3D(changed);
+    try std.testing.expectEqual(@as(usize, 1), scene.points_3d.items.len);
+    try std.testing.expectEqual(changed.position, scene.points_3d.items[0].position);
+    changed.position[0] = std.math.inf(f32);
+    try std.testing.expectError(error.InvalidNumericValue, scene.upsertPoint3D(changed));
+    try std.testing.expectEqual(Pos3{ 4, 5, 6 }, scene.points_3d.items[0].position);
+    try std.testing.expectError(error.NonFiniteNumber, parseFiniteFloat(f64, "nan"));
+    try std.testing.expectError(error.NonFiniteNumber, parseFiniteFloat(f64, "inf"));
+    try std.testing.expectError(error.InvalidNumericValue, scene.upsertGeoPoint(.{ .id = 1, .latitude_deg = 91, .longitude_deg = 0 }));
+    try std.testing.expectError(error.InvalidNumericValue, scene.upsertPoint2D(.{ .id = 1, .position = .{ 100, 0 } }));
+    try std.testing.expectError(error.InvalidImage, scene.image.setArgb(std.testing.allocator, 2, 2, &.{0}, 0));
+}
+
+test "bounded scene and log storage" {
+    var scene = try Scene.init(std.testing.allocator);
+    defer scene.deinit();
+    for (0..max_scalars) |i| {
+        var buf: [32]u8 = undefined;
+        const name = try std.mem.print(&buf, "scalar-{d}", .{i});
+        try scene.upsertScalar(name, @floatFromInt(i), "u", palette.text, 1);
+    }
+    try std.testing.expectError(error.SceneLimit, scene.upsertScalar("overflow", 0, "u", palette.text, 1));
+    try scene.upsertScalar("scalar-0", 42, "u", palette.text, 2);
+    try std.testing.expectEqual(@as(usize, max_scalars), scene.scalars.items.len);
+    try std.testing.expectEqual(@as(f64, 42), scene.scalars.items[0].value);
+    for (0..max_logs + 5) |i| scene.log(.info, "bounded", @floatFromInt(i));
+    try std.testing.expectEqual(@as(usize, max_logs), scene.log_len);
+    try std.testing.expectEqual(@as(f64, 5), scene.logs[scene.log_start].time_seconds);
+    scene.clear("all");
+    try std.testing.expectEqual(@as(usize, 0), scene.scalars.items.len);
+    try std.testing.expectEqual(@as(usize, 0), scene.log_len);
+    try std.testing.expectError(error.OutOfMemory, Scene.init(std.testing.failing_allocator));
+    try std.testing.expectError(error.OutOfMemory, Canvas.init(std.testing.failing_allocator, 320, 240));
+}
+
+test "all views render both empty and populated scenes" {
+    var scene = try Scene.init(std.testing.allocator);
+    defer scene.deinit();
+    const udp: UdpAdapter = .{};
+    for ([_]Coord2{ .{ 320, 240 }, .{ 640, 480 }, .{ 1280, 720 } }) |size| {
+        var canvas = try Canvas.init(std.testing.allocator, @intCast(size[0]), @intCast(size[1]));
+        defer canvas.deinit();
+        scene.clear("all");
+        var demo = DemoAdapter.init(std.testing.allocator);
+        defer demo.deinit();
+        for ([_]bool{ false, true }) |populated| {
+            if (populated) {
+                demo.setup(&scene, 1);
+                demo.update(&scene, 1);
+                demo.update(&scene, 1.25);
+                try std.testing.expect(scene.cloud_points.items.len > 0);
+                try std.testing.expect(scene.meshes.items.len > 0);
+                try std.testing.expect(scene.series.items.len > 0);
+            }
+            for ([_]View{ .overview, .map, .scene, .plots, .image }) |view| {
+                var app = App{ .view = view };
+                app.render(&canvas, &scene, &udp, .{ 2, 2 });
+                try std.testing.expect(!std.mem.allEqual(u32, canvas.pixels, argb(palette.background)));
+                for (canvas.pixels) |pixel| try std.testing.expectEqual(@as(u32, 255), pixel >> 24);
+            }
+        }
+    }
+}
+
+test "keyboard and mouse change views and cameras" {
+    var app: App = .{};
+    for ([_]View{ .overview, .map, .scene, .plots, .image }, 0..) |view, i| {
+        app.keyboard(@as(u8, '1') + @as(u8, @intCast(i)));
+        try std.testing.expectEqual(view, app.view);
+    }
+    app.keyboard('2');
+    app.keyboard('+');
+    try std.testing.expect(app.map_camera.zoom > 1);
+    app.keyboard('w');
+    try std.testing.expect(app.map_camera.center_latitude > 20);
+    app.keyboard('3');
+    const distance = app.camera_3d.distance;
+    app.keyboard('+');
+    try std.testing.expect(app.camera_3d.distance < distance);
+    const layout = buildLayout(640, 480, .scene);
+    var mouse = Mouse{ .position = .{ 100, 100 }, .delta = .{ 5, 4 }, .left = true };
+    const yaw = app.camera_3d.yaw;
+    app.mouseInput(&mouse, layout);
+    try std.testing.expect(app.camera_3d.yaw != yaw);
+    mouse.left = false;
+    mouse.right = true;
+    app.mouseInput(&mouse, layout);
+    try std.testing.expect(@reduce(.Or, app.camera_3d.target != @as(Pos3, @splat(0))));
+    app.keyboard('r');
+    try std.testing.expectEqualDeep(Camera3D{}, app.camera_3d);
+    try std.testing.expectEqualDeep(MapCamera{}, app.map_camera);
+    app.updateTiming(0.02);
+    try std.testing.expectApproxEqAbs(@as(f64, 50), app.fps_smoothed, 0.001);
+    app.keyboard('q');
+    try std.testing.expect(!app.running);
+}
+
+test "command-line headless configuration" {
+    var config: Config = .{};
+    const args = [_][:0]const u8{ "3dbg", "--ppm", "frame.ppm", "--size", "640x480", "--frames", "3", "--fps", "60", "--udp", "0", "--no-demo" };
+    try std.testing.expect(try parseConfig(&args, &config));
+    try std.testing.expect(config.framebuffer_path == null);
+    try std.testing.expect(!config.demo);
+    try std.testing.expectEqual(@as(usize, 3), config.frames);
+    try std.testing.expectEqual(@as(usize, 640), config.width);
+    try std.testing.expectEqual(@as(usize, 480), config.height);
+    try std.testing.expectEqual(@as(u16, 0), config.udp_port);
+    try std.testing.expectEqual(@as(f64, 60), config.fps);
+    try std.testing.expectError(error.InvalidSize, parseSize("0x240"));
+    try std.testing.expectError(error.InvalidSize, parseSize("8193x240"));
+    const bad = [_][:0]const u8{ "3dbg", "--fps", "nan" };
+    try std.testing.expectError(error.InvalidFps, parseConfig(&bad, &config));
+}
+
+test "real PPM file matches every rendered RGB pixel" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var dir_buffer: [4096]u8 = undefined;
+    const dir_len = try tmp.dir.realPath(std.testing.io, &dir_buffer);
+    var path_buffer: [4096]u8 = undefined;
+    const path = try std.mem.print(&path_buffer, "{s}/image.ppm", .{dir_buffer[0..dir_len]});
+    var canvas = try Canvas.init(std.testing.allocator, 320, 240);
+    defer canvas.deinit();
+    for (canvas.pixels, 0..) |*pixel, i| pixel.* = argb(.{ @truncate(i), @truncate(i / 320), 0x0a, 255 });
+    // Start with a larger existing file: createFile must truncate it.
+    const old = try std.testing.allocator.alloc(u8, 320 * 240 * 4);
+    defer std.testing.allocator.free(old);
+    @memset(old, 0xa5);
+    try tmp.dir.writeFile(std.testing.io, .{ .sub_path = "image.ppm", .data = old });
+    try writePpm(std.testing.io, path, &canvas, std.testing.allocator);
+    try testPpm(tmp.dir, "image.ppm", 320, 240, canvas.pixels);
+}
+
+test "real UDP socket to scene to rendered PPM" {
+    var udp = try UdpAdapter.open(0);
+    defer udp.close();
+    const socket_flags = c.fcntl(udp.fd, c.F.GETFL);
+    try std.testing.expect(socket_flags >= 0);
+    try std.testing.expect(@as(c.O, @bitCast(socket_flags)).NONBLOCK);
+    const sender = c.socket(c.AF.INET, c.SOCK.DGRAM | c.SOCK.CLOEXEC | c.SOCK.NONBLOCK, 0);
+    if (sender < 0) return error.OpenTestSocketFailed;
+    defer _ = c.close(sender);
+    var scene = try Scene.init(std.testing.allocator);
+    defer scene.deinit();
+    const payload =
+        "scalar voltage 12.6 V FF49CFFF\n" ++
+        "series latency 4.5 ms FFFFBC4B\n" ++
+        "series latency 8.0 ms FFFFBC4B\n" ++
+        "p3 7 0 0 0 4 FF4EDC84 TARGET\n" ++
+        "geo 9 29.7604 -95.3698 420 90 FF49CFFF AIRCRAFT\n" ++
+        "log info received over a real UDP socket\n" ++
+        "not_a_command\n" ++
+        "scalar voltage nan V FF49CFFF\n" ++
+        "view scene\n";
+    try testDatagram(sender, udp.fd, payload);
+    udp.update(&scene, 1);
+    try std.testing.expectEqual(@as(u64, 1), udp.packets_received);
+    try std.testing.expectEqual(@as(u64, payload.len), udp.bytes_received);
+    try std.testing.expectEqual(@as(u64, 7), udp.commands_received);
+    try std.testing.expectEqual(@as(u64, 2), udp.parse_errors);
+    try std.testing.expectEqual(@as(?View, .scene), udp.requested_view);
+    try std.testing.expectApproxEqAbs(@as(f64, 12.6), scene.scalars.items[0].value, 0.0001);
+    try std.testing.expectEqual(@as(usize, 2), scene.series.items[0].len);
+    try std.testing.expectEqual(@as(usize, 1), scene.points_3d.items.len);
+    const update = "p3 7 1 2 3 4 FF4EDC84 MOVED\n";
+    try testDatagram(sender, udp.fd, update);
+    udp.update(&scene, 2);
+    try std.testing.expectEqual(@as(u64, 2), udp.packets_received);
+    try std.testing.expectEqual(@as(usize, 1), scene.points_3d.items.len);
+    try std.testing.expectEqual(Pos3{ 1, 2, 3 }, scene.points_3d.items[0].position);
+    try std.testing.expectEqual(@as(u64, 8), udp.commands_received);
+    try std.testing.expectEqual(@as(f64, 2), udp.last_packet_at);
+    udp.update(&scene, 3); // Empty nonblocking socket must return promptly.
+    try std.testing.expectEqual(@as(u64, 2), udp.packets_received);
+
+    var canvas = try Canvas.init(std.testing.allocator, 640, 480);
+    defer canvas.deinit();
+    var app = App{ .view = udp.requested_view.? };
+    app.render(&canvas, &scene, &udp, .{ 0, 0 });
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var dir_buffer: [4096]u8 = undefined;
+    const dir_len = try tmp.dir.realPath(std.testing.io, &dir_buffer);
+    var path_buffer: [4096]u8 = undefined;
+    const path = try std.mem.print(&path_buffer, "{s}/telemetry.ppm", .{dir_buffer[0..dir_len]});
+    try writePpm(std.testing.io, path, &canvas, std.testing.allocator);
+    try testPpm(tmp.dir, "telemetry.ppm", 640, 480, canvas.pixels);
+}
+
+test "framebuffer 16, 24 and 32 bit packing, stride and offsets" {
+    var canvas = try Canvas.init(std.testing.allocator, 320, 240);
+    defer canvas.deinit();
+    canvas.clear(.{ 0, 0, 0, 255 });
+    canvas.pixels[0] = 0xffff_0000;
+    canvas.pixels[1] = 0xff00_ff00;
+    canvas.pixels[320] = 0xff00_00ff;
+    canvas.pixels[321] = 0xffff_ffff;
+    for ([_]u32{ 16, 24, 32 }) |bpp| {
+        var storage: [128]u8 = @splat(0xa5);
+        var expected = storage;
+        const bytes: usize = @intCast(bpp / 8);
+        const stride = 2 * bytes + 9;
+        var frame = Framebuffer{
+            .fd = -1,
+            .mapped = storage[8..120],
+            .width = 2,
+            .height = 2,
+            .stride = stride,
+            .xoffset = 1,
+            .yoffset = 1,
+            .bits_per_pixel = bpp,
+            .red = .{ .offset = if (bpp == 16) 11 else 16, .length = if (bpp == 16) 5 else 8, .msb_right = 0 },
+            .green = .{ .offset = if (bpp == 16) 5 else 8, .length = if (bpp == 16) 6 else 8, .msb_right = 0 },
+            .blue = .{ .offset = 0, .length = if (bpp == 16) 5 else 8, .msb_right = 0 },
+            .transp = .{ .offset = if (bpp == 32) 24 else 0, .length = if (bpp == 32) 8 else 0, .msb_right = 0 },
+        };
+        const packed_pixels: [4]u32 = if (bpp == 16)
+            .{ 0xf800, 0x07e0, 0x001f, 0xffff }
+        else
+            .{ 0xffff_0000, 0xff00_ff00, 0xff00_00ff, 0xffff_ffff };
+        for (packed_pixels, 0..) |pixel, i| {
+            const offset = 8 + (i / 2 + 1) * stride + (i % 2 + 1) * bytes;
+            for (0..bytes) |byte| expected[offset + byte] = @truncate(pixel >> @as(u5, @intCast(byte * 8)));
+        }
+        frame.present(&canvas);
+        try std.testing.expectEqualSlices(u8, &expected, &storage);
+        @memset(&storage, 0xa5);
+        frame.mapped = storage[8 .. 8 + stride + bytes + bytes - 1];
+        frame.present(&canvas); // First complete pixel cannot fit; no byte may be touched.
+        try std.testing.expect(std.mem.allEqual(u8, &storage, 0xa5));
+    }
+}
+
+test "framebuffer rejects a non-framebuffer device" {
+    try std.testing.expectError(error.FramebufferInfoFailed, Framebuffer.open("/dev/null"));
+}
+
+test "synthetic mouse packets use the real nonblocking reader" {
+    var pipe: [2]c_int = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), c.pipe2(&pipe, .{ .NONBLOCK = true, .CLOEXEC = true }));
+    defer _ = c.close(pipe[1]);
+    var mouse = Mouse{ .fd = pipe[0], .position = .{ 20, 20 } };
+    defer mouse.close();
+    const press = [_]u8{ 0x09, 5, 3 };
+    try std.testing.expectEqual(@as(isize, 3), c.write(pipe[1], &press, press.len));
+    mouse.update(64, 64);
+    try std.testing.expectEqual(Coord2{ 25, 17 }, mouse.position);
+    try std.testing.expectEqual(Coord2{ 5, -3 }, mouse.delta);
+    try std.testing.expect(mouse.left and mouse.left_pressed);
+    mouse.update(64, 64);
+    try std.testing.expectEqual(@as(Coord2, @splat(0)), mouse.delta);
+    try std.testing.expect(mouse.left and !mouse.left_pressed);
+    const right = [_]u8{ 0x0a, 0, 0 };
+    try std.testing.expectEqual(@as(isize, 3), c.write(pipe[1], &right, right.len));
+    mouse.update(64, 64);
+    try std.testing.expect(mouse.left_released and mouse.right_pressed and mouse.right and !mouse.left);
+    const move = [_]u8{ 0x18, 0x80, 0x7f };
+    try std.testing.expectEqual(@as(isize, 3), c.write(pipe[1], &move, move.len));
+    mouse.update(64, 64);
+    try std.testing.expectEqual(Coord2{ 0, 0 }, mouse.position);
+    try std.testing.expect(mouse.right_released);
+    mouse.close();
+    try std.testing.expectEqual(@as(c_int, -1), mouse.fd);
+}
+
+test "terminal raw mode, keyboard bytes and restoration on a private PTY" {
+    const master = c.open("/dev/ptmx", .{ .ACCMODE = .RDWR, .NOCTTY = true, .CLOEXEC = true, .NONBLOCK = true });
+    if (master < 0) return error.OpenPseudoTerminalFailed;
+    defer _ = c.close(master);
+    var unlocked: c_int = 0;
+    try std.testing.expectEqual(@as(c_int, 0), c.ioctl(master, @as(c_int, @bitCast(@as(u32, linux.T.IOCSPTLCK))), &unlocked));
+    var number: c_uint = 0;
+    try std.testing.expectEqual(@as(c_int, 0), c.ioctl(master, @as(c_int, @bitCast(@as(u32, linux.T.IOCGPTN))), &number));
+    var path_buffer: [64]u8 = undefined;
+    const path = try std.mem.printSentinel(&path_buffer, "/dev/pts/{d}", .{number}, 0);
+    const slave = c.open(path.ptr, .{ .ACCMODE = .RDWR, .NOCTTY = true, .CLOEXEC = true });
+    if (slave < 0) return error.OpenPseudoTerminalFailed;
+    defer _ = c.close(slave);
+    var original: linux.termios = std.mem.zeroes(linux.termios);
+    try std.testing.expectEqual(@as(usize, 0), linux.tcgetattr(slave, &original));
+    const original_flags = c.fcntl(slave, c.F.GETFL);
+    try std.testing.expect(original_flags >= 0);
+    var terminal = Terminal{ .fd = slave };
+    defer terminal.leave();
+    terminal.enter();
+    try std.testing.expect(terminal.active);
+    var raw: linux.termios = std.mem.zeroes(linux.termios);
+    try std.testing.expectEqual(@as(usize, 0), linux.tcgetattr(slave, &raw));
+    try std.testing.expect(!raw.lflag.ECHO and !raw.lflag.ICANON);
+    try std.testing.expectEqual(@as(u8, 0), raw.cc[@backingInt(linux.V.MIN)]);
+    try std.testing.expectEqual(@as(u8, 0), raw.cc[@backingInt(linux.V.TIME)]);
+    const flags: c.O = @bitCast(c.fcntl(slave, c.F.GETFL));
+    try std.testing.expect(flags.NONBLOCK);
+    try std.testing.expect(terminal.readKey() == null);
+    try std.testing.expectEqual(@as(isize, 1), c.write(master, "3", 1));
+    try testReadable(slave);
+    try std.testing.expectEqual(@as(?u8, '3'), terminal.readKey());
+    terminal.leave();
+    var restored: linux.termios = std.mem.zeroes(linux.termios);
+    try std.testing.expectEqual(@as(usize, 0), linux.tcgetattr(slave, &restored));
+    try std.testing.expectEqualDeep(original, restored);
+    try std.testing.expectEqual(original_flags, c.fcntl(slave, c.F.GETFL));
+    try std.testing.expect(!terminal.active);
+    try std.testing.expect(terminal.readKey() == null);
+}
+
+test "monotonic frame deadline actually waits" {
+    const io = std.testing.io;
+    const start = std.Io.Clock.Timestamp.now(io, .awake);
+    const interval: std.Io.Clock.Duration = .{ .raw = .fromMilliseconds(2), .clock = .awake };
+    try start.addDuration(interval).wait(io);
+    const elapsed = start.untilNow(io).raw.nanoseconds;
+    try std.testing.expect(elapsed >= interval.raw.nanoseconds);
+    // No upper time bound: loaded machines may legitimately wake up late.
+}
+
+test "build current source and run headless commands" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const io = std.testing.io;
+    try tmp.dir.writeFile(io, .{ .sub_path = "main.zig", .data = @embedFile("main.zig") });
+    const zig_exe = std.testing.environ.getPosix("ZIG_EXE") orelse "zig";
+    try testProcess(tmp.dir, &.{ zig_exe, "build-exe", "main.zig", "-lc", "-femit-bin=viewer-test" }, 180, null);
+    try testProcess(tmp.dir, &.{ "./viewer-test", "--help" }, 10, null);
+    try testProcess(tmp.dir, &.{ "./viewer-test", "--ppm", "demo.ppm", "--frames", "1", "--size", "1280x720", "--udp", "0" }, 30, null);
+    try testPpm(tmp.dir, "demo.ppm", 1280, 720, null);
+    const start = std.Io.Clock.Timestamp.now(io, .awake);
+    try testProcess(tmp.dir, &.{ "./viewer-test", "--ppm", "empty.ppm", "--frames", "3", "--fps", "30", "--size", "640x480", "--udp", "0", "--no-demo" }, 30, null);
+    try std.testing.expect(start.untilNow(io).raw.nanoseconds >= 60_000_000);
+    try testPpm(tmp.dir, "empty.ppm", 640, 480, null);
+    try testProcess(tmp.dir, &.{ "./viewer-test", "--fps", "0" }, 10, "InvalidFps");
+    try testProcess(tmp.dir, &.{ "./viewer-test", "--size", "0x0" }, 10, "InvalidSize");
+    try testProcess(tmp.dir, &.{ "./viewer-test", "--unknown" }, 10, "UnknownOption");
+    try testProcess(tmp.dir, &.{ "./viewer-test", "--frames" }, 10, "MissingOptionValue");
+}
+
+test "optional read-only framebuffer metadata probe" {
+    const path = std.testing.environ.getPosix("DBG_TEST_FB") orelse return error.SkipZigTest;
+    const fd = c.open(path.ptr, .{ .ACCMODE = .RDONLY, .CLOEXEC = true });
+    if (fd < 0) return error.OpenFramebufferProbeFailed;
+    defer _ = c.close(fd);
+    var variable: fb.VarScreenInfo = undefined;
+    var fixed: fb.FixScreenInfo = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), c.ioctl(fd, fb.GET_VSCREENINFO, &variable));
+    try std.testing.expectEqual(@as(c_int, 0), c.ioctl(fd, fb.GET_FSCREENINFO, &fixed));
+    try std.testing.expectEqual(@as(u32, 0), fixed.type);
+    try std.testing.expectEqual(@as(u32, 2), fixed.visual);
+    try std.testing.expect(variable.nonstd == 0 and variable.grayscale == 0);
+    try std.testing.expect(variable.bits_per_pixel == 16 or variable.bits_per_pixel == 24 or variable.bits_per_pixel == 32);
+    try std.testing.expect(variable.xres >= 320 and variable.yres >= 240);
+    inline for (.{ variable.red, variable.green, variable.blue, variable.transp }) |field| {
+        try std.testing.expect(field.length <= 32 and field.offset <= 32);
+        try std.testing.expect(field.offset + field.length <= variable.bits_per_pixel and field.msb_right == 0);
+    }
+    const row_bytes = (@as(u64, variable.xoffset) + variable.xres) * (variable.bits_per_pixel / 8);
+    const last_row = (@as(u64, variable.yoffset) + variable.yres - 1) * fixed.line_length;
+    try std.testing.expect(row_bytes <= fixed.line_length);
+    try std.testing.expect(last_row + row_bytes <= fixed.smem_len);
+    std.debug.print("\nframebuffer {s}: {d}x{d}, {d} bpp, stride {d}, memory {d} bytes (read-only probe)\n", .{
+        path, variable.xres, variable.yres, variable.bits_per_pixel, fixed.line_length, fixed.smem_len,
+    });
 }
