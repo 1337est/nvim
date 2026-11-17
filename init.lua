@@ -8,7 +8,22 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 vim.g.have_nerd_font = true
 
-vim.schedule(function() vim.opt.clipboard = "unnamedplus" end)
+local doop = vim.fn.expand("~/.local/bin/doop")
+
+vim.g.clipboard = {
+    name = "doop",
+    copy = {
+        ["+"] = { doop, "copy" },
+        ["*"] = { doop, "copy" },
+    },
+    paste = {
+        ["+"] = { doop, "paste" },
+        ["*"] = { doop, "paste" },
+    },
+    cache_enabled = 0,
+}
+
+vim.opt.clipboard = "unnamedplus"
 
 vim.opt.number = true
 vim.opt.relativenumber = true
