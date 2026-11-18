@@ -5,3 +5,7 @@ A zig is like a bumble bee buzzing around in a particular direction. To zag mean
 ## 3dbg: Telemetry Visualizer and Debugger
 
 Goal is to build a small personal tool that makes runtime behavior visible, I think moving some of the data here to Sockman might make sense for potential binary analysis and conformity.
+
+## clift: Command Line Interface Formatter for your Terminal
+
+Potentially a template/library I can use for my CLI applications that contains features for terminal applications I would write, to include my `nostrum` application. I don't necessarily think this will be TUI apps, but it could evolve to that maybe. Keeping it simple.
