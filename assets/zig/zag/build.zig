@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
     const all_tests = b.step("test", "Run all project tests");
 
     // 3dbg
-    addProgram(b, all_tests, "3dbg", .{
+    _ = addProgram(b, all_tests, "3dbg", .{
         .root_source_file = b.path("src/3dbg.zig"),
         .target = target,
         .optimize = optimize,
@@ -14,11 +14,22 @@ pub fn build(b: *std.Build) void {
     });
 
     // clift
-    addProgram(b, all_tests, "clift", .{
+    _ = addProgram(b, all_tests, "clift", .{
         .root_source_file = b.path("src/clift.zig"),
         .target = target,
         .optimize = optimize,
     });
+
+    // doop
+    const doop = addProgram(b, all_tests, "doop", .{
+        .root_source_file = b.path("src/doop.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    if (target.result.os.tag == .windows) {
+        doop.linkSystemLibrary("user32", .{ .use_pkg_config = .no });
+        doop.linkSystemLibrary("kernel32", .{ .use_pkg_config = .no });
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -31,7 +42,7 @@ fn addProgram(
     all_tests: *std.Build.Step,
     name: []const u8,
     options: std.Build.Module.CreateOptions,
-) void {
+) *std.Build.Module {
     const mod = b.createModule(options);
 
     // Test: Compile -> Run
@@ -77,6 +88,8 @@ fn addProgram(
         b.fmt("Run {s} locally", .{name}),
     );
     run_step.dependOn(&run_exe.step);
+
+    return mod;
 }
 
 // lib/project.zig files that serve as libraries
