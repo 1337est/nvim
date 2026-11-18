@@ -34,7 +34,7 @@ src/doop.zig    README.md
 
 src/nostrum.zig    README.md, build.zig, build.zig.zon, main.zig, root.zig, sqlite.zig
 
-src/rhei.zig    verify
+src/rhei.zig    verify, add to mono repo
 
 src/wagon.zig    README.md, build.zig, build.zig.zon, main.zig
 
