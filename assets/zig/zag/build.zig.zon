@@ -1,7 +1,7 @@
 .{
-    .name = ._3dbg,
+    .name = .zag,
     .version = "0.0.1",
     .minimum_zig_version = "0.17.0",
     .paths = .{""},
-    .fingerprint = 0x553c666aa1e3a91b,
+    .fingerprint = 0x9179a8980a7f31d,
 }
