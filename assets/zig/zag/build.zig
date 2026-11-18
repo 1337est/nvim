@@ -92,6 +92,20 @@ pub fn build(b: *std.Build) void {
             &b.addInstallFile(output, artifact[2]).step,
         );
     }
+
+    // systemd
+    _ = addLibrary(b, all_tests, "systemd", .{
+        .root_source_file = b.path("lib/systemd.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // ramen
+    _ = addLibrary(b, all_tests, "ramen", .{
+        .root_source_file = b.path("lib/ramen.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 }
 
 // -----------------------------------------------------------------------------
@@ -155,4 +169,28 @@ fn addProgram(
 }
 
 // lib/project.zig files that serve as libraries
-fn addLibrary() void {}
+fn addLibrary(
+    b: *std.Build,
+    all_tests: *std.Build.Step,
+    name: []const u8,
+    options: std.Build.Module.CreateOptions,
+) *std.Build.Module {
+    const mod = b.addModule(name, options);
+
+    // Test: Compile -> Run
+    const compile_tests = b.addTest(.{
+        .name = b.fmt("{s}_test", .{name}),
+        .root_module = mod,
+    });
+
+    const run_tests = b.addRunArtifact(compile_tests);
+
+    const test_step = b.step(
+        b.fmt("test-{s}", .{name}),
+        b.fmt("Run {s} tests", .{name}),
+    );
+    test_step.dependOn(&run_tests.step);
+    all_tests.dependOn(test_step);
+
+    return mod;
+}

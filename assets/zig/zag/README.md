@@ -33,3 +33,11 @@ Simple text view application without syntax highlighting, or any features at all
 ## zwe: Zig Workspace Engine
 
 This project should be the backbone to editing text and debugging my zig projects (potentially, idk yet). It should understand where all my projects are, preformantly and gradually replace LSP functionalitty with custom BSP/CSP logic, and stay up to date with the latest stable zig version. At some point this could hopefully be the backend for a custom text editor?
+
+## systemd: Systemd Unit File Deployer
+
+Helps by integrating with the build graph to deploy projects that couple with systemd unit files. Should keep it simple, and can either generate systemd files via a .zon file (how I currently use it at work) or even simply deploy systemd unit files to either user-space or system-space. Not fully featured yet, like most of my projects...
+
+## ramen: Is Life!
+
+I need to combine linux.zig (now renamed ramen.zig) into broth.zig. It would be nice for this to be a single file. Not exactly sure the distinction between broth.zig and noodles.zig yet, but I think that's where the line is drawn. I don't see any other files other than these 2 for the library in totality. Basically broth should be what is needed for the base of a project, and noodles would be supplemental in case a project already has a base? I see overlap with this and udeploy and other projects of mine, so we'll see how this develops over time.
