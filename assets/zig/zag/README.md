@@ -29,3 +29,7 @@ Currently this is in rhei, but need to move it out. Not sure if it will be moved
 ## view: Android Text Viewer
 
 Simple text view application without syntax highlighting, or any features at all other than viewing raw text.
+
+## zwe: Zig Workspace Engine
+
+This project should be the backbone to editing text and debugging my zig projects (potentially, idk yet). It should understand where all my projects are, preformantly and gradually replace LSP functionalitty with custom BSP/CSP logic, and stay up to date with the latest stable zig version. At some point this could hopefully be the backend for a custom text editor?

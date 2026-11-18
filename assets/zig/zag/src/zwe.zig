@@ -1,8 +1,5 @@
 //! ZWE (Zig Workspace Engine): reusable source analysis with a Neovim adapter.
 //! Zig 0.17.0; Linux; no external Zig or Lua packages.
-//! Build: zig build-exe src/main.zig -O safe -femit-bin=zig-out/bin/zwe
-//! Test:  zig test src/main.zig
-//! Lua:   zwe --print-nvim-lua > ~/.config/nvim/lua/zwe.lua
 //!
 //! Protocol 1: little-endian 16-byte Header; response bodies start with Status:u32.
 //! Revisions and offsets refer to Neovim's LF representation, including a final LF.
@@ -22,7 +19,7 @@ const Ast = std.zig.Ast;
 const Node = Ast.Node.Index;
 const Token = Ast.TokenIndex;
 const Path = Io.Dir.path;
-pub const Config = @import("Config.zig");
+pub const Config = @import("zwe/Config.zig");
 
 pub const Info = struct {
     pub const zwe_version = "0.1.0";
@@ -1992,8 +1989,8 @@ pub const Cli = struct {
         switch (command) {
             .@"--version" => try Info.printVersion(w),
             .@"--print-nvim-lua" => try LuaClient.print(w),
-            .@"--print-nvim-lsp" => try w.writeAll(@embedFile("editor/nvim/lsp/zls.lua")),
-            .@"--print-config" => try w.writeAll(@embedFile("config.zon")),
+            .@"--print-nvim-lsp" => try w.writeAll(@embedFile("zwe/editor/nvim/lsp/zls.lua")),
+            .@"--print-config" => try w.writeAll(@embedFile("zwe/config.zon")),
             .@"--help" => {
                 try Info.printVersion(w);
                 try w.writeAll(
@@ -2003,8 +2000,8 @@ pub const Cli = struct {
                     \\zwe manifests [ABS_MANIFEST ...]  (or JSON array on stdin)
                     \\zwe serve --socket ABS_PATH --root ABS_ROOT --zig ZIG [--build-option NAME=VALUE]...
                     \\
-                    \\Build: zig build-exe src/main.zig -O safe -femit-bin=zwe
-                    \\Tests: zig test src/main.zig
+                    \\Build: zig build zwe
+                    \\Tests: zig build test-zwe
                     \\Client: zwe --print-nvim-lua > ~/.config/nvim/lua/zwe.lua
                     \\Setup: require('zwe').setup({cmd='zwe'})
                     \\
@@ -2076,7 +2073,7 @@ pub const LuaClient = struct {
         try w.writeAll(source);
         try w.writeByte('\n');
     }
-    const source = @embedFile("editor/nvim/lua/zwe.lua");
+    const source = @embedFile("zwe/editor/nvim/lua/zwe.lua");
 };
 
 // These regression tests are included for the target compiler; see validation notes.
@@ -2555,7 +2552,7 @@ test "configuration: printed template parses as the native schema" {
     const config = try std.zon.parse.fromSlice(Config.Config, .{
         .gpa = std.testing.allocator,
         .arena = arena.allocator(),
-        .source = @embedFile("config.zon"),
+        .source = @embedFile("zwe/config.zon"),
         .diagnostics = &diagnostics,
     });
     try Config.validate(config);

@@ -62,6 +62,36 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    // zwe
+    _ = addProgram(b, all_tests, "zwe", .{
+        .root_source_file = b.path("src/zwe.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    // Generate ZWE configuration and Neovim integration files
+    const zwe_generator = b.addExecutable(.{
+        .name = "zwe-generator",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/zwe.zig"),
+            .target = b.graph.host,
+            .optimize = optimize,
+        }),
+    });
+    inline for (.{
+        .{ "--print-nvim-lua", "zwe.lua", "share/zwe/nvim/lua/zwe.lua" },
+        .{ "--print-nvim-lsp", "zls.lua", "share/zwe/nvim/lsp/zls.lua" },
+        .{ "--print-config", "config.zon", "share/zwe/config.zon" },
+    }) |artifact| {
+        const run = b.addRunArtifact(zwe_generator);
+        run.addArg(artifact[0]);
+        const output = run.captureStdOut(.{
+            .basename = artifact[1],
+        });
+        b.getInstallStep().dependOn(
+            &b.addInstallFile(output, artifact[2]).step,
+        );
+    }
 }
 
 // -----------------------------------------------------------------------------
