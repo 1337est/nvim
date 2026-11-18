@@ -8,20 +8,7 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 vim.g.have_nerd_font = true
 
-local doop = vim.fn.expand("~/.local/bin/doop")
-
-vim.g.clipboard = {
-    name = "doop",
-    copy = {
-        ["+"] = { doop, "copy" },
-        ["*"] = { doop, "copy" },
-    },
-    paste = {
-        ["+"] = { doop, "paste" },
-        ["*"] = { doop, "paste" },
-    },
-    cache_enabled = 0,
-}
+vim.schedule(function() vim.opt.clipboard = "unnamedplus" end)
 
 vim.opt.clipboard = "unnamedplus"
 
@@ -163,6 +150,7 @@ require("terminal").setup({
 })
 require("textpairs").setup()
 require("modekeymapper").setup()
+require("doop").setup()
 
 require("zwe").setup({
     cmd = vim.fn.expand("~/.local/bin/zwe"),
