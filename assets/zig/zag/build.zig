@@ -104,6 +104,13 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // udeploy
+    _ = addProgram(b, all_tests, "udeploy", .{
+        .root_source_file = b.path("src/udeploy.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     // -------------------------------------------------------------------
     // Libraries
     // -------------------------------------------------------------------

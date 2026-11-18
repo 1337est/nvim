@@ -49,3 +49,7 @@ This is always evolving. Will add a detailed doc/sockman.md file for current arc
 ## template: Zig Project Initializer
 
 Should be a copy paste project that copies and initializes a zig project the way it is specified under directories listed under `src/init/*/**`, where the first asterisk is the name of the template to use, and everything after is what is to be copied to a destination. This means path matters for the copy. I see overlap with udeploy for this project as well.
+
+## udeploy: User Space Project Deployer
+
+A deployment enabling project taht started out with setting up my user environment to enable me to start on a new system quickly. Slowly morphed into a project that also compiles my software from scratch as well, and retains state of where those projects are setup so if anything moves in the state, the project can then update and understand the overall state for any project rebuildings that may need to happen in case things break. Not sure really what this is yet, but I think it's slowly turning into a sort of compiling package manager in a way. At some point I think I would like to add my own custom version controlling system that can more easily track changes between projects independently via tracking configuration changes as well. Hopefully there is a nicer way to do this in the long run, since I've  basically had this prototyped for a while where I keep tweaking things and changing things, and end up back to just using scripts again. Not sure where I should draw the boundary yet for easy installation and understanding at a glance...
