@@ -47,6 +47,14 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    // TODO: Finish the rest of this later by adding it
+    // wagon
+    _ = addProgram(b, all_tests, "wagon", .{
+        .root_source_file = b.path("src/wagon.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 }
 
 // -----------------------------------------------------------------------------
