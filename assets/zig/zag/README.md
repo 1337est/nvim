@@ -17,3 +17,7 @@ TCP enabled clipboard utility that enables copy and pasting between Windows and 
 ## nostrum: Sought by the Alchemists
 
 Hypothetical remedy for all ills or diseases. See doc/nostrum.md
+
+## rhei: Window Management
+
+Currently uses river and wlroots, but coming up with a custom way to do this afterwards that may or may not be compatible with Wayland. Definitely not X11 since current format isn't compatible with X11 or XWayland.

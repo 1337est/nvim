@@ -39,6 +39,14 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
     nostrum.linkSystemLibrary("sqlite3", .{ .use_pkg_config = .no });
+
+    // TODO: Finish the rest of this later by adding it
+    // rhei
+    _ = addProgram(b, all_tests, "rhei", .{
+        .root_source_file = b.path("src/rhei.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 }
 
 // -----------------------------------------------------------------------------
