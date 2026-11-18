@@ -5,6 +5,10 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const all_tests = b.step("test", "Run all project tests");
 
+    // -------------------------------------------------------------------
+    // Programs
+    // -------------------------------------------------------------------
+
     // 3dbg
     _ = addProgram(b, all_tests, "3dbg", .{
         .root_source_file = b.path("src/3dbg.zig"),
@@ -92,6 +96,17 @@ pub fn build(b: *std.Build) void {
             &b.addInstallFile(output, artifact[2]).step,
         );
     }
+
+    // template
+    _ = addProgram(b, all_tests, "template", .{
+        .root_source_file = b.path("src/template.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // -------------------------------------------------------------------
+    // Libraries
+    // -------------------------------------------------------------------
 
     // systemd
     _ = addLibrary(b, all_tests, "systemd", .{

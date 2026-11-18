@@ -45,3 +45,7 @@ I need to combine linux.zig (now renamed ramen.zig) into broth.zig. It would be 
 ## sockman: Shared Memory Socket Manager
 
 This is always evolving. Will add a detailed doc/sockman.md file for current architecture, but it may be apparent from the lib/sockman.zig file too.
+
+## template: Zig Project Initializer
+
+Should be a copy paste project that copies and initializes a zig project the way it is specified under directories listed under `src/init/*/**`, where the first asterisk is the name of the template to use, and everything after is what is to be copied to a destination. This means path matters for the copy. I see overlap with udeploy for this project as well.
