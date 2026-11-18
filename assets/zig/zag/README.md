@@ -41,3 +41,7 @@ Helps by integrating with the build graph to deploy projects that couple with sy
 ## ramen: Is Life!
 
 I need to combine linux.zig (now renamed ramen.zig) into broth.zig. It would be nice for this to be a single file. Not exactly sure the distinction between broth.zig and noodles.zig yet, but I think that's where the line is drawn. I don't see any other files other than these 2 for the library in totality. Basically broth should be what is needed for the base of a project, and noodles would be supplemental in case a project already has a base? I see overlap with this and udeploy and other projects of mine, so we'll see how this develops over time.
+
+## sockman: Shared Memory Socket Manager
+
+This is always evolving. Will add a detailed doc/sockman.md file for current architecture, but it may be apparent from the lib/sockman.zig file too.

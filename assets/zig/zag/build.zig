@@ -106,6 +106,13 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    // sockman
+    _ = addLibrary(b, all_tests, "sockman", .{
+        .root_source_file = b.path("lib/sockman.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 }
 
 // -----------------------------------------------------------------------------

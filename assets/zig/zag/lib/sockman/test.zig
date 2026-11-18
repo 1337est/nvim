@@ -3,7 +3,7 @@
 //! These tests do not exercise sockets, shared-memory isolation, or authorization.
 
 const std = @import("std");
-const P = @import("Sockman.zig");
+const P = @import("../sockman.zig");
 const expect = std.testing.expect;
 const equal = std.testing.expectEqual;
 
