@@ -1,6 +1,108 @@
-//! src/root.zig
+//! Nostrum: local task planning and journaling backed by SQLite.
+//! Consolidated from the former main.zig, root.zig, and sqlite.zig.
 const std = @import("std");
-pub const sqlite = @import("sqlite.zig");
+
+// -----------------------------------------------------------------------------
+// Application entry point
+// -----------------------------------------------------------------------------
+
+pub fn main() !void {
+    var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa_state.deinit();
+    const gpa = gpa_state.allocator();
+
+    var db = try sqlite.Db.open(gpa, "sqlite/nostrum.db");
+    defer db.close();
+
+    // Schema creation if it doesn't exist
+    try db.exec(
+        \\PRAGMA foreign_keys = ON;
+        \\
+        \\CREATE TABLE IF NOT EXISTS meta (
+        \\  key   TEXT     PRIMARY KEY,
+        \\  value INTEGER NOT NULL
+        \\);
+        \\INSERT OR IGNORE INTO meta(key, value) VALUES ('last_day', 0);
+        \\
+        \\CREATE TABLE IF NOT EXISTS tasks (
+        \\  id             INTEGER PRIMARY KEY,
+        \\  name           TEXT NOT NULL,
+        \\  category       TEXT NOT NULL CHECK(category IN ('D','W','M','Q','Y')),
+        \\  weight_per_day REAL NOT NULL,
+        \\  cycle_days     INTEGER NOT NULL CHECK(cycle_days > 0),
+        \\  weight         REAL NOT NULL DEFAULT 0,
+        \\  enabled        INTEGER NOT NULL DEFAULT 1,
+        \\  start_day      INTEGER NOT NULL DEFAULT 0,
+        \\  due_day        INTEGER NOT NULL DEFAULT 0,
+        \\  completed_day  INTEGER,
+        \\  next_due_day   INTEGER NOT NULL DEFAULT 0,
+        \\  UNIQUE(category, name)
+        \\);
+        \\
+        \\CREATE VIEW IF NOT EXISTS tasks_daily     AS SELECT * FROM tasks WHERE category='D';
+        \\CREATE VIEW IF NOT EXISTS tasks_weekly    AS SELECT * FROM tasks WHERE category='W';
+        \\CREATE VIEW IF NOT EXISTS tasks_monthly   AS SELECT * FROM tasks WHERE category='M';
+        \\CREATE VIEW IF NOT EXISTS tasks_quarterly AS SELECT * FROM tasks WHERE category='Q';
+        \\CREATE VIEW IF NOT EXISTS tasks_yearly    AS SELECT * FROM tasks WHERE category='Y';
+    );
+
+    // CLI args
+    const args = try std.process.argsAlloc(gpa);
+    defer std.process.argsFree(gpa, args);
+
+    // One time import command for reading planner/tasks/template/*.txt
+    // Run: zig build run-nostrum -- import
+    const requested_import = (args.len >= 2 and std.mem.eql(u8, args[1], "import"));
+    const empty_db = (try tasksCount(&db)) == 0;
+    if (requested_import or empty_db) {
+        try importTasksFromTxt(&db, gpa);
+        if (requested_import) {
+            std.debug.print("Imported planner/tasks/template/*.txt into sqlite/nostrum.db\n", .{});
+        }
+    }
+
+    // Mark task done:
+    // Run: zig build run-nostrum -- done 4
+    if (args.len >= 3 and std.mem.eql(u8, args[1], "done")) {
+        const id = try std.fmt.parseInt(i64, args[2], 10);
+        try markTaskDone(&db, id);
+        std.debug.print("Marked task id={d} done (weight reset to 0)\n", .{id});
+        return;
+    }
+
+    // Normal run:
+    // 1) apply missed-day increments
+    try bumpWeightsToToday(&db);
+
+    // 2) compute today's date for filename/header
+    var date_buf: [8]u8 = undefined;
+    const ymd = todayYYYYMMDD(&date_buf);
+
+    // 3) load tasks from DB (no txt reads anymore)
+    var tasks = try loadDueTasksFromDb(gpa, &db);
+    defer freeTasks(gpa, &tasks);
+    if (tasks.items.len == 0) {
+        std.debug.print("No tasks due.\n", .{});
+    }
+
+    // 4) render + output
+    const frame = try renderTasksFrame(gpa, ymd, tasks.items);
+    defer gpa.free(frame);
+
+    var stdout_buf: [64 * 1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
+
+    try stdout.writeAll(frame);
+    try stdout.flush();
+
+    // 5) write to journal
+    try writeJournalFile(ymd, frame);
+}
+
+// -----------------------------------------------------------------------------
+// Task model, scheduling, parsing, and journaling
+// -----------------------------------------------------------------------------
 
 pub const Category = enum {
     daily,
@@ -42,7 +144,7 @@ pub fn yyyymmddFromUnixSeconds(buf: *[8]u8, unix_seconds: u64) []const u8 {
     const md = yd.calculateMonthDay();
 
     const year: u16 = yd.year;
-    const month: u8 = @as(u8, @intFromEnum(md.month)); // 1..12
+    const month: u8 = @as(u8, @backingInt(md.month)); // 1..12
     const day: u8 = @as(u8, @intCast(md.day_index + 1)); // 1..31
 
     // Exactly 8 chars: YYYYMMDD
@@ -610,3 +712,218 @@ pub fn tasksCount(db: *sqlite.Db) !i64 {
 // -----------------------------------------------------------------------
 // TESTS for SQL LOGIC
 // -----------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// SQLite interface
+// -----------------------------------------------------------------------------
+
+pub const sqlite = struct {
+    // Minimal SQLite C ABI, replacing @cImport in Zig 0.17.0.
+    // The linker must supply these symbols (sqlite3.c or -lsqlite3).
+    pub const c = struct {
+        pub const sqlite3 = opaque {};
+        pub const sqlite3_stmt = opaque {};
+
+        pub const SQLITE_OK: c_int = 0;
+        pub const SQLITE_ROW: c_int = 100;
+        pub const SQLITE_DONE: c_int = 101;
+        pub const SQLITE_NULL: c_int = 5;
+        pub const SQLITE_OPEN_READWRITE: c_int = 0x00000002;
+        pub const SQLITE_OPEN_CREATE: c_int = 0x00000004;
+
+        const ExecCallback = *const fn (
+            ?*anyopaque,
+            c_int,
+            [*c][*c]u8,
+            [*c][*c]u8,
+        ) callconv(.c) c_int;
+        const Destructor = *const fn (?*anyopaque) callconv(.c) void;
+
+        pub extern fn sqlite3_open_v2(
+            filename: [*:0]const u8,
+            db: *?*sqlite3,
+            flags: c_int,
+            vfs: ?[*:0]const u8,
+        ) c_int;
+        pub extern fn sqlite3_close_v2(db: *sqlite3) c_int;
+        pub extern fn sqlite3_errmsg(db: *sqlite3) [*:0]const u8;
+        pub extern fn sqlite3_exec(
+            db: *sqlite3,
+            sql: [*:0]const u8,
+            callback: ?ExecCallback,
+            context: ?*anyopaque,
+            err_msg: *[*c]u8,
+        ) c_int;
+        pub extern fn sqlite3_free(ptr: [*c]u8) void;
+        pub extern fn sqlite3_prepare_v2(
+            db: *sqlite3,
+            sql: [*]const u8,
+            sql_len: c_int,
+            stmt: *?*sqlite3_stmt,
+            tail: ?*[*c]const u8,
+        ) c_int;
+        pub extern fn sqlite3_finalize(stmt: *sqlite3_stmt) c_int;
+        pub extern fn sqlite3_reset(stmt: *sqlite3_stmt) c_int;
+        pub extern fn sqlite3_clear_bindings(stmt: *sqlite3_stmt) c_int;
+        pub extern fn sqlite3_step(stmt: *sqlite3_stmt) c_int;
+        pub extern fn sqlite3_bind_text(
+            stmt: *sqlite3_stmt,
+            index: c_int,
+            text: [*]const u8,
+            text_len: c_int,
+            destructor: ?Destructor,
+        ) c_int;
+        pub extern fn sqlite3_bind_int64(stmt: *sqlite3_stmt, index: c_int, value: i64) c_int;
+        pub extern fn sqlite3_bind_double(stmt: *sqlite3_stmt, index: c_int, value: f64) c_int;
+        pub extern fn sqlite3_column_text(stmt: *sqlite3_stmt, column: c_int) [*c]const u8;
+        pub extern fn sqlite3_column_bytes(stmt: *sqlite3_stmt, column: c_int) c_int;
+        pub extern fn sqlite3_column_int64(stmt: *sqlite3_stmt, column: c_int) i64;
+        pub extern fn sqlite3_column_double(stmt: *sqlite3_stmt, column: c_int) f64;
+        pub extern fn sqlite3_column_type(stmt: *sqlite3_stmt, column: c_int) c_int;
+    };
+
+    pub const Error = error{
+        SqliteOpen,
+        SqliteExec,
+        SqlitePrepare,
+        SqliteStep,
+        SqliteBind,
+    };
+
+    pub const Db = struct {
+        handle: *c.sqlite3,
+        allocator: std.mem.Allocator,
+
+        pub fn open(allocator: std.mem.Allocator, path: []const u8) !Db {
+            const zpath = try allocator.dupeZ(u8, path);
+            defer allocator.free(zpath);
+
+            var db_opt: ?*c.sqlite3 = null;
+
+            const flags = c.SQLITE_OPEN_READWRITE | c.SQLITE_OPEN_CREATE;
+
+            const rc = c.sqlite3_open_v2(zpath, &db_opt, flags, null);
+            if (rc != c.SQLITE_OK or db_opt == null) {
+                if (db_opt) |db| _ = c.sqlite3_close_v2(db);
+                return error.SqliteOpen;
+            }
+
+            return .{ .handle = db_opt.?, .allocator = allocator };
+        }
+
+        pub fn close(self: *Db) void {
+            _ = c.sqlite3_close_v2(self.handle);
+        }
+
+        fn errmsg(self: *Db) []const u8 {
+            const z = c.sqlite3_errmsg(self.handle);
+            return std.mem.span(@as([*:0]const u8, z));
+        }
+
+        pub fn exec(self: *Db, sql: []const u8) !void {
+            const zsql: [:0]u8 = try self.allocator.dupeZ(u8, sql);
+            defer self.allocator.free(zsql);
+
+            // sqlite3_exec expects char** => [*c][*c]u8
+            var err_ptr: [*c]u8 = null;
+
+            const rc = c.sqlite3_exec(self.handle, zsql.ptr, null, null, &err_ptr);
+            if (rc != c.SQLITE_OK) {
+                defer if (err_ptr != null) c.sqlite3_free(err_ptr);
+
+                const msg: []const u8 = if (err_ptr != null)
+                    std.mem.span(@as([*:0]const u8, @ptrCast(err_ptr)))
+                else
+                    self.errmsg();
+
+                std.log.err("sqlite exec rc={d}: {s}", .{ rc, msg });
+                return error.SqliteExec;
+            }
+        }
+
+        pub fn prepare(self: *Db, sql: []const u8) !Stmt {
+            var stmt_opt: ?*c.sqlite3_stmt = null;
+            const rc = c.sqlite3_prepare_v2(
+                self.handle,
+                sql.ptr,
+                @as(c_int, @intCast(sql.len)),
+                &stmt_opt,
+                null,
+            );
+            if (rc != c.SQLITE_OK or stmt_opt == null) {
+                std.log.err("sqlite prepare rc={d}: {s}", .{ rc, self.errmsg() });
+                return error.SqlitePrepare;
+            }
+            return .{ .db = self, .stmt = stmt_opt.? };
+        }
+    };
+
+    pub const Step = enum { row, done };
+
+    pub const Stmt = struct {
+        db: *Db,
+        stmt: *c.sqlite3_stmt,
+
+        pub fn finalize(self: *Stmt) void {
+            _ = c.sqlite3_finalize(self.stmt);
+        }
+
+        pub fn reset(self: *Stmt) void {
+            _ = c.sqlite3_reset(self.stmt);
+            _ = c.sqlite3_clear_bindings(self.stmt);
+        }
+
+        pub fn step(self: *Stmt) !Step {
+            const rc = c.sqlite3_step(self.stmt);
+            return switch (rc) {
+                c.SQLITE_ROW => .row,
+                c.SQLITE_DONE => .done,
+                else => {
+                    std.log.err("sqlite step rc={d}: {s}", .{ rc, self.db.errmsg() });
+                    return error.SqliteStep;
+                },
+            };
+        }
+
+        pub fn bindText(self: *Stmt, idx: c_int, text: []const u8) !void {
+            // Passing NULL destructor => SQLITE_STATIC (safe if text lives until step())
+            const rc = c.sqlite3_bind_text(
+                self.stmt,
+                idx,
+                text.ptr,
+                @as(c_int, @intCast(text.len)),
+                null,
+            );
+            if (rc != c.SQLITE_OK) return error.SqliteBind;
+        }
+
+        pub fn bindInt64(self: *Stmt, idx: c_int, v: i64) !void {
+            const rc = c.sqlite3_bind_int64(self.stmt, idx, v);
+            if (rc != c.SQLITE_OK) return error.SqliteBind;
+        }
+
+        pub fn bindDouble(self: *Stmt, idx: c_int, v: f64) !void {
+            const rc = c.sqlite3_bind_double(self.stmt, idx, v);
+            if (rc != c.SQLITE_OK) return error.SqliteBind;
+        }
+
+        pub fn columnText(self: *Stmt, col: c_int) []const u8 {
+            const p = c.sqlite3_column_text(self.stmt, col);
+            if (p == null) return "";
+            const n = c.sqlite3_column_bytes(self.stmt, col);
+            return @as([*]const u8, @ptrCast(p))[0..@as(usize, @intCast(n))];
+        }
+
+        pub fn columnInt64(self: *Stmt, col: c_int) i64 {
+            return c.sqlite3_column_int64(self.stmt, col);
+        }
+
+        pub fn columnDouble(self: *Stmt, col: c_int) f64 {
+            return c.sqlite3_column_double(self.stmt, col);
+        }
+
+        pub fn columnIsNull(self: *Stmt, col: c_int) bool {
+            return c.sqlite3_column_type(self.stmt, col) == c.SQLITE_NULL;
+        }
+    };
+};

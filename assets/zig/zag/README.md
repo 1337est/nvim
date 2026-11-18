@@ -13,3 +13,7 @@ Potentially a template/library I can use for my CLI applications that contains f
 ## doop: Duplicator server
 
 TCP enabled clipboard utility that enables copy and pasting between Windows and Linux environments using SSH reverse forwarding. Inspiration taken from lemonade-command.
+
+## nostrum: Sought by the Alchemists
+
+Hypothetical remedy for all ills or diseases. See doc/nostrum.md

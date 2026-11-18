@@ -1,7 +1,0 @@
-.{
-    .name = .nostrum,
-    .version = "0.0.1",
-    .minimum_zig_version = "0.17.0",
-    .paths = .{""},
-    .fingerprint = 0xd356d4f514f50182,
-}

@@ -30,6 +30,15 @@ pub fn build(b: *std.Build) void {
         doop.linkSystemLibrary("user32", .{ .use_pkg_config = .no });
         doop.linkSystemLibrary("kernel32", .{ .use_pkg_config = .no });
     }
+
+    // nostrum
+    const nostrum = addProgram(b, all_tests, "nostrum", .{
+        .root_source_file = b.path("src/nostrum.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    nostrum.linkSystemLibrary("sqlite3", .{ .use_pkg_config = .no });
 }
 
 // -----------------------------------------------------------------------------
