@@ -474,7 +474,7 @@ const build_script =
     \\  *) printf '%s\n' 'Use build, install, or help.' >&2; exit 2 ;;
     \\esac
     \\[[ "$(uname -sm)" == 'Linux x86_64' ]] || { printf '%s\n' 'This build uses the Linux x86_64 Android SDK.' >&2; exit 1; }
-    \\[[ -f view.zig ]] || { printf '%s\n' 'Run this command from the directory containing view.zig.' >&2; exit 1; }
+    \\[[ -f src/view.zig ]] || { printf '%s\n' 'Run this command from the Zag root.' >&2; exit 1; }
     \\zig="$2"
     \\zig_lib="$3"
     \\sdk="${ANDROID_HOME:-$HOME/.local/share/android-sdk}"
@@ -491,7 +491,7 @@ const build_script =
     \\done
     \\sysroot="$(realpath "$sysroot")"
     \\libs="$sysroot/usr/lib/aarch64-linux-android/26"
-    \\source="$(realpath view.zig)"
+    \\source="$(realpath src/view.zig)"
     \\mkdir -p zig-out/lib/arm64-v8a
     \\out="$(realpath zig-out)"
     \\printf '%s\n' 'Checking text conversion...'

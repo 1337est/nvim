@@ -55,6 +55,13 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    // view
+    _ = addProgram(b, all_tests, "view", .{
+        .root_source_file = b.path("src/view.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 }
 
 // -----------------------------------------------------------------------------

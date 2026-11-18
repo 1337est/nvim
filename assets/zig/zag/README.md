@@ -25,3 +25,7 @@ Currently uses river and wlroots, but coming up with a custom way to do this aft
 ## wagon: XML Parser, Scanner, Generator?
 
 Currently this is in rhei, but need to move it out. Not sure if it will be moved out yet though. Basically a custom xml parser, scanner, and generator. Does Wayland right now, but thinking of also doing MAVLink as well.
+
+## view: Android Text Viewer
+
+Simple text view application without syntax highlighting, or any features at all other than viewing raw text.
