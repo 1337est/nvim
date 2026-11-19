@@ -1,5 +1,5 @@
 const std = @import("std");
-const client = @import("client");
+const client = @import("waygen_client");
 const idle = @import("ext-idle-notify-v1");
 
 const Notifier = idle.ext_idle_notifier_v1;

@@ -54,15 +54,15 @@ pub const Sample = struct {
     rx_bytes: u64 = 0,
     tx_bytes: u64 = 0,
     timestamp_ns: i128 = 0,
-    iface: [32]u8 = [_]u8{0} ** 32,
+    iface: [32]u8 = @splat(0),
     iface_len: usize = 0,
 };
 
 pub const Snapshot = struct {
     online: bool = false,
-    iface_buf: [32]u8 = [_]u8{0} ** 32,
+    iface_buf: [32]u8 = @splat(0),
     iface_len: usize = 0,
-    operstate_buf: [16]u8 = [_]u8{0} ** 16,
+    operstate_buf: [16]u8 = @splat(0),
     operstate_len: usize = 0,
     is_wireless: bool = false,
     signal_pct: u8 = 0,

@@ -11,7 +11,7 @@ pub const GLYPH_HEIGHT: u32 = 16;
 // Indices 0x00-0x1F (control chars) and 0x7F (DEL) are blank.
 // Indices 0x20-0x7E are printable ASCII.
 pub const GLYPHS: [128][16]u8 = blk: {
-    var g: [128][16]u8 = .{.{0} ** 16} ** 128;
+    var g: [128][16]u8 = @splat(@splat(0));
 
     // 0x20 ' '
     g[0x20] = .{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };

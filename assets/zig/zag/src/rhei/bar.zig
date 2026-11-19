@@ -1,5 +1,5 @@
 const std = @import("std");
-const client = @import("client");
+const client = @import("waygen_client");
 const wl = @import("wayland");
 const wlr = @import("wlr-layer-shell-unstable-v1");
 const font = @import("bar/font.zig");
@@ -96,7 +96,7 @@ const Buffer = struct {
 
 const BarInstance = struct {
     output: u32 = 0,
-    name: [32]u8 = [_]u8{0} ** 32,
+    name: [32]u8 = @splat(0),
     name_len: usize = 0,
     mode_width: i32 = 0,
     mode_height: i32 = 0,
@@ -125,13 +125,13 @@ const State = struct {
     shm: u32 = 0,
     layer_shell: u32 = 0,
 
-    discovered_outputs: [16]u32 = .{0} ** 16,
+    discovered_outputs: [16]u32 = @splat(0),
     discovered_count: usize = 0,
-    discovered_names: [16][32]u8 = [_][32]u8{[_]u8{0} ** 32} ** 16,
-    discovered_name_lens: [16]usize = .{0} ** 16,
-    discovered_widths: [16]i32 = .{0} ** 16,
-    discovered_heights: [16]i32 = .{0} ** 16,
-    discovered_refreshes: [16]i32 = .{0} ** 16,
+    discovered_names: [16][32]u8 = @splat(@splat(0)),
+    discovered_name_lens: [16]usize = @splat(0),
+    discovered_widths: [16]i32 = @splat(0),
+    discovered_heights: [16]i32 = @splat(0),
+    discovered_refreshes: [16]i32 = @splat(0),
 
     bars: [MAX_BARS]BarInstance = .{ BarInstance{}, BarInstance{} },
     bar_active: [MAX_BARS]bool = .{ false, false },

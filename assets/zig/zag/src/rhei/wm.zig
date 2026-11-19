@@ -10,7 +10,7 @@ const RPB = @import("river-window-management-v1").river_pointer_binding_v1;
 const XkbBindings = @import("river-xkb-bindings-v1").river_xkb_bindings_v1;
 const XkbB = @import("river-xkb-bindings-v1").river_xkb_binding_v1;
 
-const client = @import("client");
+const client = @import("waygen_client");
 
 // xkbcommon keysyms
 const XKB_KEY_Escape: u32 = 0xff1b;
