@@ -10,7 +10,7 @@ const RPB = @import("river-window-management-v1").river_pointer_binding_v1;
 const XkbBindings = @import("river-xkb-bindings-v1").river_xkb_bindings_v1;
 const XkbB = @import("river-xkb-bindings-v1").river_xkb_binding_v1;
 
-const client = @import("waygen_client");
+const display = @import("display.zig");
 
 // xkbcommon keysyms
 const XKB_KEY_Escape: u32 = 0xff1b;
@@ -57,21 +57,21 @@ const Window = struct {
     pointer_move_requested: ?*Seat = null,
     pointer_resize_requested: ?*Seat = null,
     pointer_resize_edges: u32 = 0,
-    link: client.ListLink = undefined,
+    link: display.ListLink = undefined,
 };
 
 const XkbBinding = struct {
     obj: u32,
     seat: *Seat,
     action: Action,
-    link: client.ListLink = undefined,
+    link: display.ListLink = undefined,
 };
 
 const PointerBinding = struct {
     obj: u32,
     seat: *Seat,
     action: Action,
-    link: client.ListLink = undefined,
+    link: display.ListLink = undefined,
 };
 
 const Seat = struct {
@@ -81,8 +81,8 @@ const Seat = struct {
     focused: ?*Window = null,
     hovered: ?*Window = null,
     interacted: ?*Window = null,
-    xkb_bindings: client.ListLink = undefined,
-    pointer_bindings: client.ListLink = undefined,
+    xkb_bindings: display.ListLink = undefined,
+    pointer_bindings: display.ListLink = undefined,
     pending_action: Action = .none,
     op: SeatOp = .none,
     op_window: ?*Window = null,
@@ -94,12 +94,12 @@ const Seat = struct {
     op_start_width: i32 = 0,
     op_start_height: i32 = 0,
     op_edges: u32 = 0,
-    link: client.ListLink = undefined,
+    link: display.ListLink = undefined,
 };
 
 const WindowManager = struct {
-    windows: client.ListLink = undefined,
-    seats: client.ListLink = undefined,
+    windows: display.ListLink = undefined,
+    seats: display.ListLink = undefined,
 };
 
 var wm_state: WindowManager = .{};
@@ -108,104 +108,104 @@ var wm_id: u32 = 0;
 var xkb_bindings_id: u32 = 0;
 var layer_shell_id: u32 = 0;
 
-fn windowFromLink(link: *client.ListLink) *Window {
+fn windowFromLink(link: *display.ListLink) *Window {
     return @fieldParentPtr("link", link);
 }
-fn seatFromLink(link: *client.ListLink) *Seat {
+fn seatFromLink(link: *display.ListLink) *Seat {
     return @fieldParentPtr("link", link);
 }
-fn xkbBindingFromLink(link: *client.ListLink) *XkbBinding {
+fn xkbBindingFromLink(link: *display.ListLink) *XkbBinding {
     return @fieldParentPtr("link", link);
 }
-fn pointerBindingFromLink(link: *client.ListLink) *PointerBinding {
+fn pointerBindingFromLink(link: *display.ListLink) *PointerBinding {
     return @fieldParentPtr("link", link);
 }
 
 // ── Request wrappers ───────────────────────────────────────────────
-fn windowGetNode(d: *client.Display, window_id: u32) !u32 {
+fn windowGetNode(d: *display.Display, window_id: u32) !u32 {
     const node_id = d.allocId("river_node_v1", null, null);
-    var w = client.MsgWriter{};
+    var w = display.MsgWriter{};
     w.putU32(node_id);
     try d.send(window_id, Win.request.get_node, w.data());
     return node_id;
 }
 
-fn windowProposeDimensions(d: *client.Display, window_id: u32, width: i32, height: i32) !void {
-    var w = client.MsgWriter{};
+fn windowProposeDimensions(d: *display.Display, window_id: u32, width: i32, height: i32) !void {
+    var w = display.MsgWriter{};
     w.putI32(width);
     w.putI32(height);
     try d.send(window_id, Win.request.propose_dimensions, w.data());
 }
 
-fn windowClose(d: *client.Display, window_id: u32) !void {
+fn windowClose(d: *display.Display, window_id: u32) !void {
     try d.send(window_id, Win.request.close, &.{});
 }
 
-fn windowDestroy(d: *client.Display, window_id: u32) !void {
+fn windowDestroy(d: *display.Display, window_id: u32) !void {
     try d.send(window_id, Win.request.destroy, &.{});
 }
 
-fn windowInformResizeStart(d: *client.Display, window_id: u32) !void {
+fn windowInformResizeStart(d: *display.Display, window_id: u32) !void {
     try d.send(window_id, Win.request.inform_resize_start, &.{});
 }
 
-fn windowInformResizeEnd(d: *client.Display, window_id: u32) !void {
+fn windowInformResizeEnd(d: *display.Display, window_id: u32) !void {
     try d.send(window_id, Win.request.inform_resize_end, &.{});
 }
 
-fn nodeSetPosition(d: *client.Display, node_id: u32, x: i32, y: i32) !void {
-    var w = client.MsgWriter{};
+fn nodeSetPosition(d: *display.Display, node_id: u32, x: i32, y: i32) !void {
+    var w = display.MsgWriter{};
     w.putI32(x);
     w.putI32(y);
     try d.send(node_id, Node.request.set_position, w.data());
 }
 
-fn nodePlaceTop(d: *client.Display, node_id: u32) !void {
+fn nodePlaceTop(d: *display.Display, node_id: u32) !void {
     try d.send(node_id, Node.request.place_top, &.{});
 }
 
-fn seatFocusWindow(d: *client.Display, seat_id: u32, window_id: u32) !void {
-    var w = client.MsgWriter{};
+fn seatFocusWindow(d: *display.Display, seat_id: u32, window_id: u32) !void {
+    var w = display.MsgWriter{};
     w.putU32(window_id);
     try d.send(seat_id, RSeat.request.focus_window, w.data());
 }
 
-fn seatClearFocus(d: *client.Display, seat_id: u32) !void {
+fn seatClearFocus(d: *display.Display, seat_id: u32) !void {
     try d.send(seat_id, RSeat.request.clear_focus, &.{});
 }
 
-fn seatDestroy(d: *client.Display, seat_id: u32) !void {
+fn seatDestroy(d: *display.Display, seat_id: u32) !void {
     try d.send(seat_id, RSeat.request.destroy, &.{});
 }
 
-fn seatOpStartPointer(d: *client.Display, seat_id: u32) !void {
+fn seatOpStartPointer(d: *display.Display, seat_id: u32) !void {
     try d.send(seat_id, RSeat.request.op_start_pointer, &.{});
 }
 
-fn seatOpEnd(d: *client.Display, seat_id: u32) !void {
+fn seatOpEnd(d: *display.Display, seat_id: u32) !void {
     try d.send(seat_id, RSeat.request.op_end, &.{});
 }
 
-fn wmExitSession(d: *client.Display) !void {
+fn wmExitSession(d: *display.Display) !void {
     try d.send(wm_id, Wm.request.exit_session, &.{});
 }
 
 // ── Window events ──────────────────────────────────────────────────
-fn onWindow(d: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, payload: []const u8) void {
+fn onWindow(d: *display.Display, _: u32, data: ?*anyopaque, opcode: u16, payload: []const u8) void {
     const window: *Window = @ptrCast(@alignCast(data.?));
     switch (opcode) {
         Win.event.closed => window.closed = true,
         Win.event.dimensions => {
-            window.width = client.readI32(payload[0..4]);
-            window.height = client.readI32(payload[4..8]);
+            window.width = display.readI32(payload[0..4]);
+            window.height = display.readI32(payload[4..8]);
         },
         Win.event.pointer_move_requested => {
-            const seat_id = client.readU32(payload[0..4]);
+            const seat_id = display.readU32(payload[0..4]);
             if (d.getData(seat_id)) |sd| window.pointer_move_requested = @ptrCast(@alignCast(sd));
         },
         Win.event.pointer_resize_requested => {
-            const seat_id = client.readU32(payload[0..4]);
-            const edges = client.readU32(payload[4..8]);
+            const seat_id = display.readU32(payload[0..4]);
+            const edges = display.readU32(payload[4..8]);
             if (d.getData(seat_id)) |sd| {
                 window.pointer_resize_requested = @ptrCast(@alignCast(sd));
                 window.pointer_resize_edges = edges;
@@ -215,23 +215,23 @@ fn onWindow(d: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, payload:
     }
 }
 
-fn onWindowCreated(d: *client.Display, window_id: u32) void {
+fn onWindowCreated(d: *display.Display, window_id: u32) void {
     const node_id = windowGetNode(d, window_id) catch return;
     const window = allocator.create(Window) catch return;
     window.* = .{ .obj = window_id, .node = node_id, .is_new = true };
     window.link.init();
     d.registerObject(window_id, "river_window_v1", onWindow, window);
-    client.listInsertBack(&wm_state.windows, &window.link);
+    display.listInsertBack(&wm_state.windows, &window.link);
     std.debug.print("window created (id={d}, node={d})\n", .{ window_id, node_id });
 }
 
-fn windowSetPosition(d: *client.Display, window: *Window, x: i32, y: i32) void {
+fn windowSetPosition(d: *display.Display, window: *Window, x: i32, y: i32) void {
     nodeSetPosition(d, window.node, x, y) catch {};
     window.x = x;
     window.y = y;
 }
 
-fn windowManage(d: *client.Display, window: *Window) void {
+fn windowManage(d: *display.Display, window: *Window) void {
     if (window.is_new) {
         window.is_new = false;
         windowSetPosition(d, window, 0, 0);
@@ -247,9 +247,9 @@ fn windowManage(d: *client.Display, window: *Window) void {
     }
 }
 
-fn windowMaybeDestroy(d: *client.Display, window: *Window) void {
+fn windowMaybeDestroy(d: *display.Display, window: *Window) void {
     if (!window.closed) return;
-    var it: *client.ListLink = wm_state.seats.next;
+    var it: *display.ListLink = wm_state.seats.next;
     while (it != &wm_state.seats) : (it = it.next) {
         const seat = seatFromLink(it);
         if (seat.focused == window) seat.focused = null;
@@ -269,7 +269,7 @@ fn windowMaybeDestroy(d: *client.Display, window: *Window) void {
 }
 
 // ── Xkb binding events ─────────────────────────────────────────────
-fn onXkbBinding(_: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, _: []const u8) void {
+fn onXkbBinding(_: *display.Display, _: u32, data: ?*anyopaque, opcode: u16, _: []const u8) void {
     const binding: *XkbBinding = @ptrCast(@alignCast(data.?));
     switch (opcode) {
         XkbB.event.pressed => binding.seat.pending_action = binding.action,
@@ -277,20 +277,20 @@ fn onXkbBinding(_: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, _: [
     }
 }
 
-fn xkbBindingDestroy(d: *client.Display, binding: *XkbBinding) void {
+fn xkbBindingDestroy(d: *display.Display, binding: *XkbBinding) void {
     d.send(binding.obj, XkbB.request.destroy, &.{}) catch {};
     d.freeId(binding.obj);
     binding.link.remove();
     allocator.destroy(binding);
 }
 
-fn xkbBindingCreate(d: *client.Display, seat: *Seat, mods: u32, keysym: u32, action: Action) void {
+fn xkbBindingCreate(d: *display.Display, seat: *Seat, mods: u32, keysym: u32, action: Action) void {
     const binding = allocator.create(XkbBinding) catch return;
     const id = d.allocId("river_xkb_binding_v1", onXkbBinding, binding);
     binding.* = .{ .obj = id, .seat = seat, .action = action };
     binding.link.init();
     // get_xkb_binding(seat, new_id, keysym, mods) — wlroots `onuu`.
-    var w = client.MsgWriter{};
+    var w = display.MsgWriter{};
     w.putU32(seat.obj);
     w.putU32(id);
     w.putU32(keysym);
@@ -301,11 +301,11 @@ fn xkbBindingCreate(d: *client.Display, seat: *Seat, mods: u32, keysym: u32, act
         return;
     };
     d.send(id, XkbB.request.enable, &.{}) catch {};
-    client.listInsertBack(&seat.xkb_bindings, &binding.link);
+    display.listInsertBack(&seat.xkb_bindings, &binding.link);
 }
 
 // ── Pointer binding events ─────────────────────────────────────────
-fn onPointerBinding(_: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, _: []const u8) void {
+fn onPointerBinding(_: *display.Display, _: u32, data: ?*anyopaque, opcode: u16, _: []const u8) void {
     const binding: *PointerBinding = @ptrCast(@alignCast(data.?));
     switch (opcode) {
         RPB.event.pressed => binding.seat.pending_action = binding.action,
@@ -313,14 +313,14 @@ fn onPointerBinding(_: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, 
     }
 }
 
-fn pointerBindingDestroy(d: *client.Display, binding: *PointerBinding) void {
+fn pointerBindingDestroy(d: *display.Display, binding: *PointerBinding) void {
     d.send(binding.obj, RPB.request.destroy, &.{}) catch {};
     d.freeId(binding.obj);
     binding.link.remove();
     allocator.destroy(binding);
 }
 
-fn pointerBindingCreate(d: *client.Display, seat: *Seat, mods: u32, button: u32, action: Action) void {
+fn pointerBindingCreate(d: *display.Display, seat: *Seat, mods: u32, button: u32, action: Action) void {
     const binding = allocator.create(PointerBinding) catch return;
     const id = d.allocId("river_pointer_binding_v1", onPointerBinding, binding);
     binding.* = .{ .obj = id, .seat = seat, .action = action };
@@ -328,7 +328,7 @@ fn pointerBindingCreate(d: *client.Display, seat: *Seat, mods: u32, button: u32,
     // get_pointer_binding(new_id, button, mods) — request on the seat (no seat
     // arg); new_id first by the get_xkb_binding precedent. If Super+drag prints
     // nothing, flip the order (this one can fail silently).
-    var w = client.MsgWriter{};
+    var w = display.MsgWriter{};
     w.putU32(id);
     w.putU32(button);
     w.putU32(mods);
@@ -338,44 +338,44 @@ fn pointerBindingCreate(d: *client.Display, seat: *Seat, mods: u32, button: u32,
         return;
     };
     d.send(id, RPB.request.enable, &.{}) catch {};
-    client.listInsertBack(&seat.pointer_bindings, &binding.link);
+    display.listInsertBack(&seat.pointer_bindings, &binding.link);
 }
 
 // ── Seat events ────────────────────────────────────────────────────
-fn onSeat(d: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, payload: []const u8) void {
+fn onSeat(d: *display.Display, _: u32, data: ?*anyopaque, opcode: u16, payload: []const u8) void {
     const seat: *Seat = @ptrCast(@alignCast(data.?));
     switch (opcode) {
         RSeat.event.removed => seat.removed = true,
         RSeat.event.pointer_enter => {
-            const win_id = client.readU32(payload[0..4]);
+            const win_id = display.readU32(payload[0..4]);
             if (d.getData(win_id)) |wd| seat.hovered = @ptrCast(@alignCast(wd));
         },
         RSeat.event.pointer_leave => seat.hovered = null,
         RSeat.event.window_interaction => {
-            const win_id = client.readU32(payload[0..4]);
+            const win_id = display.readU32(payload[0..4]);
             if (d.getData(win_id)) |wd| seat.interacted = @ptrCast(@alignCast(wd));
         },
         RSeat.event.op_delta => {
-            seat.op_dx = client.readI32(payload[0..4]);
-            seat.op_dy = client.readI32(payload[4..8]);
+            seat.op_dx = display.readI32(payload[0..4]);
+            seat.op_dy = display.readI32(payload[4..8]);
         },
         RSeat.event.op_release => seat.op_release = true,
         else => {}, // wl_seat, shell_surface_interaction, pointer_position
     }
 }
 
-fn onSeatCreated(d: *client.Display, seat_id: u32) void {
+fn onSeatCreated(d: *display.Display, seat_id: u32) void {
     const seat = allocator.create(Seat) catch return;
     seat.* = .{ .obj = seat_id, .is_new = true };
     seat.link.init();
     seat.xkb_bindings.init();
     seat.pointer_bindings.init();
     d.registerObject(seat_id, "river_seat_v1", onSeat, seat);
-    client.listInsertBack(&wm_state.seats, &seat.link);
+    display.listInsertBack(&wm_state.seats, &seat.link);
     std.debug.print("seat created (id={d})\n", .{seat_id});
 }
 
-fn seatFocus(d: *client.Display, seat: *Seat, target: ?*Window) void {
+fn seatFocus(d: *display.Display, seat: *Seat, target: ?*Window) void {
     var window = target;
     if (window == null and !wm_state.windows.isEmpty()) {
         window = windowFromLink(wm_state.windows.prev);
@@ -385,14 +385,14 @@ fn seatFocus(d: *client.Display, seat: *Seat, target: ?*Window) void {
         seatFocusWindow(d, seat.obj, w.obj) catch {};
         nodePlaceTop(d, w.node) catch {};
         w.link.remove();
-        client.listInsertBack(&wm_state.windows, &w.link);
+        display.listInsertBack(&wm_state.windows, &w.link);
     } else {
         seatClearFocus(d, seat.obj) catch {};
     }
     seat.focused = window;
 }
 
-fn seatPointerMove(d: *client.Display, seat: *Seat, window: *Window) void {
+fn seatPointerMove(d: *display.Display, seat: *Seat, window: *Window) void {
     seatFocus(d, seat, window);
     seatOpStartPointer(d, seat.obj) catch {};
     seat.op = .move;
@@ -404,7 +404,7 @@ fn seatPointerMove(d: *client.Display, seat: *Seat, window: *Window) void {
     std.debug.print("seat: move start (node={d})\n", .{window.node});
 }
 
-fn seatPointerResize(d: *client.Display, seat: *Seat, window: *Window, edges: u32) void {
+fn seatPointerResize(d: *display.Display, seat: *Seat, window: *Window, edges: u32) void {
     seatFocus(d, seat, window);
     windowInformResizeStart(d, window.obj) catch {};
     seatOpStartPointer(d, seat.obj) catch {};
@@ -443,7 +443,7 @@ fn spawn(program: Program) void {
     }
 }
 
-fn seatAction(d: *client.Display, seat: *Seat, action: Action) void {
+fn seatAction(d: *display.Display, seat: *Seat, action: Action) void {
     switch (action) {
         .none => {},
         .spawn => |program| spawn(program),
@@ -469,7 +469,7 @@ fn seatAction(d: *client.Display, seat: *Seat, action: Action) void {
     }
 }
 
-fn seatManage(d: *client.Display, seat: *Seat) void {
+fn seatManage(d: *display.Display, seat: *Seat) void {
     if (seat.is_new) {
         seat.is_new = false;
         const super = RSeat.modifiers.mod4;
@@ -522,10 +522,10 @@ fn seatManage(d: *client.Display, seat: *Seat) void {
     seat.op_release = false;
 }
 
-fn seatMaybeDestroy(d: *client.Display, seat: *Seat) void {
+fn seatMaybeDestroy(d: *display.Display, seat: *Seat) void {
     if (!seat.removed) return;
     {
-        var it: *client.ListLink = seat.xkb_bindings.next;
+        var it: *display.ListLink = seat.xkb_bindings.next;
         while (it != &seat.xkb_bindings) {
             const next = it.next;
             xkbBindingDestroy(d, xkbBindingFromLink(it));
@@ -533,7 +533,7 @@ fn seatMaybeDestroy(d: *client.Display, seat: *Seat) void {
         }
     }
     {
-        var it: *client.ListLink = seat.pointer_bindings.next;
+        var it: *display.ListLink = seat.pointer_bindings.next;
         while (it != &seat.pointer_bindings) {
             const next = it.next;
             pointerBindingDestroy(d, pointerBindingFromLink(it));
@@ -546,7 +546,7 @@ fn seatMaybeDestroy(d: *client.Display, seat: *Seat) void {
     allocator.destroy(seat);
 }
 
-fn seatRender(d: *client.Display, seat: *Seat) void {
+fn seatRender(d: *display.Display, seat: *Seat) void {
     switch (seat.op) {
         .none => {},
         .move => {
@@ -567,9 +567,9 @@ fn seatRender(d: *client.Display, seat: *Seat) void {
 }
 
 // ── Manager events ─────────────────────────────────────────────────
-fn manageStart(d: *client.Display, wm_obj: u32) void {
+fn manageStart(d: *display.Display, wm_obj: u32) void {
     {
-        var it: *client.ListLink = wm_state.windows.next;
+        var it: *display.ListLink = wm_state.windows.next;
         while (it != &wm_state.windows) {
             const next = it.next;
             windowMaybeDestroy(d, windowFromLink(it));
@@ -577,7 +577,7 @@ fn manageStart(d: *client.Display, wm_obj: u32) void {
         }
     }
     {
-        var it: *client.ListLink = wm_state.seats.next;
+        var it: *display.ListLink = wm_state.seats.next;
         while (it != &wm_state.seats) {
             const next = it.next;
             seatMaybeDestroy(d, seatFromLink(it));
@@ -585,13 +585,13 @@ fn manageStart(d: *client.Display, wm_obj: u32) void {
         }
     }
     {
-        var it: *client.ListLink = wm_state.windows.next;
+        var it: *display.ListLink = wm_state.windows.next;
         while (it != &wm_state.windows) : (it = it.next) {
             windowManage(d, windowFromLink(it));
         }
     }
     {
-        var it: *client.ListLink = wm_state.seats.next;
+        var it: *display.ListLink = wm_state.seats.next;
         while (it != &wm_state.seats) : (it = it.next) {
             seatManage(d, seatFromLink(it));
         }
@@ -599,18 +599,18 @@ fn manageStart(d: *client.Display, wm_obj: u32) void {
     d.send(wm_obj, Wm.request.manage_finish, &.{}) catch {};
 }
 
-fn onManager(d: *client.Display, id: u32, _: ?*anyopaque, opcode: u16, payload: []const u8) void {
+fn onManager(d: *display.Display, id: u32, _: ?*anyopaque, opcode: u16, payload: []const u8) void {
     switch (opcode) {
         Wm.event.unavailable => {
             std.debug.print("error: another window manager is already running\n", .{});
             std.process.exit(1);
         },
         Wm.event.finished => std.process.exit(0),
-        Wm.event.window => onWindowCreated(d, client.readU32(payload[0..4])),
-        Wm.event.seat => onSeatCreated(d, client.readU32(payload[0..4])),
+        Wm.event.window => onWindowCreated(d, display.readU32(payload[0..4])),
+        Wm.event.seat => onSeatCreated(d, display.readU32(payload[0..4])),
         Wm.event.manage_start => manageStart(d, id),
         Wm.event.render_start => {
-            var it: *client.ListLink = wm_state.seats.next;
+            var it: *display.ListLink = wm_state.seats.next;
             while (it != &wm_state.seats) : (it = it.next) {
                 seatRender(d, seatFromLink(it));
             }
@@ -633,15 +633,15 @@ pub fn main(init: std.process.Init) !void {
     setSigchld(std.posix.SIG.IGN); // auto-reap spawned children (no zombies)
     wmInit();
 
-    var display = client.Display.connect(runtime_dir, wl_display) catch {
+    var client = display.Display.connect(runtime_dir, wl_display) catch {
         std.debug.print("failed to connect to wayland display\n", .{});
         return error.NoDisplay;
     };
-    defer display.disconnect();
+    defer client.disconnect();
 
-    const registry_id = try display.getRegistry();
+    const registry_id = try client.getRegistry();
     var registry = client.Registry{};
-    try display.roundtrip(&registry);
+    try client.roundtrip(&registry);
 
     const wm_g = registry.find("river_window_manager_v1") orelse {
         std.debug.print("river_window_manager_v1 not available\n", .{});
@@ -651,21 +651,21 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("river_window_manager_v1 v{d} too old (need v4)\n", .{wm_g.version});
         return error.MissingProtocol;
     }
-    wm_id = try display.bind(registry_id, wm_g.name, "river_window_manager_v1", 4, onManager);
+    wm_id = try client.bind(registry_id, wm_g.name, "river_window_manager_v1", 4, onManager);
 
     const xkb_g = registry.find("river_xkb_bindings_v1") orelse {
         std.debug.print("river_xkb_bindings_v1 not available\n", .{});
         return error.MissingProtocol;
     };
-    xkb_bindings_id = try display.bind(registry_id, xkb_g.name, "river_xkb_bindings_v1", 2, null);
+    xkb_bindings_id = try client.bind(registry_id, xkb_g.name, "river_xkb_bindings_v1", 2, null);
 
     if (registry.find("river_layer_shell_v1")) |g|
-        layer_shell_id = try display.bind(registry_id, g.name, "river_layer_shell_v1", 1, null);
+        layer_shell_id = try client.bind(registry_id, g.name, "river_layer_shell_v1", 1, null);
 
     std.debug.print("river wm: bound, entering manage loop\n", .{});
 
     while (true) {
-        display.dispatch() catch {
+        client.dispatch() catch {
             std.debug.print("dispatch failed (compositor gone?)\n", .{});
             return error.DispatchFailed;
         };

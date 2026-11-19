@@ -44,6 +44,13 @@ pub fn build(b: *std.Build) void {
     });
     nostrum.linkSystemLibrary("sqlite3", .{ .use_pkg_config = .no });
 
+    // wagon
+    const wagon = addProgram(b, all_tests, "wagon", .{
+        .root_source_file = b.path("src/wagon.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     // rhei
     const rhei = addProgram(b, all_tests, "rhei", .{
         .root_source_file = b.path("src/rhei.zig"),
@@ -52,20 +59,6 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
     rhei.linkSystemLibrary("xkbcommon", .{});
-    const waygen_client = b.createModule(.{
-        .root_source_file = b.path("src/rhei/waygen/client.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    rhei.addImport("waygen_client", waygen_client);
-    const waygen_scanner = b.addExecutable(.{
-        .name = "waygen-scanner",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/rhei/waygen/scanner.zig"),
-            .target = b.graph.host,
-            .optimize = optimize,
-        }),
-    });
     inline for (.{
         .{ "wayland", "wayland" },
         .{ "wayland", "ext-idle-notify-v1" },
@@ -73,19 +66,11 @@ pub fn build(b: *std.Build) void {
         .{ "river", "river-window-management-v1" },
         .{ "river", "river-xkb-bindings-v1" },
     }) |protocol| {
-        const run = b.addRunArtifact(waygen_scanner);
+        const run = b.addRunArtifact(wagon); // TODO: Handle compile time artifact
         run.addFileArg(b.path("src/rhei/protocol/" ++ protocol[0] ++ "/" ++ protocol[1] ++ ".xml"));
         const output = run.addOutputFileArg(protocol[1] ++ ".zig");
         rhei.addImport(protocol[1], b.createModule(.{ .root_source_file = output }));
     }
-
-    // TODO: Finish the rest of this later by adding it
-    // wagon
-    _ = addProgram(b, all_tests, "wagon", .{
-        .root_source_file = b.path("src/wagon.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
 
     // view
     _ = addProgram(b, all_tests, "view", .{

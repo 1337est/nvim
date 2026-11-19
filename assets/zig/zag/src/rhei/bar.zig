@@ -1,5 +1,5 @@
 const std = @import("std");
-const client = @import("waygen_client");
+const display = @import("display.zig");
 const wl = @import("wayland");
 const wlr = @import("wlr-layer-shell-unstable-v1");
 const font = @import("bar/font.zig");
@@ -141,19 +141,19 @@ var state: State = .{};
 var prev_net: net.Sample = .{};
 
 // ── Output events ──────────────────────────────────────────────────
-fn onOutput(_: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, payload: []const u8) void {
+fn onOutput(_: *display.Display, _: u32, data: ?*anyopaque, opcode: u16, payload: []const u8) void {
     const idx: usize = @intFromPtr(data);
     if (idx >= state.discovered_outputs.len) return;
     switch (opcode) {
         Output.event.mode => {
-            const flags = client.readU32(payload[0..4]);
+            const flags = display.readU32(payload[0..4]);
             if (flags & Output.mode.current == 0) return;
-            state.discovered_widths[idx] = client.readI32(payload[4..8]);
-            state.discovered_heights[idx] = client.readI32(payload[8..12]);
-            state.discovered_refreshes[idx] = client.readI32(payload[12..16]);
+            state.discovered_widths[idx] = display.readI32(payload[4..8]);
+            state.discovered_heights[idx] = display.readI32(payload[8..12]);
+            state.discovered_refreshes[idx] = display.readI32(payload[12..16]);
         },
         Output.event.name => {
-            const s = client.readString(payload);
+            const s = display.readString(payload);
             const dst = &state.discovered_names[idx];
             const copy_len = @min(s.str.len, dst.len);
             @memcpy(dst[0..copy_len], s.str[0..copy_len]);
@@ -164,14 +164,14 @@ fn onOutput(_: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, payload:
 }
 
 // ── Layer surface events ───────────────────────────────────────────
-fn onLayerSurface(d: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, payload: []const u8) void {
+fn onLayerSurface(d: *display.Display, _: u32, data: ?*anyopaque, opcode: u16, payload: []const u8) void {
     const bar: *BarInstance = @ptrCast(@alignCast(data.?));
     switch (opcode) {
         LayerSurface.event.configure => {
-            const serial = client.readU32(payload[0..4]);
-            bar.configured_width = client.readU32(payload[4..8]);
-            bar.configured_height = client.readU32(payload[8..12]);
-            var w = client.MsgWriter{};
+            const serial = display.readU32(payload[0..4]);
+            bar.configured_width = display.readU32(payload[4..8]);
+            bar.configured_height = display.readU32(payload[8..12]);
+            var w = display.MsgWriter{};
             w.putU32(serial);
             d.send(bar.layer_surface, LayerSurface.request.ack_configure, w.data()) catch {};
             bar.has_configured = true;
@@ -185,7 +185,7 @@ fn onLayerSurface(d: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, pa
 }
 
 // ── Buffer release ─────────────────────────────────────────────────
-fn onBufferRelease(_: *client.Display, _: u32, data: ?*anyopaque, opcode: u16, _: []const u8) void {
+fn onBufferRelease(_: *display.Display, _: u32, data: ?*anyopaque, opcode: u16, _: []const u8) void {
     if (opcode != WlBuffer.event.release) return;
     const packed_idx: usize = @intFromPtr(data); // (bar_idx << 1) | buf_idx
     const bar_idx = packed_idx >> 1;
@@ -214,7 +214,7 @@ fn formatNow(buf: *[19]u8) []const u8 {
 }
 
 // ── Buffer allocation and rendering ────────────────────────────────
-fn allocBuffer(d: *client.Display, bar_idx: usize, buf_idx: usize) !void {
+fn allocBuffer(d: *display.Display, bar_idx: usize, buf_idx: usize) !void {
     const bar = &state.bars[bar_idx];
     const width = bar.configured_width;
     const height = bar.configured_height;
@@ -233,7 +233,7 @@ fn allocBuffer(d: *client.Display, bar_idx: usize, buf_idx: usize) !void {
     const pool_id = d.allocId("wl_shm_pool", null, null);
     errdefer d.freeId(pool_id);
     {
-        var w = client.MsgWriter{};
+        var w = display.MsgWriter{};
         w.putU32(pool_id);
         w.putI32(@intCast(size_bytes));
         try d.sendWithFd(state.shm, Shm.request.create_pool, w.data(), fd);
@@ -244,7 +244,7 @@ fn allocBuffer(d: *client.Display, bar_idx: usize, buf_idx: usize) !void {
     const buf_id = d.allocId("wl_buffer", onBufferRelease, @ptrFromInt(packed_idx));
     errdefer d.freeId(buf_id);
     {
-        var w = client.MsgWriter{};
+        var w = display.MsgWriter{};
         w.putU32(buf_id);
         w.putI32(0); // offset
         w.putI32(@intCast(width));
@@ -294,7 +294,7 @@ fn renderInto(
     font.drawText(pixels, width, width, height, net_x, text_y, net_str, COLOR_TEXT);
 }
 
-fn drawBar(d: *client.Display, bar_idx: usize, snap: net.Snapshot) !void {
+fn drawBar(d: *display.Display, bar_idx: usize, snap: net.Snapshot) !void {
     if (!state.bar_active[bar_idx]) return;
     const bar = &state.bars[bar_idx];
     if (!bar.has_configured) return;
@@ -354,7 +354,7 @@ fn drawBar(d: *client.Display, bar_idx: usize, snap: net.Snapshot) !void {
     buf.busy = true;
     // wl_surface.attach(buffer, 0, 0)
     {
-        var w = client.MsgWriter{};
+        var w = display.MsgWriter{};
         w.putU32(buf.wl_buf);
         w.putI32(0);
         w.putI32(0);
@@ -362,7 +362,7 @@ fn drawBar(d: *client.Display, bar_idx: usize, snap: net.Snapshot) !void {
     }
     // wl_surface.damage_buffer(0, 0, width, height)
     {
-        var w = client.MsgWriter{};
+        var w = display.MsgWriter{};
         w.putI32(0);
         w.putI32(0);
         w.putI32(@intCast(bar.configured_width));
@@ -373,7 +373,7 @@ fn drawBar(d: *client.Display, bar_idx: usize, snap: net.Snapshot) !void {
     try d.send(bar.surface, Surface.request.commit, &.{});
 }
 
-fn drawAll(d: *client.Display) !void {
+fn drawAll(d: *display.Display) !void {
     const snap = net.sample(&prev_net);
     for (0..state.bars.len) |i| {
         try drawBar(d, i, snap);
@@ -386,47 +386,47 @@ pub fn main(init: std.process.Init) !void {
     const runtime_dir = environ.getPosix("XDG_RUNTIME_DIR") orelse return error.NoRuntimeDir;
     const wl_display = environ.getPosix("WAYLAND_DISPLAY");
 
-    var display = client.Display.connect(runtime_dir, wl_display) catch {
+    var client = display.Display.connect(runtime_dir, wl_display) catch {
         std.debug.print("error: failed to connect to wayland display\n", .{});
         return error.NoDisplay;
     };
-    defer display.disconnect();
+    defer client.disconnect();
 
-    const registry_id = try display.getRegistry();
+    const registry_id = try client.getRegistry();
     var registry = client.Registry{};
-    try display.roundtrip(&registry);
+    try client.roundtrip(&registry);
 
     const comp_g = registry.find("wl_compositor") orelse {
         std.debug.print("error: no wl_compositor\n", .{});
         return error.MissingGlobal;
     };
-    state.compositor = try display.bind(registry_id, comp_g.name, "wl_compositor", @min(comp_g.version, 4), null);
+    state.compositor = try client.bind(registry_id, comp_g.name, "wl_compositor", @min(comp_g.version, 4), null);
 
     const shm_g = registry.find("wl_shm") orelse {
         std.debug.print("error: no wl_shm\n", .{});
         return error.MissingGlobal;
     };
-    state.shm = try display.bind(registry_id, shm_g.name, "wl_shm", 1, null);
+    state.shm = try client.bind(registry_id, shm_g.name, "wl_shm", 1, null);
 
     const ls_g = registry.find("zwlr_layer_shell_v1") orelse {
         std.debug.print("error: no zwlr_layer_shell_v1\n", .{});
         return error.MissingGlobal;
     };
-    state.layer_shell = try display.bind(registry_id, ls_g.name, "zwlr_layer_shell_v1", @min(ls_g.version, 4), null);
+    state.layer_shell = try client.bind(registry_id, ls_g.name, "zwlr_layer_shell_v1", @min(ls_g.version, 4), null);
 
     // Bind every wl_output; onOutput fills the discovered_* arrays.
     for (registry.list()) |g| {
         if (!std.mem.eql(u8, g.interface, "wl_output")) continue;
         if (state.discovered_count >= state.discovered_outputs.len) break;
         const idx = state.discovered_count;
-        const oid = try display.bind(registry_id, g.name, "wl_output", @min(g.version, 4), onOutput);
-        display.setData(oid, @ptrFromInt(idx));
+        const oid = try client.bind(registry_id, g.name, "wl_output", @min(g.version, 4), onOutput);
+        client.setData(oid, @ptrFromInt(idx));
         state.discovered_outputs[idx] = oid;
         state.discovered_count += 1;
     }
 
     // Second roundtrip: receive each output's mode/name events.
-    try display.roundtrip(&registry);
+    try client.roundtrip(&registry);
 
     for (0..state.discovered_count) |di| {
         std.debug.print("output {d}: '{s}' {d}x{d}\n", .{
@@ -474,14 +474,14 @@ pub fn main(init: std.process.Init) !void {
         if (!state.bar_active[i]) continue;
         const bar = &state.bars[i];
 
-        bar.surface = display.allocId("wl_surface", null, null);
+        bar.surface = client.allocId("wl_surface", null, null);
         {
             var w = client.MsgWriter{};
             w.putU32(bar.surface);
-            try display.send(state.compositor, Compositor.request.create_surface, w.data());
+            try client.send(state.compositor, Compositor.request.create_surface, w.data());
         }
 
-        bar.layer_surface = display.allocId("zwlr_layer_surface_v1", onLayerSurface, bar);
+        bar.layer_surface = client.allocId("zwlr_layer_surface_v1", onLayerSurface, bar);
         {
             var w = client.MsgWriter{};
             w.putU32(bar.layer_surface);
@@ -489,26 +489,26 @@ pub fn main(init: std.process.Init) !void {
             w.putU32(bar.output);
             w.putU32(LayerShell.layer.top);
             w.putString("tinybar");
-            try display.send(state.layer_shell, LayerShell.request.get_layer_surface, w.data());
+            try client.send(state.layer_shell, LayerShell.request.get_layer_surface, w.data());
         }
 
         {
             var w = client.MsgWriter{};
             w.putU32(0);
             w.putU32(BAR_HEIGHT);
-            try display.send(bar.layer_surface, LayerSurface.request.set_size, w.data());
+            try client.send(bar.layer_surface, LayerSurface.request.set_size, w.data());
         }
         {
             var w = client.MsgWriter{};
             w.putU32(LayerSurface.anchor.top | LayerSurface.anchor.left | LayerSurface.anchor.right);
-            try display.send(bar.layer_surface, LayerSurface.request.set_anchor, w.data());
+            try client.send(bar.layer_surface, LayerSurface.request.set_anchor, w.data());
         }
         {
             var w = client.MsgWriter{};
             w.putI32(@intCast(BAR_HEIGHT));
-            try display.send(bar.layer_surface, LayerSurface.request.set_exclusive_zone, w.data());
+            try client.send(bar.layer_surface, LayerSurface.request.set_exclusive_zone, w.data());
         }
-        try display.send(bar.surface, Surface.request.commit, &.{});
+        try client.send(bar.surface, Surface.request.commit, &.{});
     }
 
     // Wait for the first configure on each active bar.
@@ -522,10 +522,10 @@ pub fn main(init: std.process.Init) !void {
             }
         }
         if (all_ready) break;
-        try display.dispatch();
+        try client.dispatch();
     }
 
-    try drawAll(&display);
+    try drawAll(&client);
 
     // 1 Hz timer.
     const tfd = timerfd_create(CLOCK_REALTIME, TFD_CLOEXEC);
@@ -539,7 +539,7 @@ pub fn main(init: std.process.Init) !void {
     if (timerfd_settime(tfd, 0, &ts, null) < 0) return error.TimerSetFailed;
 
     var fds = [_]pollfd{
-        .{ .fd = display.fd, .events = POLLIN, .revents = 0 },
+        .{ .fd = client.fd, .events = POLLIN, .revents = 0 },
         .{ .fd = tfd, .events = POLLIN, .revents = 0 },
     };
 
@@ -552,12 +552,12 @@ pub fn main(init: std.process.Init) !void {
         if (n < 0) return error.PollFailed;
 
         if (fds[0].revents & POLLIN != 0) {
-            display.dispatchPending() catch return error.DispatchFailed;
+            client.dispatchPending() catch return error.DispatchFailed;
         }
         if (fds[1].revents & POLLIN != 0) {
             var tbuf: [8]u8 = undefined;
             _ = read(tfd, &tbuf, tbuf.len);
-            try drawAll(&display);
+            try drawAll(&client);
         }
     }
 }
