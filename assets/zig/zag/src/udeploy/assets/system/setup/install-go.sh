@@ -40,9 +40,6 @@ fzf_url="github.com/junegunn/fzf@v${fzf_version}"
 duf_version="0.9.1"
 duf_url="github.com/muesli/duf@v${duf_version}"
 
-lemonade_version="1.1.1"
-lemonade_url="github.com/lemonade-command/lemonade@v${lemonade_version}"
-
 profile="$HOME/.profile"
 
 go_install() {
@@ -116,7 +113,6 @@ go_modules() {
     [ -x "$go_bin/gopls" ] || "$go_root" install "$gopls_url"
     [ -x "$go_bin/fzf" ] || "$go_root" install "$fzf_url"
     [ -x "$go_bin/duf" ] || "$go_root" install "$duf_url"
-    [ -x "$go_bin/lemonade" ] || "$go_root" install "$lemonade_url"
 }
 
 go_install

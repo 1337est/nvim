@@ -1,7 +1,7 @@
 # Completion is static metadata: never run a deployment to produce suggestions.
 _udeploy_complete() {
     local cur=${COMP_WORDS[COMP_CWORD]-} prev='' word capture=0 mode=0 adopt=0
-    local tasks='workstation all shell configs profile bashrc bash-completions lemonade-config nvim-config ghostty-config fonts go go-tools rust rust-tools llvm zig wlroots river neovim luals zls'
+    local tasks='workstation all shell configs profile bashrc bash-completions nvim-config ghostty-config fonts go go-tools rust rust-tools llvm zig wlroots river neovim luals zls'
     local flags='--preview --apply --capture --refresh --adopt --doctor --assets --go-ref --help'
     local -a candidates=()
     COMPREPLY=()
@@ -20,7 +20,7 @@ _udeploy_complete() {
             --adopt) adopt=1 ;;
         esac
     done
-    if (( capture )); then tasks='shell configs profile bashrc bash-completions lemonade-config nvim-config ghostty-config'; fi
+    if (( capture )); then tasks='shell configs profile bashrc bash-completions nvim-config ghostty-config'; fi
     if (( adopt )); then tasks='llvm zig wlroots river neovim luals go-tools rust'; fi
     if [[ $cur == -* ]]; then
         read -r -a candidates <<< "$flags"
