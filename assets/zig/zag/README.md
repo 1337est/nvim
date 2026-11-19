@@ -20,7 +20,7 @@ Hypothetical remedy for all ills or diseases. See doc/nostrum.md
 
 ## rhei: Window Management
 
-Currently uses river and wlroots, but coming up with a custom way to do this afterwards that may or may not be compatible with Wayland. Definitely not X11 since current format isn't compatible with X11 or XWayland.
+Currently uses river and wlroots, but coming up with a custom way to do this afterwards that may or may not be compatible with Wayland. Definitely not X11 since current format isn't compatible with X11 or XWayland. Currently there's a bug where displays swap after idle and the resolution becomes choppy. Also the bar crashes after idle. So need to likely look at both idle and bar.
 
 ## wagon: XML Parser, Scanner, Generator?
 
