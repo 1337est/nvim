@@ -1,4 +1,4 @@
-// file: src/main.zig
+// file: src/3dbg.zig
 // This is a single-file, dependency-light, first-principles
 // 3d/visual debugger. Written to help me with work and home projects.
 // I would like for this to be a reusable frontent debugger for arbitrary
@@ -2875,7 +2875,7 @@ test "series uses a bounded ring" {
 //   zig build test
 //
 // Standalone equivalent:
-//   zig test src/main.zig -lc
+//   zig test src/3dbg.zig -lc
 //
 // No root, external map data, netcat, monitor, or image viewer is required.
 // Files and child executables stay in std.testing.tmpDir and are removed.
@@ -3362,9 +3362,9 @@ test "build current source and run headless commands" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     const io = std.testing.io;
-    try tmp.dir.writeFile(io, .{ .sub_path = "main.zig", .data = @embedFile("main.zig") });
+    try tmp.dir.writeFile(io, .{ .sub_path = "3dbg.zig", .data = @embedFile("3dbg.zig") });
     const zig_exe = std.testing.environ.getPosix("ZIG_EXE") orelse "zig";
-    try testProcess(tmp.dir, &.{ zig_exe, "build-exe", "main.zig", "-lc", "-femit-bin=viewer-test" }, 180, null);
+    try testProcess(tmp.dir, &.{ zig_exe, "build-exe", "3dbg.zig", "-lc", "-femit-bin=viewer-test" }, 180, null);
     try testProcess(tmp.dir, &.{ "./viewer-test", "--help" }, 10, null);
     try testProcess(tmp.dir, &.{ "./viewer-test", "--ppm", "demo.ppm", "--frames", "1", "--size", "1280x720", "--udp", "0" }, 30, null);
     try testPpm(tmp.dir, "demo.ppm", 1280, 720, null);
