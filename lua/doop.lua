@@ -9,7 +9,7 @@ function M.setup(opts)
     local response = vim.fn.system({ exe, "ping" })
     if vim.v.shell_error ~= 0 or vim.trim(response) ~= "pong" then return end
 
-    vim.g.clibboard = {
+    vim.g.clipboard = {
         name = "doop",
         copy = {
             ["+"] = { exe, "copy" }, ["*"] = { exe, "copy" }
