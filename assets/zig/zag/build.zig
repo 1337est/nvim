@@ -6,76 +6,61 @@ pub fn build(b: *std.Build) void {
     const all_tests = b.step("test", "Run all project tests");
 
     // -------------------------------------------------------------------
-    // Programs
+    // Executables
     // -------------------------------------------------------------------
 
     // 3dbg
-    const dbg_mod = exeMod(b, all_tests, "3dbg", .{
+    _ = Project.init(b, all_tests, "3dbg", .exe, .{
         .root_source_file = b.path("src/3dbg.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
-    const dbg = exeCompile(b, "3dbg", dbg_mod);
-    const dbg_install = exeInstall(b, dbg);
-    exeRun(b, dbg, dbg_install);
 
     // clift
-    const clift_mod = exeMod(b, all_tests, "clift", .{
+    _ = Project.init(b, all_tests, "clift", .exe, .{
         .root_source_file = b.path("src/clift.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const clift = exeCompile(b, "clift", clift_mod);
-    const clift_install = exeInstall(b, clift);
-    exeRun(b, clift, clift_install);
 
     // doop
-    const doop_mod = exeMod(b, all_tests, "doop", .{
+    const doop = Project.init(b, all_tests, "doop", .exe, .{
         .root_source_file = b.path("src/doop.zig"),
         .target = target,
         .optimize = optimize,
     });
     if (target.result.os.tag == .windows) {
-        doop_mod.linkSystemLibrary("user32", .{ .use_pkg_config = .no });
-        doop_mod.linkSystemLibrary("kernel32", .{ .use_pkg_config = .no });
+        doop.module.linkSystemLibrary("user32", .{ .use_pkg_config = .no });
+        doop.module.linkSystemLibrary("kernel32", .{ .use_pkg_config = .no });
     }
-    const doop = exeCompile(b, "doop", doop_mod);
-    const doop_install = exeInstall(b, doop);
-    exeRun(b, doop, doop_install);
 
     // nostrum
-    const nostrum_mod = exeMod(b, all_tests, "nostrum", .{
+    const nostrum = Project.init(b, all_tests, "nostrum", .exe, .{
         .root_source_file = b.path("src/nostrum.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
-    nostrum_mod.linkSystemLibrary("sqlite3", .{ .use_pkg_config = .no });
-    const nostrum = exeCompile(b, "nostrum", nostrum_mod);
-    const nostrum_install = exeInstall(b, nostrum);
-    exeRun(b, nostrum, nostrum_install);
+    nostrum.module.linkSystemLibrary("sqlite3", .{ .use_pkg_config = .no });
 
     // wagon
-    const wagon_mod = exeMod(b, all_tests, "wagon", .{
+    const wagon = Project.init(b, all_tests, "wagon", .exe, .{
         .root_source_file = b.path("src/wagon.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const wagon = exeCompile(b, "wagon", wagon_mod);
-    const wagon_install = exeInstall(b, wagon);
-    exeRun(b, wagon, wagon_install);
 
     // rhei
-    const rhei_mod = exeMod(b, all_tests, "rhei", .{
+    const rhei = Project.init(b, all_tests, "rhei", .exe, .{
         .root_source_file = b.path("src/rhei.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
-    rhei_mod.linkSystemLibrary("xkbcommon", .{});
+    rhei.module.linkSystemLibrary("xkbcommon", .{});
 
-    // Reuse the compiled Wagon executable for wayland protocol generation.
+    // Reuse the compiled Wagon executable for Wayland protocol generation.
     inline for (.{
         .{ "wayland", "wayland" },
         .{ "wayland", "ext-idle-notify-v1" },
@@ -83,35 +68,33 @@ pub fn build(b: *std.Build) void {
         .{ "river", "river-window-management-v1" },
         .{ "river", "river-xkb-bindings-v1" },
     }) |wayland_protocol| {
-        const wagon_run = b.addRunArtifact(wagon);
-        wagon_run.addFileArg(b.path("src/rhei/protocol/" ++ wayland_protocol[0] ++ "/" ++ wayland_protocol[1] ++ ".xml"));
-        const wagon_output = wagon_run.addOutputFileArg(wayland_protocol[1] ++ ".zig");
-        rhei_mod.addImport(wayland_protocol[1], b.createModule(.{ .root_source_file = wagon_output }));
+        const wagon_run = b.addRunArtifact(wagon.artifact);
+        wagon_run.addFileArg(b.path(b.fmt(
+            "src/rhei/protocol/{s}/{s}.xml",
+            .{ wayland_protocol[0], wayland_protocol[1] },
+        )));
+        const wagon_output = wagon_run.addOutputFileArg(
+            wayland_protocol[1] ++ ".zig",
+        );
+        rhei.module.addImport(
+            wayland_protocol[1],
+            b.createModule(.{ .root_source_file = wagon_output }),
+        );
     }
 
-    const rhei = exeCompile(b, "rhei", rhei_mod);
-    const rhei_install = exeInstall(b, rhei);
-    exeRun(b, rhei, rhei_install);
-
     // view
-    const view_mod = exeMod(b, all_tests, "view", .{
+    _ = Project.init(b, all_tests, "view", .exe, .{
         .root_source_file = b.path("src/view.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const view = exeCompile(b, "view", view_mod);
-    const view_install = exeInstall(b, view);
-    exeRun(b, view, view_install);
 
     // zwe
-    const zwe_mod = exeMod(b, all_tests, "zwe", .{
+    const zwe = Project.init(b, all_tests, "zwe", .exe, .{
         .root_source_file = b.path("src/zwe.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const zwe = exeCompile(b, "zwe", zwe_mod);
-    const zwe_install = exeInstall(b, zwe);
-    exeRun(b, zwe, zwe_install);
 
     // Reuse the compiled ZWE executable for configuration and Neovim files.
     inline for (.{
@@ -119,7 +102,7 @@ pub fn build(b: *std.Build) void {
         .{ "--print-nvim-lsp", "zls.lua", "share/zwe/nvim/lsp/zls.lua" },
         .{ "--print-config", "config.zon", "share/zwe/config.zon" },
     }) |zwe_arg| {
-        const zwe_run = b.addRunArtifact(zwe);
+        const zwe_run = b.addRunArtifact(zwe.artifact);
         zwe_run.addArg(zwe_arg[0]);
         const zwe_output = zwe_run.captureStdOut(.{
             .basename = zwe_arg[1],
@@ -130,45 +113,39 @@ pub fn build(b: *std.Build) void {
     }
 
     // template
-    const template_mod = exeMod(b, all_tests, "template", .{
+    _ = Project.init(b, all_tests, "template", .exe, .{
         .root_source_file = b.path("src/template.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const template = exeCompile(b, "template", template_mod);
-    const template_install = exeInstall(b, template);
-    exeRun(b, template, template_install);
 
     // udeploy
-    const udeploy_mod = exeMod(b, all_tests, "udeploy", .{
+    _ = Project.init(b, all_tests, "udeploy", .exe, .{
         .root_source_file = b.path("src/udeploy.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const udeploy = exeCompile(b, "udeploy", udeploy_mod);
-    const udeploy_install = exeInstall(b, udeploy);
-    exeRun(b, udeploy, udeploy_install);
 
     // -------------------------------------------------------------------
     // Libraries
     // -------------------------------------------------------------------
 
     // systemd
-    _ = libMod(b, all_tests, "systemd", .{
+    _ = Project.init(b, all_tests, "systemd", .lib, .{
         .root_source_file = b.path("lib/systemd.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // ramen
-    _ = libMod(b, all_tests, "ramen", .{
+    _ = Project.init(b, all_tests, "ramen", .lib, .{
         .root_source_file = b.path("lib/ramen.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // sockman
-    _ = libMod(b, all_tests, "sockman", .{
+    _ = Project.init(b, all_tests, "sockman", .lib, .{
         .root_source_file = b.path("lib/sockman.zig"),
         .target = target,
         .optimize = optimize,
@@ -176,121 +153,125 @@ pub fn build(b: *std.Build) void {
 }
 
 // -----------------------------------------------------------------------------
-// Generic project functions
+// Project struct for executables and static libraries
 // -----------------------------------------------------------------------------
 
 const Project = struct {
+    const Kind = enum { exe, lib };
+
     b: *std.Build,
-    all_tests: *std.Build.Step, // To add to the top level test step
     name: []const u8, // executable, project, module, etc, name
-    module: ?*std.Build.Module = null, // CreateOptions live here
-    test_step: ?*std.Build.Step = null,
-    executable: ?*std.Build.Step.Compile = null,
-    install_artifact: ?*std.Build.Step.InstallArtifact = null,
+    kind: Kind,
+
+    test_step: *std.Build.Step, // zig build test-<project>
+    module: *std.Build.Module,
+
+    compile_step: *std.Build.Step, // zig build <project>
+    artifact: *std.Build.Step.Compile,
+    install_artifact: *std.Build.Step.InstallArtifact,
+
+    run_step: ?*std.Build.Step = null, // zig build run-<project>; null for libraries
     runner: ?*std.Build.Step.Run = null,
+
+    pub fn init(
+        b: *std.Build,
+        all_tests: *std.Build.Step,
+        name: []const u8,
+        kind: Kind,
+        options: std.Build.Module.CreateOptions,
+    ) Project {
+        // 1. Module.
+        const module = switch (kind) {
+            .exe => b.createModule(options),
+            .lib => b.addModule(name, options),
+        };
+
+        // 2. Tests.
+        const compile_tests = b.addTest(.{
+            .name = b.fmt("{s}_test", .{name}),
+            .root_module = module,
+        });
+
+        const run_tests = b.addRunArtifact(compile_tests);
+
+        switch (kind) {
+            .exe => {
+                run_tests.setCwd(b.path("."));
+                run_tests.setEnvironmentVariable("ZIG_EXE", b.graph.zig_exe);
+                run_tests.has_side_effects = true;
+            },
+            .lib => {},
+        }
+
+        const test_step = b.step(
+            b.fmt("test-{s}", .{name}),
+            b.fmt("Run {s} tests", .{name}),
+        );
+        test_step.dependOn(&run_tests.step);
+        all_tests.dependOn(test_step);
+
+        // 3. Compile.
+        const artifact = switch (kind) {
+            .exe => b.addExecutable(.{
+                .name = name,
+                .root_module = module,
+            }),
+            .lib => b.addLibrary(.{
+                .name = name,
+                .root_module = module,
+                .linkage = .static,
+            }),
+        };
+
+        artifact.step.dependOn(test_step);
+
+        const compile_step = b.step(
+            name,
+            b.fmt("Compile {s}", .{name}),
+        );
+        compile_step.dependOn(&artifact.step);
+
+        // 4. Install.
+        const install_artifact = b.addInstallArtifact(artifact, .{});
+        b.getInstallStep().dependOn(&install_artifact.step);
+
+        // 5. Run.
+        var run_step: ?*std.Build.Step = null;
+        var runner: ?*std.Build.Step.Run = null;
+
+        switch (kind) {
+            .exe => {
+                const run_exe = b.addRunArtifact(artifact);
+                run_exe.setCwd(b.path("."));
+                run_exe.addPassthruArgs();
+                run_exe.step.dependOn(&install_artifact.step);
+
+                const step = b.step(
+                    b.fmt("run-{s}", .{name}),
+                    b.fmt("Run {s} locally", .{name}),
+                );
+                step.dependOn(&run_exe.step);
+
+                run_step = step;
+                runner = run_exe;
+            },
+            .lib => {},
+        }
+
+        return .{
+            .b = b,
+            .name = name,
+            .kind = kind,
+
+            .test_step = test_step,
+            .module = module,
+
+            .compile_step = compile_step,
+            .artifact = artifact,
+            .install_artifact = install_artifact,
+
+            .run_step = run_step,
+            .runner = runner,
+        };
+    }
 };
-
-// 1. Create an executable module and its compile-and-run test steps.
-fn exeMod(
-    b: *std.Build,
-    all_tests: *std.Build.Step,
-    name: []const u8,
-    options: std.Build.Module.CreateOptions,
-) *std.Build.Module {
-    const mod = b.createModule(options);
-
-    const compile_tests = b.addTest(.{
-        .name = b.fmt("{s}_test", .{name}),
-        .root_module = mod,
-    });
-
-    const run_tests = b.addRunArtifact(compile_tests);
-    run_tests.setCwd(b.path("."));
-    run_tests.setEnvironmentVariable("ZIG_EXE", b.graph.zig_exe);
-    run_tests.has_side_effects = true;
-
-    const test_step = b.step(
-        b.fmt("test-{s}", .{name}),
-        b.fmt("Run {s} tests", .{name}),
-    );
-    test_step.dependOn(&run_tests.step);
-    all_tests.dependOn(test_step);
-
-    return mod;
-}
-
-// 2. Test -> Compile. Reuse the test step created by exeMod.
-fn exeCompile(
-    b: *std.Build,
-    name: []const u8,
-    mod: *std.Build.Module,
-) *std.Build.Step.Compile {
-    const compile_exe = b.addExecutable(.{
-        .name = name,
-        .root_module = mod,
-    });
-
-    const test_step = b.top_level_steps.get(b.fmt("test-{s}", .{name})) orelse
-        @panic("exeMod must be called with the same name before exeCompile");
-    compile_exe.step.dependOn(&test_step.step);
-
-    const build_step = b.step(name, b.fmt("Build {s}", .{name}));
-    build_step.dependOn(&compile_exe.step);
-
-    return compile_exe;
-}
-
-// 3. Compile -> Install.
-fn exeInstall(
-    b: *std.Build,
-    compile_exe: *std.Build.Step.Compile,
-) *std.Build.Step.InstallArtifact {
-    const install_exe = b.addInstallArtifact(compile_exe, .{});
-    b.getInstallStep().dependOn(&install_exe.step);
-    return install_exe;
-}
-
-// 4. Install -> Run.
-fn exeRun(
-    b: *std.Build,
-    compile_exe: *std.Build.Step.Compile,
-    install_exe: *std.Build.Step.InstallArtifact,
-) void {
-    const run_exe = b.addRunArtifact(compile_exe);
-    run_exe.setCwd(b.path("."));
-    run_exe.addPassthruArgs();
-    run_exe.step.dependOn(&install_exe.step);
-
-    const run_step = b.step(
-        b.fmt("run-{s}", .{compile_exe.name}),
-        b.fmt("Run {s} locally", .{compile_exe.name}),
-    );
-    run_step.dependOn(&run_exe.step);
-}
-
-// 1. lib/project.zig files that serve as libraries
-fn libMod(
-    b: *std.Build,
-    all_tests: *std.Build.Step,
-    name: []const u8,
-    options: std.Build.Module.CreateOptions,
-) *std.Build.Module {
-    const mod = b.addModule(name, options);
-
-    // Test: Compile -> Run
-    const compile_tests = b.addTest(.{
-        .name = b.fmt("{s}_test", .{name}),
-        .root_module = mod,
-    });
-
-    const run_tests = b.addRunArtifact(compile_tests);
-
-    const test_step = b.step(
-        b.fmt("test-{s}", .{name}),
-        b.fmt("Run {s} tests", .{name}),
-    );
-    test_step.dependOn(&run_tests.step);
-    all_tests.dependOn(test_step);
-
-    return mod;
-}
