@@ -1,9 +1,54 @@
 const std = @import("std");
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const all_tests = b.step("test", "Run all project tests");
+
+    // -------------------------------------------------------------------
+    // Libraries
+    // -------------------------------------------------------------------
+
+    // ramen
+    _ = Project.init(b, all_tests, "ramen", .lib, .{
+        .root_source_file = b.path("lib/ramen.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // systemd
+    _ = Project.init(b, all_tests, "systemd", .lib, .{
+        .root_source_file = b.path("lib/systemd.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // sockman
+    _ = Project.init(b, all_tests, "sockman", .lib, .{
+        .root_source_file = b.path("lib/sockman.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // clift
+    _ = Project.init(b, all_tests, "clift", .lib, .{
+        .root_source_file = b.path("lib/clift.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // sqlite
+    const sqlite = Project.init(b, all_tests, "sqlite3", .lib, .{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    // TODO: Replace with std/Build/Module.include_dirs. Cleaner
+    const sqlite_include = try sqlite.addCArchive(
+        "lib/sqlite/sqlite-amalgamation-3540100.zip",
+        "sqlite-amalgamation-3540100",
+        "sqlite3.c",
+    );
 
     // -------------------------------------------------------------------
     // Executables
@@ -35,7 +80,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = true,
     });
-    nostrum.module.linkSystemLibrary("sqlite3", .{ .use_pkg_config = .no });
+    nostrum.module.addIncludePath(sqlite_include);
+    nostrum.module.linkLibrary(sqlite.artifact);
 
     // wagon
     const wagon = Project.init(b, all_tests, "wagon", .exe, .{
@@ -118,38 +164,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-
-    // -------------------------------------------------------------------
-    // Libraries
-    // -------------------------------------------------------------------
-
-    // ramen
-    _ = Project.init(b, all_tests, "ramen", .lib, .{
-        .root_source_file = b.path("lib/ramen.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // systemd
-    _ = Project.init(b, all_tests, "systemd", .lib, .{
-        .root_source_file = b.path("lib/systemd.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // sockman
-    _ = Project.init(b, all_tests, "sockman", .lib, .{
-        .root_source_file = b.path("lib/sockman.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // clift
-    _ = Project.init(b, all_tests, "clift", .lib, .{
-        .root_source_file = b.path("lib/clift.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
 }
 
 // -----------------------------------------------------------------------------
@@ -157,13 +171,13 @@ pub fn build(b: *std.Build) void {
 // -----------------------------------------------------------------------------
 
 const Project = struct {
-    const Kind = enum { exe, lib };
+    const Kind = enum { exe, lib, c_src_archive };
 
     b: *std.Build,
     name: []const u8, // executable, project, module, etc, name
     kind: Kind,
 
-    test_step: *std.Build.Step, // zig build test-<project>
+    test_step: ?*std.Build.Step, // zig build test-<project>; null for c archives
     module: *std.Build.Module,
 
     compile_step: *std.Build.Step, // zig build <project>
@@ -171,7 +185,7 @@ const Project = struct {
     install_artifact: *std.Build.Step.InstallArtifact,
 
     run_step: ?*std.Build.Step = null, // zig build run-<project>; null for libraries
-    runner: ?*std.Build.Step.Run = null,
+    runner: ?*std.Build.Step.Run = null, // null for libraries
 
     pub fn init(
         b: *std.Build,
@@ -183,7 +197,7 @@ const Project = struct {
         // 1. Module.
         const module = switch (kind) {
             .exe => b.createModule(options),
-            .lib => b.addModule(name, options),
+            .lib, .c_src_archive => b.addModule(name, options),
         };
 
         // 2. Tests.
@@ -273,5 +287,43 @@ const Project = struct {
             .run_step = run_step,
             .runner = runner,
         };
+    }
+
+    // TODO: Move to Project.init with explicit Project.Kind.c_src_archive handling
+    pub fn addCArchive(
+        self: *const Project,
+        archive_path: []const u8,
+        archive_root: []const u8,
+        source_file: []const u8,
+    ) !std.Build.LazyPath {
+        const b = self.b;
+        const io = b.graph.io;
+        const output_path = b.fmt("zig-out/lib/{s}-src", .{self.name});
+
+        // Extraction modifies the filesystem during configuration
+        b.graph.poisonCache();
+
+        const root = try b.root.openDir(io, ".", .{});
+        defer root.close(io);
+
+        const archive = try root.openFile(io, archive_path, .{});
+        defer archive.close(io);
+
+        try root.deleteTree(io, output_path);
+        const output = try root.createDirPathOpen(io, output_path, .{});
+        defer output.close(io);
+
+        var buffer: [64 * 1024]u8 = undefined;
+        var reader = archive.reader(io, &buffer);
+        try std.zip.extract(output, &reader, .{});
+
+        const source_dir = b.path(b.fmt(
+            "{s}/{s}",
+            .{ output_path, archive_root },
+        ));
+        self.module.addCSourceFile(.{ .file = source_dir.path(b, source_file) });
+        self.module.addIncludePath(source_dir);
+
+        return source_dir;
     }
 };
