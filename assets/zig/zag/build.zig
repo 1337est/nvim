@@ -17,13 +17,6 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
 
-    // clift
-    _ = Project.init(b, all_tests, "clift", .exe, .{
-        .root_source_file = b.path("src/clift.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     // doop
     const doop = Project.init(b, all_tests, "doop", .exe, .{
         .root_source_file = b.path("src/doop.zig"),
@@ -130,13 +123,6 @@ pub fn build(b: *std.Build) void {
     // Libraries
     // -------------------------------------------------------------------
 
-    // systemd
-    _ = Project.init(b, all_tests, "systemd", .lib, .{
-        .root_source_file = b.path("lib/systemd.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     // ramen
     _ = Project.init(b, all_tests, "ramen", .lib, .{
         .root_source_file = b.path("lib/ramen.zig"),
@@ -144,9 +130,23 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // systemd
+    _ = Project.init(b, all_tests, "systemd", .lib, .{
+        .root_source_file = b.path("lib/systemd.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     // sockman
     _ = Project.init(b, all_tests, "sockman", .lib, .{
         .root_source_file = b.path("lib/sockman.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // clift
+    _ = Project.init(b, all_tests, "clift", .lib, .{
+        .root_source_file = b.path("lib/clift.zig"),
         .target = target,
         .optimize = optimize,
     });
