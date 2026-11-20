@@ -1,9 +1,12 @@
+- [ ] Extract SQLite ZIP using a Zig build step
+- [ ] Compile SQLite as a static library
+- [ ] Install `libsqlite3.a` to `zig-out/lib/`
+- [ ] Link SQLite to Nostrum and verify tests
+
 - [ ] Fix build.zig issues
-    - [ ] `3dbg`
     - [ ] `nostrum`
-- [ ] Add data to stubs
     - [ ] `rhei`
-    - [ ] `wagon`
+- [ ] Add data to stubs
     - [ ] `clift`
     - [ ] `udeploy`
     - [ ] `template`
