@@ -141,3 +141,26 @@ pub fn init(
         .runner = runner,
     };
 }
+
+pub fn configureSystemd(self: *Project, definition: Systemd, enabled: bool) !void {
+    self.systemd = definition;
+    if (!enabled) return;
+
+    const b = self.b;
+    const verification = try definition.validate(b);
+    const unit_file = try definition.stage(b);
+    const name = std.fs.path.basename(definition.project_file.path);
+
+    switch (self.scope) {
+        .local => {
+            const installation = b.addInstallFile(
+                unit_file,
+                b.fmt("systemd/{s}", .{name}),
+            );
+
+            installation.step.dependOn(&verification.step);
+            self.install_step.dependOn(&installation.step);
+        },
+        .user, .system => return error.SystemdScopeNotImplemented,
+    }
+}

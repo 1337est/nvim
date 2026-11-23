@@ -179,6 +179,18 @@ pub fn renderAlloc(self: Systemd, allocator: std.mem.Allocator) ![]u8 {
     return output.toOwnedSlice(allocator);
 }
 
+pub fn stage(self: Systemd, b: *std.Build) !std.Build.LazyPath {
+    try self.validateDefinition();
+
+    const files = b.addWriteFiles();
+    const name = std.fs.path.basename(self.project_file.path);
+
+    return if (self.project_file.bytes != null or self.hasSections())
+        files.add(name, try self.renderAlloc(b.allocator))
+    else
+        files.addCopyFile(b.path(self.project_file.path), name);
+}
+
 fn hasSections(self: Systemd) bool {
     return self.sections.unit != null or
         self.sections.service != null or
@@ -189,13 +201,14 @@ fn validateDefinition(self: Systemd) !void {
     const source = self.project_file.path;
     const destination = self.install_file.path;
 
-    if (source.len == 0 or destination.len == 0) return error.EmptySystemdPath;
+    if (source.len == 0) return error.EmptySystemdPath;
     if (std.mem.indexOfAny(u8, source, "\x00\r\n") != null or
         std.mem.indexOfAny(u8, destination, "\x00\r\n") != null)
         return error.InvalidSystemdPath;
 
     const name = std.fs.path.basename(source);
-    if (!std.mem.eql(u8, name, std.fs.path.basename(destination)))
+    if (destination.len > 0 and
+        !std.mem.eql(u8, name, std.fs.path.basename(destination)))
         return error.SystemdUnitNameMismatch;
 
     const is_service = std.mem.endsWith(u8, name, ".service");
