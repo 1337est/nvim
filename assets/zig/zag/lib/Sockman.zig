@@ -2564,5 +2564,5 @@ comptime {
 
 // Testing block for importing the sockman test file
 test {
-    _ = @import("sockman/test.zig");
+    _ = @import("Sockman/test.zig");
 }

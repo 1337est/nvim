@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) !void {
 
     // sockman
     _ = try Project.init(b, all_tests, "sockman", .local, .lib, .{
-        .root_source_file = b.path("lib/sockman.zig"),
+        .root_source_file = b.path("lib/Sockman.zig"),
         .target = target,
         .optimize = optimize,
     });

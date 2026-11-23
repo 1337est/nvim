@@ -44,7 +44,7 @@ I need to combine linux.zig (now renamed ramen.zig) into broth.zig. It would be 
 
 ## sockman: Shared Memory Socket Manager
 
-This is always evolving. Will add a detailed doc/sockman.md file for current architecture, but it may be apparent from the lib/sockman.zig file too.
+This is always evolving. Will add a detailed doc/sockman.md file for current architecture, but it may be apparent from the lib/Sockman.zig file too.
 
 ## template: Zig Project Initializer
 
