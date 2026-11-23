@@ -3,8 +3,7 @@ pub const Project = @This();
 
 pub const Systemd = @import("Project/Systemd.zig");
 pub const Archive = @import("Project/Archive.zig");
-
-pub const Scope = enum { local, user, system };
+pub const Scope = @import("Project/Scope.zig").Scope;
 
 pub const Kind = union(enum) {
     exe,
@@ -18,8 +17,8 @@ pub const Kind = union(enum) {
 
 b: *std.Build,
 name: []const u8,
+scope: Scope,
 kind: Kind,
-scope: Scope = .local,
 module: *std.Build.Module,
 test_step: *std.Build.Step,
 compile_step: *std.Build.Step,
@@ -36,6 +35,7 @@ pub fn init(
     b: *std.Build,
     all_tests: *std.Build.Step,
     name: []const u8,
+    scope: Scope,
     kind: Kind,
     options: std.Build.Module.CreateOptions,
 ) !Project {
@@ -129,6 +129,7 @@ pub fn init(
     return .{
         .b = b,
         .name = name,
+        .scope = scope,
         .kind = kind,
         .module = module,
         .test_step = test_step,

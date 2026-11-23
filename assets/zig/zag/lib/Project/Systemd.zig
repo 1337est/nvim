@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const Systemd = @This();
 
-const Scope = @import("../Project.zig").Scope;
+const Scope = @import("Scope.zig").Scope;
 
 project_file: Fpb,
 install_file: Fpb,

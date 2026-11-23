@@ -11,28 +11,28 @@ pub fn build(b: *std.Build) !void {
     // -------------------------------------------------------------------
 
     // ramen
-    _ = try Project.init(b, all_tests, "ramen", .lib, .{
+    _ = try Project.init(b, all_tests, "ramen", .local, .lib, .{
         .root_source_file = b.path("lib/ramen.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // sockman
-    _ = try Project.init(b, all_tests, "sockman", .lib, .{
+    _ = try Project.init(b, all_tests, "sockman", .local, .lib, .{
         .root_source_file = b.path("lib/sockman.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // clift
-    _ = try Project.init(b, all_tests, "clift", .lib, .{
+    _ = try Project.init(b, all_tests, "clift", .local, .lib, .{
         .root_source_file = b.path("lib/clift.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // sqlite
-    const sqlite = try Project.init(b, all_tests, "sqlite3", .{
+    const sqlite = try Project.init(b, all_tests, "sqlite3", .local, .{
         .c_src_archive = .{
             .path = "lib/sqlite-amalgamation-3540100.zip",
             .source_file = "sqlite-amalgamation-3540100/sqlite3.c",
@@ -49,7 +49,7 @@ pub fn build(b: *std.Build) !void {
     // -------------------------------------------------------------------
 
     // 3dbg
-    _ = try Project.init(b, all_tests, "3dbg", .exe, .{
+    _ = try Project.init(b, all_tests, "3dbg", .local, .exe, .{
         .root_source_file = b.path("src/3dbg.zig"),
         .target = target,
         .optimize = optimize,
@@ -57,7 +57,7 @@ pub fn build(b: *std.Build) !void {
     });
 
     // doop
-    const doop = try Project.init(b, all_tests, "doop", .exe, .{
+    const doop = try Project.init(b, all_tests, "doop", .local, .exe, .{
         .root_source_file = b.path("src/doop.zig"),
         .target = target,
         .optimize = optimize,
@@ -68,7 +68,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     // nostrum
-    const nostrum = try Project.init(b, all_tests, "nostrum", .exe, .{
+    const nostrum = try Project.init(b, all_tests, "nostrum", .local, .exe, .{
         .root_source_file = b.path("src/nostrum.zig"),
         .target = target,
         .optimize = optimize,
@@ -77,14 +77,14 @@ pub fn build(b: *std.Build) !void {
     nostrum.module.linkLibrary(sqlite.artifact);
 
     // wagon
-    const wagon = try Project.init(b, all_tests, "wagon", .exe, .{
+    const wagon = try Project.init(b, all_tests, "wagon", .local, .exe, .{
         .root_source_file = b.path("src/wagon.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // rhei
-    const rhei = try Project.init(b, all_tests, "rhei", .exe, .{
+    const rhei = try Project.init(b, all_tests, "rhei", .local, .exe, .{
         .root_source_file = b.path("src/rhei.zig"),
         .target = target,
         .optimize = optimize,
@@ -115,14 +115,14 @@ pub fn build(b: *std.Build) !void {
     }
 
     // view
-    _ = try Project.init(b, all_tests, "view", .exe, .{
+    _ = try Project.init(b, all_tests, "view", .local, .exe, .{
         .root_source_file = b.path("src/view.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // zwe
-    const zwe = try Project.init(b, all_tests, "zwe", .exe, .{
+    const zwe = try Project.init(b, all_tests, "zwe", .local, .exe, .{
         .root_source_file = b.path("src/zwe.zig"),
         .target = target,
         .optimize = optimize,
@@ -145,14 +145,14 @@ pub fn build(b: *std.Build) !void {
     }
 
     // template
-    _ = try Project.init(b, all_tests, "template", .exe, .{
+    _ = try Project.init(b, all_tests, "template", .local, .exe, .{
         .root_source_file = b.path("src/template.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // udeploy
-    _ = try Project.init(b, all_tests, "udeploy", .exe, .{
+    _ = try Project.init(b, all_tests, "udeploy", .local, .exe, .{
         .root_source_file = b.path("src/udeploy.zig"),
         .target = target,
         .optimize = optimize,
