@@ -6,10 +6,9 @@ const std = @import("std");
 // Application entry point
 // -----------------------------------------------------------------------------
 
-pub fn main() !void {
-    var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa_state.deinit();
-    const gpa = gpa_state.allocator();
+pub fn main(init: std.process.Init) !void {
+    const gpa = init.gpa;
+    const io = init.io;
 
     var db = try sqlite.Db.open(gpa, "sqlite/nostrum.db");
     defer db.close();
@@ -47,36 +46,35 @@ pub fn main() !void {
     );
 
     // CLI args
-    const args = try std.process.argsAlloc(gpa);
-    defer std.process.argsFree(gpa, args);
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
 
     // One time import command for reading planner/tasks/template/*.txt
-    // Run: zig build run-nostrum -- import
+    // Run: zig build nostrum-run -- import
     const requested_import = (args.len >= 2 and std.mem.eql(u8, args[1], "import"));
     const empty_db = (try tasksCount(&db)) == 0;
     if (requested_import or empty_db) {
-        try importTasksFromTxt(&db, gpa);
+        try importTasksFromTxt(io, &db, gpa);
         if (requested_import) {
             std.debug.print("Imported planner/tasks/template/*.txt into sqlite/nostrum.db\n", .{});
         }
     }
 
     // Mark task done:
-    // Run: zig build run-nostrum -- done 4
+    // Run: zig build nostrum-run -- done 4
     if (args.len >= 3 and std.mem.eql(u8, args[1], "done")) {
         const id = try std.fmt.parseInt(i64, args[2], 10);
-        try markTaskDone(&db, id);
+        try markTaskDone(io, &db, id);
         std.debug.print("Marked task id={d} done (weight reset to 0)\n", .{id});
         return;
     }
 
     // Normal run:
     // 1) apply missed-day increments
-    try bumpWeightsToToday(&db);
+    try bumpWeightsToToday(io, &db);
 
     // 2) compute today's date for filename/header
     var date_buf: [8]u8 = undefined;
-    const ymd = todayYYYYMMDD(&date_buf);
+    const ymd = todayYYYYMMDD(io, &date_buf);
 
     // 3) load tasks from DB (no txt reads anymore)
     var tasks = try loadDueTasksFromDb(gpa, &db);
@@ -90,14 +88,14 @@ pub fn main() !void {
     defer gpa.free(frame);
 
     var stdout_buf: [64 * 1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buf);
     const stdout = &stdout_writer.interface;
 
     try stdout.writeAll(frame);
     try stdout.flush();
 
     // 5) write to journal
-    try writeJournalFile(ymd, frame);
+    try writeJournalFile(io, ymd, frame);
 }
 
 // -----------------------------------------------------------------------------
@@ -159,15 +157,15 @@ pub fn yyyymmddFromEpochDay(buf: *[8]u8, epoch_day: u64) []const u8 {
 }
 
 /// Current date "YYYYMMDD" in UTC
-pub fn todayYYYYMMDD(buf: *[8]u8) []const u8 {
-    const ts: i64 = std.time.timestamp(); // seconds since 1970-01-01 UTC
+pub fn todayYYYYMMDD(io: std.Io, buf: *[8]u8) []const u8 {
+    const ts: i64 = std.Io.Clock.real.now(io).toSeconds(); // seconds since 1970-01-01 UTC
     const unix_seconds: u64 = if (ts <= 0) 0 else @as(u64, @intCast(ts));
     return yyyymmddFromUnixSeconds(buf, unix_seconds);
 }
 
 /// Compute "today day index" (UTC "days" since epoch), stored in meta.last_day
-pub fn todayEpochDayUTC() u64 {
-    const ts: i64 = std.time.timestamp(); // seconds since 1970-01-01 UTC
+pub fn todayEpochDayUTC(io: std.Io) u64 {
+    const ts: i64 = std.Io.Clock.real.now(io).toSeconds(); // seconds since 1970-01-01 UTC
     const unix_seconds: u64 = if (ts <= 0) 0 else @as(u64, @intCast(ts));
     const epoch_seconds = std.time.epoch.EpochSeconds{ .secs = unix_seconds };
     return @as(u64, @intCast(epoch_seconds.getEpochDay().day));
@@ -230,20 +228,18 @@ fn parseAndAppendLine(
 }
 
 pub fn loadTasksFromFile(
+    io: std.Io,
     gpa: std.mem.Allocator,
     category: Category,
     path: []const u8,
 ) !std.ArrayList(Task) {
     var list: std.ArrayList(Task) = .empty;
 
-    var file = std.fs.cwd().openFile(path, .{}) catch |e| {
+    const data = std.Io.Dir.cwd().readFileAlloc(io, path, gpa, .limited(1 << 20)) catch |e| {
         // TODO: Missing weekly/yearly/etc is OK for now.
         if (e == error.FileNotFound) return list;
         return e;
     };
-    defer file.close();
-
-    const data = try file.readToEndAlloc(gpa, 1 << 20);
     defer gpa.free(data);
 
     var lines = std.mem.splitScalar(u8, data, '\n');
@@ -284,9 +280,7 @@ pub fn renderTasksFrame(
     var out: std.ArrayList(u8) = .empty;
     errdefer out.deinit(gpa);
 
-    const w = out.writer(gpa);
-
-    try w.print("Tasks\n{s}\n\n", .{ymd});
+    try out.print(gpa, "Tasks\n{s}\n\n", .{ymd});
 
     // precedence: Yearly -> Daily
     const order = [_]Category{ .yearly, .quarterly, .monthly, .weekly, .daily };
@@ -318,33 +312,31 @@ pub fn renderTasksFrame(
             else
                 "--------";
 
-            try w.print(
+            try out.print(
+                gpa,
                 "{c}{d} - [ ] ({d}) {s:<32} {s} : {s} : {s}\n",
                 .{ cat.letter(), n, t.id, t.name, due_str, comp_str, next_str },
             );
         }
-        if (any) try w.writeByte('\n');
+        if (any) try out.append(gpa, '\n');
     }
 
     return out.toOwnedSlice(gpa);
 }
 
-pub fn writeJournalFile(ymd: []const u8, content: []const u8) !void {
+pub fn writeJournalFile(io: std.Io, ymd: []const u8, content: []const u8) !void {
     // TODO: make sure this is a certain path instead of just cwd
-    try std.fs.cwd().makePath("journals");
+    try std.Io.Dir.cwd().createDirPath(io, "planner/tasks");
 
     var filename_buf: [64]u8 = undefined;
     const path = try std.fmt.bufPrint(&filename_buf, "planner/tasks/{s}.md", .{ymd});
 
-    var file = try std.fs.cwd().createFile(path, .{ .truncate = true });
-    defer file.close();
-
-    try file.writeAll(content);
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = content });
 }
 
 fn daysUntilWeight(target_weight: f64, weight_per_day: f64) i64 {
     // weight_per_day is CHECKed > 0 in schema, so divide is safe.
-    const days_f = std.math.ceil(target_weight / weight_per_day);
+    const days_f = @ceil(target_weight / weight_per_day);
     return @as(i64, @intFromFloat(days_f));
 }
 
@@ -368,13 +360,14 @@ fn categorySql(cat: Category) []const u8 {
 }
 
 fn importTasksFileIntoDb(
+    io: std.Io,
     db: *sqlite.Db,
     gpa: std.mem.Allocator,
     category: Category,
     path: []const u8,
 ) !void {
     // Reuse existing parser
-    var list = try loadTasksFromFile(gpa, category, path);
+    var list = try loadTasksFromFile(io, gpa, category, path);
     defer freeTasks(gpa, &list);
 
     // UPSERT:
@@ -409,7 +402,7 @@ fn importTasksFileIntoDb(
 ///
 /// This is safe to call every run.
 /// It updates task config fields but preserves per-task `weight` state.
-pub fn importTasksFromTxt(db: *sqlite.Db, gpa: std.mem.Allocator) !void {
+pub fn importTasksFromTxt(io: std.Io, db: *sqlite.Db, gpa: std.mem.Allocator) !void {
     try db.exec("BEGIN IMMEDIATE;");
     errdefer db.exec("ROLLBACK;") catch {};
 
@@ -418,11 +411,11 @@ pub fn importTasksFromTxt(db: *sqlite.Db, gpa: std.mem.Allocator) !void {
     // If you don’t want that behavior, delete this line.
     try db.exec("UPDATE tasks SET enabled = 0;");
 
-    try importTasksFileIntoDb(db, gpa, .daily, "planner/tasks/template/daily.txt");
-    try importTasksFileIntoDb(db, gpa, .weekly, "planner/tasks/template/weekly.txt");
-    try importTasksFileIntoDb(db, gpa, .monthly, "planner/tasks/template/monthly.txt");
-    try importTasksFileIntoDb(db, gpa, .quarterly, "planner/tasks/template/quarterly.txt");
-    try importTasksFileIntoDb(db, gpa, .yearly, "planner/tasks/template/yearly.txt");
+    try importTasksFileIntoDb(io, db, gpa, .daily, "planner/tasks/template/daily.txt");
+    try importTasksFileIntoDb(io, db, gpa, .weekly, "planner/tasks/template/weekly.txt");
+    try importTasksFileIntoDb(io, db, gpa, .monthly, "planner/tasks/template/monthly.txt");
+    try importTasksFileIntoDb(io, db, gpa, .quarterly, "planner/tasks/template/quarterly.txt");
+    try importTasksFileIntoDb(io, db, gpa, .yearly, "planner/tasks/template/yearly.txt");
 
     try db.exec("COMMIT;");
 }
@@ -437,8 +430,8 @@ fn getLastDay(db: *sqlite.Db) !i64 {
     }
 }
 
-pub fn bumpWeightsToToday(db: *sqlite.Db) !void {
-    const today_day_u64 = todayEpochDayUTC();
+pub fn bumpWeightsToToday(io: std.Io, db: *sqlite.Db) !void {
+    const today_day_u64 = todayEpochDayUTC(io);
     const today_day: i64 = @as(i64, @intCast(today_day_u64));
 
     var last_day: i64 = try getLastDay(db);
@@ -453,7 +446,7 @@ pub fn bumpWeightsToToday(db: *sqlite.Db) !void {
     const delta: i64 = today_day - last_day;
     if (delta < 0) {
         // If clock went backwards, clamp meta to today to avoid negative deltas forever.
-        var fix = try db.prepare("UPDATE meta SET value?1 WHERE key='last_day';");
+        var fix = try db.prepare("UPDATE meta SET value = ?1 WHERE key='last_day';");
         defer fix.finalize();
         try fix.bindInt64(1, today_day);
         _ = try fix.step();
@@ -483,6 +476,7 @@ pub fn bumpWeightsToToday(db: *sqlite.Db) !void {
     const start_init = if (delta > 0) (today_day - delta) else today_day;
 
     var init = try db.prepare("UPDATE tasks SET start_day = ?1 WHERE start_day = 0;");
+    defer init.finalize();
     try init.bindInt64(1, start_init);
     _ = try init.step();
 
@@ -663,8 +657,8 @@ fn recomputeDueFields(db: *sqlite.Db) !void {
     }
 }
 
-pub fn markTaskDone(db: *sqlite.Db, task_id: i64) !void {
-    const today_day: i64 = @as(i64, @intCast(todayEpochDayUTC()));
+pub fn markTaskDone(io: std.Io, db: *sqlite.Db, task_id: i64) !void {
+    const today_day: i64 = @as(i64, @intCast(todayEpochDayUTC(io)));
 
     // Need weight_per_day and cycle_days to compute the next due date after reset
     var sel = try db.prepare("SELECT weight_per_day, cycle_days FROM tasks WHERE id = ?1;");
@@ -795,7 +789,7 @@ pub const sqlite = struct {
         allocator: std.mem.Allocator,
 
         pub fn open(allocator: std.mem.Allocator, path: []const u8) !Db {
-            const zpath = try allocator.dupeZ(u8, path);
+            const zpath = try allocator.dupeSentinel(u8, path, 0);
             defer allocator.free(zpath);
 
             var db_opt: ?*c.sqlite3 = null;
@@ -821,7 +815,7 @@ pub const sqlite = struct {
         }
 
         pub fn exec(self: *Db, sql: []const u8) !void {
-            const zsql: [:0]u8 = try self.allocator.dupeZ(u8, sql);
+            const zsql: [:0]u8 = try self.allocator.dupeSentinel(u8, sql, 0);
             defer self.allocator.free(zsql);
 
             // sqlite3_exec expects char** => [*c][*c]u8
