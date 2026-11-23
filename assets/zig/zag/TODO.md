@@ -1,11 +1,29 @@
-- [ ] Extract SQLite ZIP using a Zig build step
-- [ ] Compile SQLite as a static library
-- [ ] Install `libsqlite3.a` to `zig-out/lib/`
-- [ ] Link SQLite to Nostrum and verify tests
+- [ ] Zig 0.17.0 std lib changes
+    - [ ] extern "c" fn's
+        - [ ] extern "c" fn access(...) c_int
+        - [ ] extern "c" fn clock_gettime(...) c_int
+        - [ ] extern "c" fn close(...) c_int
+        - [ ] extern "c" fn execlp(...) c_int
+        - [ ] extern "c" fn fcntl(...) c_int
+        - [ ] extern "c" fn ftruncate(...) c_int
+        - [ ] extern "c" fn localtime_r(...) ?*tm
+        - [ ] extern "c" fn memfd_create(...) c_int
+        - [ ] extern "c" fn mmap(...) ?*anyopaque
+        - [ ] extern "c" fn munmap(...) c_int
+        - [ ] extern "c" fn open(...) c_int
+        - [ ] extern "c" fn poll(...) c_int
+        - [ ] extern "c" fn read(...) isize
+        - [ ] extern "c" fn signal(...) ?*const fn (c_int) callconv(.c) void
+        - [ ] extern "c" fn time(...) time_t
+        - [ ] extern "c" fn timerfd_create(...) c_int
+        - [ ] extern "c" fn timerfd_settime(...) c_int
+    - [ ] extern struct's
+        - [ ] const Cmsg = extern struct { ... }
+        - [ ] const pollfd = extern struct { ... }
+        - [ ] const itimerspec = extern struct { ... }
+        - [ ] const tm = extern struct { ... }
+        - [ ] const timespec = extern struct { ... }
 
-- [ ] Fix build.zig issues
-    - [ ] `nostrum`
-    - [ ] `rhei`
 - [ ] Add data to stubs
     - [ ] `clift`
     - [ ] `udeploy`
