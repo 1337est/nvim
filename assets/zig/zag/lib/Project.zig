@@ -1,5 +1,10 @@
 const std = @import("std");
-const Project = @This();
+pub const Project = @This();
+
+pub const Systemd = @import("Project/Systemd.zig");
+pub const Archive = @import("Project/Archive.zig");
+
+pub const Scope = enum { local, user, system };
 
 pub const Kind = union(enum) {
     exe,
@@ -14,14 +19,18 @@ pub const Kind = union(enum) {
 b: *std.Build,
 name: []const u8,
 kind: Kind,
+scope: Scope = .local,
 module: *std.Build.Module,
 test_step: *std.Build.Step,
 compile_step: *std.Build.Step,
 artifact: *std.Build.Step.Compile,
 install_step: *std.Build.Step,
 install_artifact: *std.Build.Step.InstallArtifact,
+
 run_step: ?*std.Build.Step = null, // only for Kind.exe
 runner: ?*std.Build.Step.Run = null, // only for Kind.exe
+
+systemd: ?Systemd = null, // Optional systemd unit file generation/handling
 
 pub fn init(
     b: *std.Build,
@@ -69,7 +78,7 @@ pub fn init(
             const tool = b.addExecutable(.{
                 .name = b.fmt("{s}_archive", .{name}),
                 .root_module = b.createModule(.{
-                    .root_source_file = b.path("build/Archive.zig"),
+                    .root_source_file = b.path("lib/Project/Archive.zig"),
                     .target = b.graph.host,
                 }),
             });

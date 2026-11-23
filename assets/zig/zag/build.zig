@@ -1,5 +1,5 @@
 const std = @import("std");
-const Project = @import("build/Project.zig");
+const Project = @import("lib/Project.zig");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -13,13 +13,6 @@ pub fn build(b: *std.Build) !void {
     // ramen
     _ = try Project.init(b, all_tests, "ramen", .lib, .{
         .root_source_file = b.path("lib/ramen.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // systemd
-    _ = try Project.init(b, all_tests, "systemd", .lib, .{
-        .root_source_file = b.path("lib/systemd.zig"),
         .target = target,
         .optimize = optimize,
     });
