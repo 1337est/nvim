@@ -11,10 +11,7 @@ const O_RDONLY: c_int = 0;
 const F_OK: c_int = 0;
 const CLOCK_MONOTONIC: c_int = 1;
 
-const timespec = extern struct {
-    tv_sec: c_long,
-    tv_nsec: c_long,
-};
+const timespec = extern struct { tv_sec: c_long, tv_nsec: c_long };
 
 extern "c" fn open(path: [*:0]const u8, flags: c_int) c_int;
 extern "c" fn close(fd: c_int) c_int;

@@ -57,11 +57,7 @@ pub fn listInsertBack(head: *ListLink, new_link: *ListLink) void {
 
 // ── cmsg helpers for fd passing ────────────────────────────────────
 
-const Cmsg = extern struct {
-    len: usize,
-    level: i32,
-    type: i32,
-};
+const Cmsg = extern struct { len: usize, level: i32, type: i32 };
 
 const CMSG_HDR_SIZE = (@sizeOf(Cmsg) + @alignOf(usize) - 1) & ~@as(usize, @alignOf(usize) - 1);
 const CMSG_SPACE = (CMSG_HDR_SIZE + @sizeOf(i32) + @alignOf(usize) - 1) & ~@as(usize, @alignOf(usize) - 1);
@@ -456,7 +452,7 @@ pub const Display = struct {
         };
         const rc: isize = @bitCast(linux.recvmsg(self.fd, &msg, MSG_DONTWAIT));
         if (rc < 0) {
-            const e: linux.E = @enumFromInt(@as(u16, @intCast(-rc)));
+            const e: linux.E = @fromBackingInt(@intCast(@as(u16, @intCast(-rc))));
             switch (e) {
                 .AGAIN, .INTR => return false, // nothing available right now
                 else => return error.RecvFailed,

@@ -10,18 +10,17 @@ const Notif = idle.ext_idle_notification_v1;
 const IDLE_TIMEOUT_MS: u32 = 600 * 1000;
 
 // ── libc (spawn) ───────────────────────────────────────────────────
-extern "c" fn fork() c_int;
 extern "c" fn execlp(file: [*:0]const u8, arg0: [*:0]const u8, ...) c_int;
-extern "c" fn signal(signum: c_int, handler: ?*const fn (c_int) callconv(.c) void) ?*const fn (c_int) callconv(.c) void;
-const SIGCHLD: c_int = 17;
-const SIG_IGN: ?*const fn (c_int) callconv(.c) void = @ptrFromInt(1);
 
 // wlopm --<mode> '*' — exec'd directly, so no shell and the '*' (all outputs)
 // is passed literally. SIGCHLD is ignored, so children are auto-reaped.
 fn runWlopm(mode: [*:0]const u8) void {
-    if (fork() == 0) {
+    const pid = std.c.fork();
+    if (pid < 0) return;
+
+    if (pid == 0) {
         _ = execlp("wlopm", "wlopm", mode, "*", @as(?[*:0]const u8, null));
-        std.process.exit(127); // only reached if exec failed
+        std.os.linux.exit_group(127);
     }
 }
 
@@ -58,7 +57,11 @@ pub fn main(init: std.process.Init) !void {
     const runtime_dir = environ.getPosix("XDG_RUNTIME_DIR") orelse return error.NoRuntimeDir;
     const wl_display = environ.getPosix("WAYLAND_DISPLAY");
 
-    _ = signal(SIGCHLD, SIG_IGN);
+    std.posix.sigaction(.CHLD, &.{
+        .handler = .{ .handler = std.posix.SIG.IGN },
+        .mask = std.posix.sigemptyset(),
+        .flags = 0,
+    }, null);
 
     var client = display.Display.connect(runtime_dir, wl_display) catch {
         std.debug.print("error: failed to connect to wayland display\n", .{});
@@ -67,7 +70,7 @@ pub fn main(init: std.process.Init) !void {
     defer client.disconnect();
 
     const registry_id = try client.getRegistry();
-    var registry = client.Registry{};
+    var registry = display.Registry{};
     try client.roundtrip(&registry);
 
     const seat_g = registry.find("wl_seat") orelse {

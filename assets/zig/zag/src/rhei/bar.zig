@@ -393,7 +393,7 @@ pub fn main(init: std.process.Init) !void {
     defer client.disconnect();
 
     const registry_id = try client.getRegistry();
-    var registry = client.Registry{};
+    var registry = display.Registry{};
     try client.roundtrip(&registry);
 
     const comp_g = registry.find("wl_compositor") orelse {
@@ -476,14 +476,14 @@ pub fn main(init: std.process.Init) !void {
 
         bar.surface = client.allocId("wl_surface", null, null);
         {
-            var w = client.MsgWriter{};
+            var w = display.MsgWriter{};
             w.putU32(bar.surface);
             try client.send(state.compositor, Compositor.request.create_surface, w.data());
         }
 
         bar.layer_surface = client.allocId("zwlr_layer_surface_v1", onLayerSurface, bar);
         {
-            var w = client.MsgWriter{};
+            var w = display.MsgWriter{};
             w.putU32(bar.layer_surface);
             w.putU32(bar.surface);
             w.putU32(bar.output);
@@ -493,18 +493,18 @@ pub fn main(init: std.process.Init) !void {
         }
 
         {
-            var w = client.MsgWriter{};
+            var w = display.MsgWriter{};
             w.putU32(0);
             w.putU32(BAR_HEIGHT);
             try client.send(bar.layer_surface, LayerSurface.request.set_size, w.data());
         }
         {
-            var w = client.MsgWriter{};
+            var w = display.MsgWriter{};
             w.putU32(LayerSurface.anchor.top | LayerSurface.anchor.left | LayerSurface.anchor.right);
             try client.send(bar.layer_surface, LayerSurface.request.set_anchor, w.data());
         }
         {
-            var w = client.MsgWriter{};
+            var w = display.MsgWriter{};
             w.putI32(@intCast(BAR_HEIGHT));
             try client.send(bar.layer_surface, LayerSurface.request.set_exclusive_zone, w.data());
         }

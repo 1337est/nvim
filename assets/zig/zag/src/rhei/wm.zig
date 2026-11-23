@@ -640,7 +640,7 @@ pub fn main(init: std.process.Init) !void {
     defer client.disconnect();
 
     const registry_id = try client.getRegistry();
-    var registry = client.Registry{};
+    var registry = display.Registry{};
     try client.roundtrip(&registry);
 
     const wm_g = registry.find("river_window_manager_v1") orelse {
