@@ -1,5 +1,0 @@
-Name iteration/cycle override(DD)
-Replacing_AC_filters 1/30 ()
-Washing_Cocoa 1/30 ()
-Washing_cars 1/30 ()
-Bedding_Laundry 1/30 ()
