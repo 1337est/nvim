@@ -1,5 +1,5 @@
 const std = @import("std");
-const Project = @import("lib/Project.zig");
+const Project = @import("lib/ramen/noodles/Project.zig");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) !void {
 
     // sockman
     _ = try Project.init(b, all_tests, "sockman", .local, .lib, .{
-        .root_source_file = b.path("lib/Sockman.zig"),
+        .root_source_file = b.path("lib/ramen/broth/Sockman.zig"),
         .target = target,
         .optimize = optimize,
     });

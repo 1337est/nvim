@@ -78,7 +78,7 @@ pub fn init(
             const tool = b.addExecutable(.{
                 .name = b.fmt("{s}_archive", .{name}),
                 .root_module = b.createModule(.{
-                    .root_source_file = b.path("lib/Project/Archive.zig"),
+                    .root_source_file = b.path("lib/ramen/noodles/Project/Archive.zig"),
                     .target = b.graph.host,
                 }),
             });
