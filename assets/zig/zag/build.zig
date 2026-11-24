@@ -1,5 +1,5 @@
 const std = @import("std");
-const Project = @import("lib/ramen/noodles/Project.zig");
+const Project = @import("ramen").Project;
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -7,41 +7,36 @@ pub fn build(b: *std.Build) !void {
     const all_tests = b.step("test", "Run all project tests");
 
     // -------------------------------------------------------------------
-    // Libraries
+    // Ramen Libraries
     // -------------------------------------------------------------------
 
-    // ramen
-    _ = try Project.init(b, all_tests, "ramen", .local, .lib, .{
-        .root_source_file = b.path("lib/ramen.zig"),
+    const ramen = b.dependency("ramen", .{
         .target = target,
         .optimize = optimize,
+    });
+    _ = try Project.init(b, all_tests, "ramen", .local, .lib, .{
+        .root_source_file = ramen.path("ramen.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "broth", .module = ramen.module("broth") },
+            .{ .name = "noodles", .module = ramen.module("noodles") },
+            .{ .name = "toppings", .module = ramen.module("toppings") },
+        },
     });
 
     // sockman
     _ = try Project.init(b, all_tests, "sockman", .local, .lib, .{
-        .root_source_file = b.path("lib/ramen/broth/Sockman.zig"),
+        .root_source_file = ramen.path("broth/Sockman.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // clift
     _ = try Project.init(b, all_tests, "clift", .local, .lib, .{
-        .root_source_file = b.path("lib/clift.zig"),
+        .root_source_file = ramen.path("noodles/clift.zig"),
         .target = target,
         .optimize = optimize,
-    });
-
-    // sqlite
-    const sqlite = try Project.init(b, all_tests, "sqlite3", .local, .{
-        .c_src_archive = .{
-            .path = "lib/sqlite-amalgamation-3540100.zip",
-            .source_file = "sqlite-amalgamation-3540100/sqlite3.c",
-            .sha3_256 = "92281c86e2957f9b9305890f9ac04204caa7b677cc868dc326d942689df28e30",
-        },
-    }, .{
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
     });
 
     // -------------------------------------------------------------------
