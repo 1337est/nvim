@@ -29,3 +29,11 @@
     - [ ] `udeploy`
     - [ ] `template`
     - [ ] `ramen/noodles`
+
+- [ ] Project.zig
+    - [ ] Add `check` step that does compile without tests.
+    - [ ] Add `uninstall` support, which does the reverse of the `install` section.
+    - [ ] Add `version` information via `std.SemanticVersion` as a part of the Project struct with installation directories as a later `-Dversion` build option.
+    - [ ] Expand Scope builds
+        - [ ] Prefix destinations depending on Scope
+        - [ ] Cache destinations depending on Scope
