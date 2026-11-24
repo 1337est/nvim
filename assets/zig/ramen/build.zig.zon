@@ -10,6 +10,8 @@
         "broth",
         "noodles.zig",
         "noodles",
+        "toppings.zig",
+        "toppings",
     },
     .fingerprint = 0x34255f1acd623b1a,
 }
