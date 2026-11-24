@@ -1,0 +1,15 @@
+.{
+    .name = .ramen,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "ramen.zig",
+        "broth.zig",
+        "broth",
+        "noodles.zig",
+        "noodles",
+    },
+    .fingerprint = 0x34255f1acd623b1a,
+}
