@@ -7,34 +7,10 @@ pub fn build(b: *std.Build) !void {
     const all_tests = b.step("test", "Run all project tests");
 
     // -------------------------------------------------------------------
-    // Ramen Libraries
+    // Ramen
     // -------------------------------------------------------------------
 
     const ramen = b.dependency("ramen", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    _ = try Project.init(b, all_tests, "ramen", .local, .lib, .{
-        .root_source_file = ramen.path("ramen.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "broth", .module = ramen.module("broth") },
-            .{ .name = "noodles", .module = ramen.module("noodles") },
-            .{ .name = "toppings", .module = ramen.module("toppings") },
-        },
-    });
-
-    // sockman
-    _ = try Project.init(b, all_tests, "sockman", .local, .lib, .{
-        .root_source_file = ramen.path("broth/Sockman.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // clift
-    _ = try Project.init(b, all_tests, "clift", .local, .lib, .{
-        .root_source_file = ramen.path("noodles/clift.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -63,13 +39,15 @@ pub fn build(b: *std.Build) !void {
     }
 
     // nostrum
-    const nostrum = try Project.init(b, all_tests, "nostrum", .local, .exe, .{
+    _ = try Project.init(b, all_tests, "nostrum", .local, .exe, .{
         .root_source_file = b.path("src/nostrum.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .imports = &.{
+            .{ .name = "sqlite3", .module = ramen.module("sqlite3") },
+        },
     });
-    nostrum.module.linkLibrary(sqlite.artifact);
 
     // wagon
     const wagon = try Project.init(b, all_tests, "wagon", .local, .exe, .{

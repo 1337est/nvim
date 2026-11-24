@@ -1,5 +1,8 @@
 const std = @import("std");
 
+// Build-time API
+pub const Project = @import("noodles/Project.zig");
+
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});

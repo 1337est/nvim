@@ -4,7 +4,7 @@
     .dependencies = .{
         .ramen = .{
             .url = "../ramen/",
-            .hash = "ramen-0.0.1-GjtizcnZMADvLdmKSMLVF06S5poR6F3IixBuYg1c_s-U",
+            .hash = "ramen-0.0.1-GjtizVveMAC1HrwxDSk-POYlQLdn0pizz2nHahSbOFuW",
         },
     },
     .minimum_zig_version = "0.17.0",

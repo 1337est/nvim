@@ -712,69 +712,7 @@ pub fn tasksCount(db: *sqlite.Db) !i64 {
 // -----------------------------------------------------------------------------
 
 pub const sqlite = struct {
-    // Minimal SQLite C ABI, replacing @cImport in Zig 0.17.0.
-    // The linker must supply these symbols (sqlite3.c or -lsqlite3).
-    pub const c = struct {
-        pub const sqlite3 = opaque {};
-        pub const sqlite3_stmt = opaque {};
-
-        pub const SQLITE_OK: c_int = 0;
-        pub const SQLITE_ROW: c_int = 100;
-        pub const SQLITE_DONE: c_int = 101;
-        pub const SQLITE_NULL: c_int = 5;
-        pub const SQLITE_OPEN_READWRITE: c_int = 0x00000002;
-        pub const SQLITE_OPEN_CREATE: c_int = 0x00000004;
-
-        const ExecCallback = *const fn (
-            ?*anyopaque,
-            c_int,
-            [*c][*c]u8,
-            [*c][*c]u8,
-        ) callconv(.c) c_int;
-        const Destructor = *const fn (?*anyopaque) callconv(.c) void;
-
-        pub extern fn sqlite3_open_v2(
-            filename: [*:0]const u8,
-            db: *?*sqlite3,
-            flags: c_int,
-            vfs: ?[*:0]const u8,
-        ) c_int;
-        pub extern fn sqlite3_close_v2(db: *sqlite3) c_int;
-        pub extern fn sqlite3_errmsg(db: *sqlite3) [*:0]const u8;
-        pub extern fn sqlite3_exec(
-            db: *sqlite3,
-            sql: [*:0]const u8,
-            callback: ?ExecCallback,
-            context: ?*anyopaque,
-            err_msg: *[*c]u8,
-        ) c_int;
-        pub extern fn sqlite3_free(ptr: [*c]u8) void;
-        pub extern fn sqlite3_prepare_v2(
-            db: *sqlite3,
-            sql: [*]const u8,
-            sql_len: c_int,
-            stmt: *?*sqlite3_stmt,
-            tail: ?*[*c]const u8,
-        ) c_int;
-        pub extern fn sqlite3_finalize(stmt: *sqlite3_stmt) c_int;
-        pub extern fn sqlite3_reset(stmt: *sqlite3_stmt) c_int;
-        pub extern fn sqlite3_clear_bindings(stmt: *sqlite3_stmt) c_int;
-        pub extern fn sqlite3_step(stmt: *sqlite3_stmt) c_int;
-        pub extern fn sqlite3_bind_text(
-            stmt: *sqlite3_stmt,
-            index: c_int,
-            text: [*]const u8,
-            text_len: c_int,
-            destructor: ?Destructor,
-        ) c_int;
-        pub extern fn sqlite3_bind_int64(stmt: *sqlite3_stmt, index: c_int, value: i64) c_int;
-        pub extern fn sqlite3_bind_double(stmt: *sqlite3_stmt, index: c_int, value: f64) c_int;
-        pub extern fn sqlite3_column_text(stmt: *sqlite3_stmt, column: c_int) [*c]const u8;
-        pub extern fn sqlite3_column_bytes(stmt: *sqlite3_stmt, column: c_int) c_int;
-        pub extern fn sqlite3_column_int64(stmt: *sqlite3_stmt, column: c_int) i64;
-        pub extern fn sqlite3_column_double(stmt: *sqlite3_stmt, column: c_int) f64;
-        pub extern fn sqlite3_column_type(stmt: *sqlite3_stmt, column: c_int) c_int;
-    };
+    pub const c = @import("sqlite3").tc_sqlite3;
 
     pub const Error = error{
         SqliteOpen,
@@ -810,8 +748,7 @@ pub const sqlite = struct {
         }
 
         fn errmsg(self: *Db) []const u8 {
-            const z = c.sqlite3_errmsg(self.handle);
-            return std.mem.span(@as([*:0]const u8, z));
+            return std.mem.span(c.sqlite3_errmsg(self.handle));
         }
 
         pub fn exec(self: *Db, sql: []const u8) !void {
